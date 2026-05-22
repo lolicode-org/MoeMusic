@@ -1,0 +1,25 @@
+package org.lolicode.moemusic.clientcore.playback
+
+import org.lolicode.moemusic.core.config.ClientConfig
+
+/**
+ * Pure client-side participation/availability policy shared by screens and runtime adapters.
+ */
+object ClientPlaybackAvailability {
+
+    fun isPlaybackEnabledForServer(
+        clientConfig: ClientConfig,
+        serverScope: ClientServerScope?,
+    ): Boolean {
+        if (!clientConfig.playbackEnabled) return false
+        return serverScope?.key !in clientConfig.disabledServers
+    }
+
+    fun availabilityIssue(
+        hasConnection: Boolean,
+        serverHandshakeMissing: Boolean,
+    ): AvailabilityIssue? {
+        if (!hasConnection) return null
+        return if (serverHandshakeMissing) AvailabilityIssue.SERVER_MISSING else null
+    }
+}

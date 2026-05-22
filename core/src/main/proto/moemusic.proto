@@ -1,0 +1,386 @@
+syntax = "proto3";
+
+package moemusic;
+
+option java_package = "org.lolicode.moemusic.core.protocol.proto";
+option java_multiple_files = true;
+
+/** Serializable form of a stable artist identity plus its current display name. */
+message ArtistInfoProto {
+  string id = 1;
+  string name = 2;
+}
+
+/** Serializable form of TrackInfo. Mapped to/from the API model in :core. */
+message TrackInfoProto {
+  string source_id = 1;
+  string id = 2;
+  string title = 3;
+  repeated ArtistInfoProto artists = 4;
+  string album = 5;
+  int64 duration_ms = 6;
+  /** Empty string means no cover art. */
+  string cover_url = 7;
+  /** Empty string means the track is available for queueing / playback. */
+  string unavailable_reason = 8;
+  string submitted_by_player_name = 9;
+}
+
+/** Serializable form of a user-visible selection row from search / identifier resolution. */
+message SelectionEntryProto {
+  string source_id = 1;
+  string selection_id = 2;
+  SelectionEntryKindProto kind = 3;
+  string title = 4;
+  repeated ArtistInfoProto artists = 5;
+  string album = 6;
+  int64 duration_ms = 7;
+  /** Empty string means the row can currently be selected. */
+  string unavailable_reason = 8;
+}
+
+enum SelectionEntryKindProto {
+  SELECTION_ENTRY_KIND_TRACK = 0;
+  SELECTION_ENTRY_KIND_CONTAINER = 1;
+  SELECTION_ENTRY_KIND_UNKNOWN = 2;
+}
+
+/** Concrete client-playable resource resolved immediately before playback begins. */
+message PlaybackResourceProto {
+  string url = 1;
+  map<string, string> headers = 2;
+}
+
+/** Wire representation of PlaybackState. */
+enum PlaybackStateProto {
+  PLAYING = 0;
+  PAUSED  = 1;
+  STOPPED = 2;
+}
+
+/** Metadata for a server-registered music source. */
+message SearchSourceInfo {
+  string id = 1;
+  string display_name = 2;
+  bool searchable = 3;
+}
+
+enum ClientStateProto {
+  CLIENT_STATE_ACTIVE = 0;
+  CLIENT_STATE_STANDBY = 1;
+}
+
+enum TrackAddModeProto {
+  TRACK_ADD_MODE_NORMAL = 0;
+  TRACK_ADD_MODE_SKIP_AUTOPLAY = 1;
+  TRACK_ADD_MODE_PLAY_NOW = 2;
+}
+
+/** Actions for PlaybackControlRequest. */
+enum PlaybackControlAction {
+  PAUSE = 0;
+  RESUME = 1;
+  SKIP = 2;
+  STOP = 3;
+  SEEK = 4;
+}
+
+enum ContentFilterActionProto {
+  CONTENT_FILTER_ACTION_BAN = 0;
+  CONTENT_FILTER_ACTION_UNBAN = 1;
+}
+
+enum ContentFilterTargetProto {
+  CONTENT_FILTER_TARGET_TRACK = 0;
+  CONTENT_FILTER_TARGET_ARTIST = 1;
+}
+
+// ---------------------------------------------------------------------------
+// C→S packets (client to server)
+// ---------------------------------------------------------------------------
+
+/**
+ * First packet sent by the client after joining.
+ * Carries the client's preferred locale, initial participation state, mod version, and protocol version.
+ */
+message ClientHandshake {
+  /** BCP-47 locale code, e.g. "en_us" or "zh_cn". */
+  string locale = 1;
+  string mod_version = 2;
+  ClientStateProto initial_state = 3;
+  int32 protocol_version = 4;
+}
+
+/** Client explicitly changes its playback participation state for this connection. */
+message ClientStateChange {
+  ClientStateProto state = 1;
+}
+
+/**
+ * Initiates the monotonic clock synchronisation round-trip.
+ * The server echoes client_send_monotonic back so the client can compute RTT.
+ */
+message SyncRequest {
+  /** System.nanoTime() at the moment of sending, on the client's clock. */
+  int64 client_send_monotonic = 1;
+}
+
+/**
+ * Client requests a track to be added to the queue by referencing its (source, id) pair.
+ * The server performs an authoritative getTrackInfo() lookup and rejects client-provided metadata.
+ */
+message TrackSubmitRequest {
+  int64 request_id = 1;
+  string source_id = 2;
+  string track_id  = 3;
+  TrackAddModeProto mode = 4;
+}
+
+/** Client submits a raw identifier or share link for source-side resolution. */
+message IdentifierSubmitRequest {
+  int64 request_id = 1;
+  string identifier = 2;
+  TrackAddModeProto mode = 3;
+}
+
+/** Client submits a previously surfaced opaque selection for resolution and enqueue. */
+message SelectionSubmitRequest {
+  int64 request_id = 1;
+  string source_id = 2;
+  string selection_id = 3;
+  TrackAddModeProto mode = 4;
+}
+
+/** Client submits a text search query. */
+message SearchRequest {
+  /** Client-generated correlation id for this direct request/response pair. */
+  int64 request_id = 1;
+  string query = 2;
+  /** If non-empty, search the selected MusicSource ID. Empty uses the server default source. */
+  string source_id = 3;
+  /** Maximum number of results per page. 0 = server default (20). */
+  int32 limit = 4;
+  /** Zero-based result offset for pagination. */
+  int32 offset = 5;
+}
+
+/** Client requests the current user queue. */
+message QueueRequest {
+  int64 request_id = 1;
+}
+
+/** Client requests removal of a track from the user queue. */
+message QueueRemoveRequest {
+  int64 request_id = 1;
+  /** Source id of the queued track to remove. */
+  string source_id = 2;
+  /** Source-local track id of the queued track to remove. */
+  string track_id = 3;
+}
+
+/** Client requests a playback control action. */
+message PlaybackControlRequest {
+  int64 request_id = 1;
+  PlaybackControlAction action = 2;
+  /** Seek position in ms. Only used for SEEK action. */
+  int64 position_ms = 3;
+}
+
+/** Client requests an exact content-filter rule mutation on the server. */
+message ContentFilterActionRequest {
+  int64 request_id = 1;
+  ContentFilterActionProto action = 2;
+  ContentFilterTargetProto target = 3;
+  string source_id = 4;
+  string value_id = 5;
+  string note = 6;
+}
+
+// ---------------------------------------------------------------------------
+// S→C packets (server to client)
+// ---------------------------------------------------------------------------
+
+/**
+ * Server's response to a SyncRequest.
+ * Client uses these three timestamps to compute the server-aligned monotonic offset.
+ */
+message SyncResponse {
+  /** Echoed from the SyncRequest. */
+  int64 client_send_monotonic = 1;
+  /** System.nanoTime() on the server when the request arrived. */
+  int64 server_recv_monotonic = 2;
+  /** System.nanoTime() on the server when this response is sent. */
+  int64 server_send_monotonic = 3;
+}
+
+/** Server metadata sent immediately after the client handshake. */
+message ServerHandshake {
+  repeated SearchSourceInfo sources = 1;
+  /** Search source used when the client does not specify one. Empty when none are searchable. */
+  string default_source_id = 2;
+}
+
+/**
+ * Sent to all compatible clients when a new track starts.
+ * server_start_monotonic is set ~2 s in the future to give clients time to buffer.
+ * Clients seek to (now - server_start_monotonic) before unmuting.
+ */
+message PlayTrack {
+  TrackInfoProto track = 1;
+  /** Monotonic nanoseconds (server clock) at which position 0 begins. */
+  int64 server_start_monotonic = 2;
+  /** Direct client-playable resource resolved by the server immediately before playback. */
+  PlaybackResourceProto playback = 3;
+  /** Primary line-timed lyrics for the active track. Empty string means unavailable. */
+  string lyric_lrc = 4;
+  /** Secondary aligned lyrics (translation / romanization). Empty string means unavailable. */
+  string secondary_lyric_lrc = 5;
+}
+
+/**
+ * Sent to a late-joining client to bring them in sync with the current track.
+ * Contains the full current state so the client can seek to the correct position.
+ */
+message SyncState {
+  TrackInfoProto track = 1;
+  /** Same semantics as PlayTrack.server_start_monotonic. */
+  int64 server_start_monotonic = 2;
+  PlaybackStateProto state = 3;
+  /** Current playback position in ms at the time of pausing (only meaningful when PAUSED). */
+  int64 pause_position_ms = 4;
+  /** Direct client-playable resource for the currently loaded track. */
+  PlaybackResourceProto playback = 5;
+  /** Primary line-timed lyrics for the active track. Empty string means unavailable. */
+  string lyric_lrc = 6;
+  /** Secondary aligned lyrics (translation / romanization). Empty string means unavailable. */
+  string secondary_lyric_lrc = 7;
+}
+
+/** Broadcast when the playback state changes (pause, resume, seek, stop). */
+message StateUpdate {
+  PlaybackStateProto state = 1;
+  /** Position in ms. Used for seek and as the pause reference point. */
+  int64 position_ms = 2;
+  /**
+   * New server_start_monotonic after a seek or resume.
+   * Zero when state = PAUSED or STOPPED (position_ms is authoritative in those cases).
+   */
+  int64 server_start_monotonic = 3;
+  /**
+   * Optional current playback resource for reopen paths such as resume or seek.
+   * Absent when the existing client-side resource should be reused.
+   */
+  PlaybackResourceProto playback = 4;
+}
+
+/** Server's response to a TrackSubmitRequest. */
+message TrackSubmitResponse {
+  /** Echoed from the originating TrackSubmitRequest. */
+  int64 request_id = 1;
+  /** Non-empty when an error occurred. Empty means success. */
+  string failure = 2;
+  /** Echoed track id for client-side correlation. */
+  string track_id = 3;
+  /** Best-effort human-readable title for correlation or fallback UI display. */
+  string track_title = 4;
+  /** Localized server-rendered success message. Empty string means no explicit success text. */
+  string success = 5;
+}
+
+/** Server's response to an IdentifierSubmitRequest. */
+message IdentifierSubmitResponse {
+  /** Echoed from the originating IdentifierSubmitRequest. */
+  int64 request_id = 1;
+  /** Non-empty when an error occurred. Empty means success. */
+  string failure = 2;
+  /** Echoed best-effort resolved track id for client-side correlation. */
+  string track_id = 3;
+  /** Best-effort human-readable title for correlation or fallback UI display. */
+  string track_title = 4;
+  /** Localized server-rendered success message. Empty string means no explicit success text. */
+  string success = 5;
+  /** Further selectable choices when the identifier points at a container or indirect item. */
+  repeated SelectionEntryProto choices = 6;
+}
+
+/** Server's response to a SelectionSubmitRequest. */
+message SelectionSubmitResponse {
+  /** Echoed from the originating SelectionSubmitRequest. */
+  int64 request_id = 1;
+  /** Non-empty when an error occurred. Empty means success. */
+  string failure = 2;
+  /** Echoed best-effort resolved track id for client-side correlation. */
+  string track_id = 3;
+  /** Best-effort human-readable title for correlation or fallback UI display. */
+  string track_title = 4;
+  /** Localized server-rendered success message. Empty string means no explicit success text. */
+  string success = 5;
+  /** Further selectable choices when the selected row expands instead of enqueuing directly. */
+  repeated SelectionEntryProto choices = 6;
+}
+
+/** Server's response to a SearchRequest. */
+message SearchResponse {
+  /** Echoed from the originating SearchRequest. */
+  int64 request_id = 1;
+  repeated SelectionEntryProto entries = 2;
+  /** The source_id that was actually used for this search. */
+  string source_id = 3;
+  /** Echoed query string for client-side correlation. */
+  string query = 4;
+  /** Echoed offset for client-side pagination state. */
+  int32 offset = 5;
+  /**
+   * Total number of results available from the selected source (if known).
+   * -1 means unknown / not computed.
+   */
+  int32 total = 6;
+  /**
+   * Non-empty when an error occurred. Generic description only
+   * (no stack traces or sensitive info). Empty string means success.
+   */
+  string failure = 7;
+  /** True when the server knows there are more results after this page. */
+  bool has_more = 8;
+}
+
+/** Server's response to a QueueRequest. */
+message QueueResponse {
+  /** Echoed from the originating QueueRequest. */
+  int64 request_id = 1;
+  repeated TrackInfoProto tracks = 2;
+  /** Non-empty when an error occurred. Empty means success. */
+  string failure = 3;
+}
+
+/** Server's response to a QueueRemoveRequest. */
+message QueueRemoveResponse {
+  /** Echoed from the originating QueueRemoveRequest. */
+  int64 request_id = 1;
+  /** Non-empty when an error occurred. Empty means success. */
+  string failure = 2;
+}
+
+/** Server's response to a PlaybackControlRequest. */
+message PlaybackControlResponse {
+  /** Echoed from the originating PlaybackControlRequest. */
+  int64 request_id = 1;
+  /** Non-empty when an error occurred. Empty means success. */
+  string failure = 2;
+  /** Optional success / informational feedback for GUI-driven actions. */
+  string success = 3;
+}
+
+/** Server's response to a ContentFilterActionRequest. */
+message ContentFilterActionResponse {
+  /** Echoed from the originating ContentFilterActionRequest. */
+  int64 request_id = 1;
+  /** Non-empty when an error occurred. Empty means success. */
+  string failure = 2;
+  /** Localized success message for GUI/footer display. */
+  string success = 3;
+  ContentFilterTargetProto target = 4;
+  string source_id = 5;
+  string value_id = 6;
+  bool blocked_now = 7;
+}

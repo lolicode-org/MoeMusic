@@ -1,0 +1,47 @@
+[versions]
+# MoeMusic module and compatibility versions.
+moemusic-api = "1.0.0"  # Used as maven artifact version for API modules.
+moemusic-api-compat = "1.0.0"  # Used in core for plugin compatibility checks.
+moemusic-protocol = "1"
+moemusic-core = "1.0.0"
+moemusic-client-core = "1.0.0"
+
+# Kotlin and build tooling.
+kotlin = "2.3.21"
+wire = "6.2.0"
+
+# Runtime libraries.
+lavaplayer = "2.3.0-beta.2"
+ktoml-core = "0.7.1"
+ktoml-file = "0.7.1"
+slf4j = "2.0.17"
+kotlinx-serialization = "1.11.0"
+kotlinx-coroutines = "1.10.2"
+
+# Tests.
+junit = "6.0.3"
+
+[plugins]
+# Kotlin and code generation.
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+wire = { id = "com.squareup.wire", version.ref = "wire" }
+
+[libraries]
+# Kotlin runtime.
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
+kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm", version.ref = "kotlinx-serialization" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+
+# MoeMusic runtime libraries.
+lavaplayer = { module = "org.lolicode:lavaplayer", version.ref = "lavaplayer" }
+ktoml-core = { module = "com.akuleshov7:ktoml-core", version.ref = "ktoml-core" }
+ktoml-file = { module = "com.akuleshov7:ktoml-file", version.ref = "ktoml-file" }
+
+# Logging facade.
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+
+# Tests.
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit" }

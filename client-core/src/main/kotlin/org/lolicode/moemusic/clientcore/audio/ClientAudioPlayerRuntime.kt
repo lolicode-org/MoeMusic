@@ -1,0 +1,133 @@
+package org.lolicode.moemusic.clientcore.audio
+
+import org.lolicode.moemusic.api.model.PlaybackResource
+import org.slf4j.LoggerFactory
+
+/**
+ * Shared client-side audio orchestration:
+ * [ClientTrackLoader] -> [PcmRingBuffer] -> [StreamingAudioOutput].
+ *
+ * The actual output backend remains platform-owned; this runtime owns playback state,
+ * reload-save/restore behavior, and loader/output coordination.
+ */
+class ClientAudioPlayerRuntime(
+    private val ringBuffer: PcmRingBuffer,
+    private val loader: ClientTrackLoader,
+    private val output: StreamingAudioOutput,
+) {
+
+    private val logger = LoggerFactory.getLogger(ClientAudioPlayerRuntime::class.java)
+
+    /** Concrete playback resource of the currently loaded track (null when stopped). */
+    @Volatile private var currentPlayback: PlaybackResource? = null
+
+    @Volatile private var reportedPositionMs: Long = 0L
+
+    /** Saved state across a sound-engine reload (destroy -> reload cycle). */
+    @Volatile private var savedPlayback: PlaybackResource? = null
+    @Volatile private var savedSeekMs: Long = 0L
+
+    @Volatile
+    var isPlaying: Boolean = false
+        private set
+
+    @Volatile
+    var volume: Float = 1.0f
+        private set
+
+    /**
+     * Load [playback] and start playback from [seekMs].
+     *
+     * Stops any current playback first. If [playback] fails to load, [onError] is called.
+     */
+    fun play(
+        playback: PlaybackResource,
+        seekMs: Long = 0L,
+        onError: (String) -> Unit = { logger.error("Audio error: {}", it) },
+    ) {
+        stop()
+        currentPlayback = playback
+        reportedPositionMs = seekMs.coerceAtLeast(0L)
+        output.setGain(volume)
+        loader.load(playback, ringBuffer, seekMs) { error ->
+            logger.error("Track load failed: {}", error)
+            onError(error)
+        }
+        output.start(reportedPositionMs)
+        isPlaying = true
+        logger.debug("ClientAudioPlayer: playing {}", playback.url)
+    }
+
+    /** Pause playback (freezes audio output; decoder continues buffering). */
+    fun pause() {
+        if (!isPlaying) return
+        output.stop()
+        isPlaying = false
+    }
+
+    /** Resume from the current position. */
+    fun resume() {
+        if (isPlaying) return
+        output.start(reportedPositionMs)
+        isPlaying = true
+    }
+
+    /**
+     * Seek to [positionMs] in the current track.
+     * Flushes the ring buffer; the caller supplies the fresh seek point with a new [play] call.
+     */
+    fun seek(positionMs: Long) {
+        output.seek()
+        logger.debug("ClientAudioPlayer: seek to {}ms", positionMs)
+    }
+
+    /** Stop all playback and release resources. */
+    fun stop() {
+        output.stop()
+        loader.stop(ringBuffer)
+        currentPlayback = null
+        reportedPositionMs = 0L
+        isPlaying = false
+    }
+
+    /**
+     * Save the current resource + computed seek position so playback can be restored after
+     * the platform sound engine recreates its backend.
+     */
+    fun saveStateForReload() {
+        val playback = currentPlayback ?: return
+        savedPlayback = playback
+        savedSeekMs = currentPositionMs()
+    }
+
+    /**
+     * Restore playback using the state saved by [saveStateForReload].
+     */
+    fun restoreAfterReload() {
+        val playback = savedPlayback ?: return
+        val seekMs = savedSeekMs
+        savedPlayback = null
+        savedSeekMs = 0L
+        logger.debug("ClientAudioPlayer: restoring playback after reload at {}ms", seekMs)
+        play(playback, seekMs)
+    }
+
+    /** Discard any saved-for-reload state. */
+    fun clearSavedState() {
+        savedPlayback = null
+        savedSeekMs = 0L
+    }
+
+    fun currentPositionMs(): Long = reportedPositionMs.coerceAtLeast(0L)
+
+    /** Update the last position reported by the platform output backend. */
+    fun reportPlaybackPosition(positionMs: Long) {
+        reportedPositionMs = positionMs.coerceAtLeast(0L)
+    }
+
+    /** Set client-local playback volume in the `0.0 .. 1.0` range. */
+    fun setVolume(value: Float) {
+        volume = value.coerceIn(0.0f, 1.0f)
+        output.setGain(volume)
+    }
+}

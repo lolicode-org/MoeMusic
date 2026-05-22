@@ -1,0 +1,46 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+    paths-ignore:
+      - '**/*.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'zulu'
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: check kotlin abi
+        run: ./gradlew checkKotlinAbi --stacktrace
+
+      - name: build
+        run: ./gradlew build --stacktrace
+
+      - name: upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: MoeMusic Core Snapshot
+          path: |
+            api/build/libs/*.jar
+            core/build/libs/*.jar
+            client-core/build/libs/*.jar

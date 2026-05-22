@@ -1,0 +1,158 @@
+name: publish packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_api:
+        description: 'Publish :api'
+        type: boolean
+        required: false
+        default: true
+      publish_core:
+        description: 'Publish :core'
+        type: boolean
+        required: false
+        default: true
+      publish_client_core:
+        description: 'Publish :client-core'
+        type: boolean
+        required: false
+        default: true
+      snapshot:
+        description: 'Append -SNAPSHOT to artifact versions'
+        type: boolean
+        required: false
+        default: false
+  push:
+    branches: ['master']
+    paths:
+      - 'api/**'
+      - 'core/**'
+      - 'client-core/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/**'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'zulu'
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: select modules
+        id: modules
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            selected_modules=()
+            if [[ "${{ inputs.publish_api }}" == "true" ]]; then
+              selected_modules+=("api")
+            fi
+            if [[ "${{ inputs.publish_core }}" == "true" ]]; then
+              selected_modules+=("core")
+            fi
+            if [[ "${{ inputs.publish_client_core }}" == "true" ]]; then
+              selected_modules+=("client-core")
+            fi
+            raw_modules="$(IFS=,; echo "${selected_modules[*]}")"
+          else
+            before="${{ github.event.before }}"
+            if [[ "$before" =~ ^0+$ ]]; then
+              changed_files="$(git diff --name-only HEAD^ HEAD 2>/dev/null || git ls-tree -r --name-only HEAD)"
+            else
+              changed_files="$(git diff --name-only "$before" "$GITHUB_SHA")"
+            fi
+
+            raw_modules=""
+            while IFS= read -r path; do
+              case "$path" in
+                api/*) raw_modules="$raw_modules,api" ;;
+                core/*) raw_modules="$raw_modules,core" ;;
+                client-core/*) raw_modules="$raw_modules,client-core" ;;
+                build.gradle.kts|settings.gradle.kts|gradle/*) raw_modules="api,core,client-core" ;;
+              esac
+            done <<< "$changed_files"
+          fi
+
+          modules="$(
+            tr ',' '\n' <<< "$raw_modules" |
+              sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
+              awk 'NF' |
+              sort -u |
+              paste -sd, -
+          )"
+
+          if [[ -z "$modules" ]]; then
+            echo "No publishable shared modules changed."
+            echo "modules=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "modules=$modules" >> "$GITHUB_OUTPUT"
+          echo "Selected modules: $modules"
+
+      - name: build selected modules
+        if: steps.modules.outputs.modules != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra modules <<< "${{ steps.modules.outputs.modules }}"
+          tasks=()
+          for module in "${modules[@]}"; do
+            case "$module" in
+              api) tasks+=("checkKotlinAbi" ":api:build") ;;
+              core) tasks+=(":core:build") ;;
+              client-core) tasks+=(":client-core:build") ;;
+              *) echo "Unknown shared module '$module'" >&2; exit 1 ;;
+            esac
+          done
+          ./gradlew "${tasks[@]}" --stacktrace
+
+      - name: publish selected modules
+        if: steps.modules.outputs.modules != ''
+        env:
+          GITHUB_PACKAGES_USERNAME: ${{ github.actor }}
+          GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra modules <<< "${{ steps.modules.outputs.modules }}"
+          tasks=()
+          for module in "${modules[@]}"; do
+            case "$module" in
+              api) tasks+=("publishApiToPackageRegistries") ;;
+              core) tasks+=("publishCoreToPackageRegistries") ;;
+              client-core) tasks+=("publishClientCoreToPackageRegistries") ;;
+              *) echo "Unknown shared module '$module'" >&2; exit 1 ;;
+            esac
+          done
+
+          snapshot_flag="false"
+          if [[ "${{ github.event_name }}" == "push" || "${{ inputs.snapshot }}" == "true" ]]; then
+            snapshot_flag="true"
+          fi
+
+          ./gradlew -Pmoemusic.snapshot="$snapshot_flag" "${tasks[@]}" --stacktrace
