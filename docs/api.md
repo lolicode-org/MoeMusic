@@ -116,7 +116,18 @@ Important plugin rules:
 
 ## Bootstrap Paths
 
-MoeMusic supports two plugin bootstrap paths.
+MoeMusic supports two plugin bootstrap paths. Developers can choose the appropriate mechanism depending on their technical requirements and target platforms:
+
+### Comparison of Bootstrap Paths
+
+| Dimension | Minecraft Mod Bootstrap | Standalone JAR Bootstrap |
+| :--- | :--- | :--- |
+| **Development & Build** | Requires Minecraft-specific mod development toolchains (e.g., Loom or Architectury). You may need to compile and adapt separate versions of the plugin for each target Minecraft version and mod loader, making the pipeline more complex. | Simpler development. It only depends on the `:api` module, requiring no Minecraft modding toolchain and freeing you from compatibility issues caused by loader or Minecraft updates. |
+| **Cross-Platform Compatibility** | Hard-coded to specific Minecraft versions and mod loaders. Developers must closely monitor and adapt to breaking changes introduced by Minecraft updates. | **Cross-platform compatible**. Because it does not rely on Minecraft or any loader-specific APIs, the same compiled plugin JAR can theoretically be loaded and run on any major platform that integrates the MoeMusic core. |
+| **APIs & Flexibility** | Full access to native Minecraft and mod loader (Fabric/NeoForge, etc.) APIs, offering maximum development freedom and flexibility. | Restricted to the public MoeMusic API. Cannot directly interact with loader-specific components or game engine subsystems. |
+| **Dependency Resolution** | Leverages the mod loader's dependency management. Missing dependencies or runtime conflicts are automatically resolved or clearly reported in a user-friendly manner. | The built-in plugin loader is basic and lacks automatic dependency resolution or conflict management. External dependencies must be shaded/bundled into the fat JAR. |
+| **Installation & Management** | Installed in the standard `mods/` directory. Users can manage, update, enable, or disable it using launcher-integrated mod managers. | Installed under the `config/moemusic/plugins/` directory. It cannot be managed by standard mod launchers, requiring users to manually download, install, and update. |
+| **Publishing & Distribution** | Standard mod package format. Can be easily published to major mod distribution platforms like CurseForge or Modrinth. | Lacks mod-specific metadata descriptors (e.g., `fabric.mod.json`), which **may** result in stricter review or approval issues when uploading to mod distribution sites. |
 
 **Minecraft mod bootstrap:**
 

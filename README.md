@@ -26,6 +26,7 @@ Detailed installation and build setup instructions (including repository declara
 ### Documentation Links
 - **Public API Guide**: [docs/api.md](docs/api.md) | [docs/api_zh.md](docs/api_zh.md)
 - **Architecture & Maintenance**: [docs/maintenance.md](docs/maintenance.md)
+- **Supported & Community Plugins**: [GitHub Wiki Plugins List](https://github.com/lolicode-org/MoeMusic/wiki/Plugins---%E6%8F%92%E4%BB%B6%E5%88%97%E8%A1%A8) (To explore official plugins or submit your own plugin implementation)
 - **Example Audio Source Project**: [MoeMusic-source-template](https://github.com/lolicode-org/MoeMusic-source-template)
 
 ---

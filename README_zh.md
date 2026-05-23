@@ -26,6 +26,7 @@ MoeMusic 发布在 Codeberg Packages 和 GitHub Packages 上。
 ### 文档链接
 - **开发接口指南**：[docs/api_zh.md](docs/api_zh.md) | [docs/api.md](docs/api.md)
 - **架构设计与维护说明**：[docs/maintenance.md](docs/maintenance.md)
+- **支持及社区插件列表**：[GitHub Wiki 插件列表](https://github.com/lolicode-org/MoeMusic/wiki/Plugins---%E6%8F%92%E4%BB%B6%E5%88%97%E8%A1%A8)（用于探索官方插件或提交您自己的插件）
 - **自定义音源模板项目**：[MoeMusic-source-template](https://github.com/lolicode-org/MoeMusic-source-template)
 
 ---
