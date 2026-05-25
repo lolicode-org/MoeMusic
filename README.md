@@ -4,7 +4,8 @@
 
 > [!TIP]
 > This repository contains the **core library** of MoeMusic, including core business logic, API interfaces, and models.
-> For the ready-to-run Minecraft Mod (Fabric / NeoForge) or its launcher-specific code, please visit [MoeMusic Mod](https://github.com/lolicode-org/MoeMusic-Minecraft).
+> - For the ready-to-run Minecraft Mod (Fabric / NeoForge / Forge) or its launcher-specific code, please visit [MoeMusic Mod](https://github.com/lolicode-org/MoeMusic-Minecraft).
+> - For a standalone, lightweight terminal client implementation, please see [MoeMusic Terminal](https://github.com/KoishiMoe/MoeMusic-Terminal). It serves as a proof of concept demonstrating the core library's portability and extensibility, and can also be used as a fast, resource-efficient testing environment for developing custom audio source plugins without launching a full Minecraft client.
 
 > [!NOTE]
 > Most of the codebase in this repository is generated and refined with AI assistance. While all components are human reviewed, tested, and validated, if you encounter any issues during use, please feel free to open an issue or submit a pull request.
