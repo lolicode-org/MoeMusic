@@ -8,7 +8,7 @@ moemusic-client-core = "1.0.0"
 
 # Kotlin and build tooling.
 kotlin = "2.3.21"
-wire = "6.2.0"
+wire = "6.4.0"
 
 # Runtime libraries.
 lavaplayer = "2.4.0-beta.2"
