@@ -1,6 +1,7 @@
 package org.lolicode.moemusic.core.audio
 
 import org.lolicode.lavaplayer.common.natives.NativeLibraryLoader
+import org.lolicode.moemusic.core.platform.PlatformDirectories
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.nio.file.*
@@ -128,21 +129,22 @@ object LavaPlayerNativeBootstrap {
                 val base = env["LOCALAPPDATA"].orEmpty().ifBlank { env["APPDATA"].orEmpty() }
                 when {
                     base.isNotBlank() -> Paths.get(base)
-                    userHome.isNotBlank() -> Paths.get(userHome).resolve("AppData").resolve("Local")
-                    else -> null
+                    else -> PlatformDirectories.homeDirectory(env, userHome, preferWindowsHome = true)
+                        ?.resolve("AppData")
+                        ?.resolve("Local")
                 }
             }
 
             "mac" in normalizedOs || "darwin" in normalizedOs ->
-                userHome.takeIf { it.isNotBlank() }
-                    ?.let { Paths.get(it).resolve("Library").resolve("Caches") }
+                PlatformDirectories.homeDirectory(env, userHome)
+                    ?.resolve("Library")
+                    ?.resolve("Caches")
 
             else -> {
                 val xdgCacheHome = env["XDG_CACHE_HOME"].orEmpty()
                 when {
                     xdgCacheHome.isNotBlank() -> Paths.get(xdgCacheHome)
-                    userHome.isNotBlank() -> Paths.get(userHome).resolve(".cache")
-                    else -> null
+                    else -> PlatformDirectories.homeDirectory(env, userHome)?.resolve(".cache")
                 }
             }
         }

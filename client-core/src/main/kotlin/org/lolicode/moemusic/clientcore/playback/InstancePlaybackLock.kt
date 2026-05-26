@@ -1,5 +1,6 @@
 package org.lolicode.moemusic.clientcore.playback
 
+import org.lolicode.moemusic.core.platform.PlatformDirectories
 import org.slf4j.LoggerFactory
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -118,20 +119,24 @@ object InstancePlaybackLock {
         return when {
             "win" in normalizedOs -> {
                 val base = env["APPDATA"].orEmpty().ifBlank { env["LOCALAPPDATA"].orEmpty() }
-                if (base.isNotBlank()) Paths.get(base) else fallbackHome(userHome)
+                if (base.isNotBlank()) Paths.get(base) else fallbackHome(env, userHome, preferWindowsHome = true)
             }
             "mac" in normalizedOs || "darwin" in normalizedOs ->
-                fallbackHome(userHome).resolve("Library").resolve("Application Support")
+                fallbackHome(env, userHome).resolve("Library").resolve("Application Support")
             else -> {
                 val xdgStateHome = env["XDG_STATE_HOME"].orEmpty()
                 if (xdgStateHome.isNotBlank()) Paths.get(xdgStateHome)
-                else fallbackHome(userHome).resolve(".local").resolve("state")
+                else fallbackHome(env, userHome).resolve(".local").resolve("state")
             }
         }
     }
 
-    private fun fallbackHome(userHome: String): Path {
-        if (userHome.isNotBlank()) return Paths.get(userHome)
+    private fun fallbackHome(
+        env: Map<String, String>,
+        userHome: String,
+        preferWindowsHome: Boolean = false,
+    ): Path {
+        PlatformDirectories.homeDirectory(env, userHome, preferWindowsHome)?.let { return it }
         val tmpDir = System.getProperty("java.io.tmpdir").orEmpty()
         return if (tmpDir.isNotBlank()) Paths.get(tmpDir) else Paths.get(".")
     }

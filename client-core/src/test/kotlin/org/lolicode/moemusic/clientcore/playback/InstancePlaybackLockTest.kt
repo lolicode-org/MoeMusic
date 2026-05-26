@@ -35,6 +35,16 @@ class InstancePlaybackLockTest {
             ),
         )
         assertEquals(
+            "/home/alice/.local/state/moemusic/instance-playback.lock",
+            slashPath(
+                InstancePlaybackLock.resolveLockPath(
+                    osName = "Linux",
+                    env = mapOf("HOME" to "/home/alice"),
+                    userHome = "/home/alice/.minecraft/instances/overridden",
+                )
+            ),
+        )
+        assertEquals(
             "/Users/alice/Library/Application Support/moemusic/instance-playback.lock",
             slashPath(
                 InstancePlaybackLock.resolveLockPath(

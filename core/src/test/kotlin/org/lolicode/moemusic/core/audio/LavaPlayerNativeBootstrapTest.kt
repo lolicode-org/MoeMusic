@@ -1,4 +1,6 @@
 package org.lolicode.moemusic.core.audio
+
+import java.nio.file.Paths
 import kotlin.io.path.createTempDirectory
 import kotlin.io.path.writeText
 import kotlin.test.Test
@@ -24,6 +26,26 @@ class LavaPlayerNativeBootstrapTest {
         assertEquals(gameDir.resolve("cache/moemusic/lavaplayer-natives"), candidates[0])
         assertEquals(homeDir.resolve(".cache/moemusic/lavaplayer-natives"), candidates[1])
         assertEquals(configDir.resolve("cache/lavaplayer-natives"), candidates[2])
+    }
+
+    @Test
+    fun `os cache fallback prefers environment home over jvm user home`() {
+        val configDir = createTempDirectory("moemusic-config")
+
+        val candidates = LavaPlayerNativeBootstrap.candidateExtractionPaths(
+            gameDir = null,
+            configDir = configDir,
+            osName = "Linux",
+            env = mapOf("HOME" to "/home/alice"),
+            userHome = "/home/alice/.minecraft/instances/overridden",
+            tempDir = "",
+        )
+
+        assertEquals(
+            Paths.get("/home/alice/.cache/moemusic/lavaplayer-natives"),
+            candidates[0],
+        )
+        assertEquals(configDir.resolve("cache/lavaplayer-natives"), candidates[1])
     }
 
     @Test
