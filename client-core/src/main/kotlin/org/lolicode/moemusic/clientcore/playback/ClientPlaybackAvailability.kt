@@ -18,8 +18,13 @@ object ClientPlaybackAvailability {
     fun availabilityIssue(
         hasConnection: Boolean,
         serverHandshakeMissing: Boolean,
+        serverHandshakeRejected: Boolean = false,
     ): AvailabilityIssue? {
         if (!hasConnection) return null
-        return if (serverHandshakeMissing) AvailabilityIssue.SERVER_MISSING else null
+        return when {
+            serverHandshakeRejected -> AvailabilityIssue.SERVER_REJECTED
+            serverHandshakeMissing -> AvailabilityIssue.SERVER_MISSING
+            else -> null
+        }
     }
 }

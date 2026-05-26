@@ -37,11 +37,12 @@ class ClientPlaybackAvailabilityTest {
     }
 
     @Test
-    fun `availability issue only reports missing server handshake`() {
+    fun `availability issue distinguishes missing and rejected server handshake`() {
         assertNull(
             ClientPlaybackAvailability.availabilityIssue(
                 hasConnection = false,
                 serverHandshakeMissing = true,
+                serverHandshakeRejected = true,
             )
         )
         assertEquals(
@@ -49,6 +50,22 @@ class ClientPlaybackAvailabilityTest {
             ClientPlaybackAvailability.availabilityIssue(
                 hasConnection = true,
                 serverHandshakeMissing = true,
+            )
+        )
+        assertEquals(
+            AvailabilityIssue.SERVER_REJECTED,
+            ClientPlaybackAvailability.availabilityIssue(
+                hasConnection = true,
+                serverHandshakeMissing = false,
+                serverHandshakeRejected = true,
+            )
+        )
+        assertEquals(
+            AvailabilityIssue.SERVER_REJECTED,
+            ClientPlaybackAvailability.availabilityIssue(
+                hasConnection = true,
+                serverHandshakeMissing = true,
+                serverHandshakeRejected = true,
             )
         )
         assertNull(

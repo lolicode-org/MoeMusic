@@ -4,8 +4,19 @@ import org.lolicode.moemusic.api.model.SearchResult
 import org.lolicode.moemusic.api.model.SelectionEntry
 import org.lolicode.moemusic.api.model.TrackInfo
 
-/** Coarse local availability issue for the builtin client request/playback UI. */
+/**
+ * Coarse local availability issue for the builtin client request/playback UI.
+ *
+ * This 1.x API intentionally keeps the historical names for compatibility.
+ */
 public enum class ClientAvailabilityIssue {
+    /**
+     * The client has no usable MoeMusic handshake for the current connection.
+     *
+     * The name is historical: this covers any handshake failure, including no server
+     * response, a missing server-side mod, protocol mismatch, or explicit server rejection.
+     * It is kept for 1.x compatibility and may be renamed or removed in API 2.0.
+     */
     SERVER_MISSING,
 }
 

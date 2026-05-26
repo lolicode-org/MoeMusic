@@ -1,5 +1,6 @@
 package org.lolicode.moemusic.clientcore.playback
 
+import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.api.model.SelectionEntry
 
 data class ClientServerScope(
@@ -29,4 +30,59 @@ data class CachedSearchState(
 
 enum class AvailabilityIssue {
     SERVER_MISSING,
+    SERVER_REJECTED,
 }
+
+enum class ServerWelcomeRejectionReason {
+    PROTOCOL_MISMATCH,
+    SERVER_ERROR,
+    UNKNOWN,
+}
+
+data class ServerWelcomeRejection(
+    val reason: ServerWelcomeRejectionReason,
+    val clientProtocolVersion: Int,
+    val serverProtocolVersion: Int,
+    val detail: String? = null,
+)
+
+enum class ProtocolMismatchAction {
+    UPDATE_CLIENT,
+    UPDATE_SERVER,
+    CHECK_BOTH_SIDES,
+}
+
+fun ServerWelcomeRejection.protocolMismatchAction(): ProtocolMismatchAction =
+    when {
+        clientProtocolVersion < serverProtocolVersion -> ProtocolMismatchAction.UPDATE_CLIENT
+        clientProtocolVersion > serverProtocolVersion -> ProtocolMismatchAction.UPDATE_SERVER
+        else -> ProtocolMismatchAction.CHECK_BOTH_SIDES
+    }
+
+fun ServerWelcomeRejection.toLocalizedText(): LocalizedText =
+    when (reason) {
+        ServerWelcomeRejectionReason.PROTOCOL_MISMATCH -> when (protocolMismatchAction()) {
+            ProtocolMismatchAction.UPDATE_CLIENT -> LocalizedText.key(
+                "screen.moemusic.unavailable.protocol_mismatch.update_client",
+                clientProtocolVersion,
+                serverProtocolVersion,
+            )
+
+            ProtocolMismatchAction.UPDATE_SERVER -> LocalizedText.key(
+                "screen.moemusic.unavailable.protocol_mismatch.update_server",
+                clientProtocolVersion,
+                serverProtocolVersion,
+            )
+
+            ProtocolMismatchAction.CHECK_BOTH_SIDES -> LocalizedText.key(
+                "screen.moemusic.unavailable.protocol_mismatch.check_both",
+                clientProtocolVersion,
+            )
+        }
+
+        ServerWelcomeRejectionReason.SERVER_ERROR ->
+            LocalizedText.key("screen.moemusic.unavailable.rejected.server_error")
+
+        ServerWelcomeRejectionReason.UNKNOWN ->
+            LocalizedText.key("screen.moemusic.unavailable.rejected.body")
+    }

@@ -95,6 +95,12 @@ enum ContentFilterTargetProto {
   CONTENT_FILTER_TARGET_ARTIST = 1;
 }
 
+enum ServerWelcomeRejectReason {
+  SERVER_WELCOME_REJECT_UNSPECIFIED = 0;
+  SERVER_WELCOME_REJECT_PROTOCOL_MISMATCH = 1;
+  SERVER_WELCOME_REJECT_SERVER_ERROR = 2;
+}
+
 // ---------------------------------------------------------------------------
 // C→S packets (client to server)
 // ---------------------------------------------------------------------------
@@ -240,17 +246,18 @@ message PlaybackSnapshot {
 /** Server response that accepts or rejects the client session handshake. */
 message ServerWelcome {
   bool accepted = 1;
-  /** Non-empty when accepted is false. */
+  /** Machine/debug detail when accepted is false. Do not display directly to end users. */
   string failure = 2;
-  int32 server_protocol_version = 3;
+  ServerWelcomeRejectReason reject_reason = 3;
+  int32 server_protocol_version = 4;
   /** Initial clock-sync response for this accepted/rejected handshake. */
-  SyncResponse initial_time_sync = 4;
-  ClientStateProto accepted_state = 5;
-  repeated SearchSourceInfo sources = 6;
+  SyncResponse initial_time_sync = 5;
+  ClientStateProto accepted_state = 6;
+  repeated SearchSourceInfo sources = 7;
   /** Search source used when the client does not specify one. Empty when none are searchable. */
-  string default_source_id = 7;
+  string default_source_id = 8;
   /** Current playback state for accepted active clients. Absent when nothing is loaded. */
-  PlaybackSnapshot initial_playback = 8;
+  PlaybackSnapshot initial_playback = 9;
 }
 
 /** Sent to all compatible clients when a new track starts. */

@@ -62,10 +62,11 @@ class ServerPacketHandlers(
             if (msg.protocol_version != MoeMusicProtocol.VERSION) {
                 val welcome = ServerWelcome(
                     accepted = false,
-                    failure = "MoeMusic protocol mismatch: client=${msg.protocol_version}, server=${MoeMusicProtocol.VERSION}",
+                    failure = "protocol_mismatch",
                     server_protocol_version = MoeMusicProtocol.VERSION,
                     initial_time_sync = buildSyncResponse(msg.client_send_monotonic, serverRecvMonotonic),
                     accepted_state = msg.initial_state,
+                    reject_reason = ServerWelcomeRejectReason.SERVER_WELCOME_REJECT_PROTOCOL_MISMATCH,
                 )
                 channel.sendToClient(sender, PacketIds.SERVER_WELCOME, welcome.encode())
                 logger.debug(
