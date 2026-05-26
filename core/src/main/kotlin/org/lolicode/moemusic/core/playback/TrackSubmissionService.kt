@@ -26,6 +26,7 @@ import org.lolicode.moemusic.core.permission.PermissionNodes.CONTENT_FILTER_BYPA
 import org.lolicode.moemusic.core.permission.PermissionNodes.DURATION_POLICY_BYPASS
 import org.lolicode.moemusic.core.plugin.PluginManager
 import org.lolicode.moemusic.core.source.builtin.HttpMusicSource
+import org.slf4j.LoggerFactory
 
 /**
  * Shared submission pipeline: resolves authoritative metadata, stamps submitter, validates
@@ -47,6 +48,8 @@ import org.lolicode.moemusic.core.source.builtin.HttpMusicSource
 class TrackSubmissionService(
     private val controller: ServerPlaybackController,
 ) : ITrackSubmissionService {
+
+    private val logger = LoggerFactory.getLogger(TrackSubmissionService::class.java)
 
     override suspend fun submitBySourceAndId(
         sourceId: String,
@@ -165,6 +168,15 @@ class TrackSubmissionService(
         }
 
         val result = controller.submitTrack(stamped, submitter?.id, mode)
+        logger.info(
+            "Track submitted: submitter={} source={} id={} title='{}' mode={} result={}",
+            submitter?.displayName ?: "<server>",
+            stamped.sourceId.orEmpty(),
+            stamped.id,
+            stamped.title,
+            mode,
+            result,
+        )
         CoreEvents.bus.fire(
             OnTrackSubmitted(
                 track = stamped,

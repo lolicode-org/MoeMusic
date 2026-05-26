@@ -69,7 +69,7 @@ class ServerPacketHandlers(
                     reject_reason = ServerWelcomeRejectReason.SERVER_WELCOME_REJECT_PROTOCOL_MISMATCH,
                 )
                 channel.sendToClient(sender, PacketIds.SERVER_WELCOME, welcome.encode())
-                logger.debug(
+                logger.warn(
                     "Rejected client handshake from {} (mod={}, protocol={} serverProtocol={})",
                     sender.displayName,
                     msg.mod_version,
@@ -87,18 +87,19 @@ class ServerPacketHandlers(
                 UserSessionRegistry.Participation.STANDBY ->
                     sessions.standby(sender, normalizedLocale)
             }
-            logger.debug(
-                "Client handshake from {} (locale={}, state={}, mod={}, protocol={} serverProtocol={})",
+            val searchService = PluginManager.searchService
+            val sourceSnapshot = searchService.sourceSnapshot()
+            logger.info(
+                "Accepted client handshake from {} (locale={}, state={}, mod={}, protocol={}, sources={})",
                 user.displayName,
                 user.locale,
                 initialParticipation,
                 msg.mod_version,
                 msg.protocol_version,
-                MoeMusicProtocol.VERSION,
+                sourceSnapshot.size,
             )
 
-            val searchService = PluginManager.searchService
-            val sources = searchService.sourceSnapshot().map { source ->
+            val sources = sourceSnapshot.map { source ->
                 SearchSourceInfo(
                     id = source.id,
                     display_name = Localization.render(user.locale, source.displayName),
@@ -145,7 +146,7 @@ class ServerPacketHandlers(
                         UserSessionRegistry.localeFor(sender.id) ?: sender.locale
                     )
                     val user = sessions.activate(sender, locale)
-                    logger.debug("Client state change from {} -> ACTIVE", user.displayName)
+                    logger.info("Client participation changed: {} -> ACTIVE", user.displayName)
                     ServerRuntimeCoordinator.ensureNativeAudienceLease()
                     ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()?.let { snapshot ->
                         channel.sendToClient(
@@ -161,7 +162,7 @@ class ServerPacketHandlers(
 
                 UserSessionRegistry.Participation.STANDBY -> {
                     sessions.handleRegisteredClientLeave(sender.id)
-                    logger.debug("Client state change from {} -> STANDBY", sender.displayName)
+                    logger.info("Client participation changed: {} -> STANDBY", sender.displayName)
                 }
             }
         }
@@ -185,6 +186,13 @@ class ServerPacketHandlers(
             if (sender == null) return@register
             // Basic sanity check before any work
             if (msg.source_id.isBlank() || msg.track_id.isBlank()) {
+                logger.warn(
+                    "Rejected malformed TrackSubmit from {}: source={} id={} mode={}",
+                    sender.displayName,
+                    msg.source_id,
+                    msg.track_id,
+                    msg.mode,
+                )
                 channel.sendToClient(
                     sender,
                     PacketIds.TRACK_SUBMIT_RESPONSE,
@@ -220,6 +228,26 @@ class ServerPacketHandlers(
                     )
                 }
                 channel.sendToClient(sender, PacketIds.TRACK_SUBMIT_RESPONSE, response.encode())
+                if (response.failure.isBlank()) {
+                    logger.info(
+                        "Track submit accepted from {}: source={} id={} title='{}' mode={} resultMessage='{}'",
+                        sender.displayName,
+                        msg.source_id,
+                        response.track_id,
+                        response.track_title,
+                        mode,
+                        response.success,
+                    )
+                } else {
+                    logger.info(
+                        "Track submit rejected for {}: source={} id={} mode={} reason='{}'",
+                        sender.displayName,
+                        msg.source_id,
+                        msg.track_id,
+                        mode,
+                        response.failure,
+                    )
+                }
             }
         }
 
@@ -229,6 +257,13 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             if (msg.source_id.isBlank() || msg.selection_id.isBlank()) {
+                logger.warn(
+                    "Rejected malformed SelectionSubmit from {}: source={} selection={} mode={}",
+                    sender.displayName,
+                    msg.source_id,
+                    msg.selection_id,
+                    msg.mode,
+                )
                 channel.sendToClient(
                     sender,
                     PacketIds.SELECTION_SUBMIT_RESPONSE,
@@ -274,6 +309,34 @@ class ServerPacketHandlers(
                     )
                 }
                 channel.sendToClient(sender, PacketIds.SELECTION_SUBMIT_RESPONSE, response.encode())
+                when {
+                    response.failure.isNotBlank() -> logger.info(
+                        "Selection submit rejected for {}: source={} selection={} mode={} reason='{}'",
+                        sender.displayName,
+                        msg.source_id,
+                        msg.selection_id,
+                        mode,
+                        response.failure,
+                    )
+                    response.choices.isNotEmpty() -> logger.info(
+                        "Selection submit from {} returned {} choice(s): source={} selection={} mode={}",
+                        sender.displayName,
+                        response.choices.size,
+                        msg.source_id,
+                        msg.selection_id,
+                        mode,
+                    )
+                    else -> logger.info(
+                        "Selection submit accepted from {}: source={} selection={} trackId={} title='{}' mode={} resultMessage='{}'",
+                        sender.displayName,
+                        msg.source_id,
+                        msg.selection_id,
+                        response.track_id,
+                        response.track_title,
+                        mode,
+                        response.success,
+                    )
+                }
             }
         }
 
@@ -315,6 +378,29 @@ class ServerPacketHandlers(
                     )
                 }
                 channel.sendToClient(sender, PacketIds.IDENTIFIER_SUBMIT_RESPONSE, response.encode())
+                logger.debug("IdentifierSubmit from {} handled for identifier='{}'", sender.displayName, msg.identifier)
+                when {
+                    response.failure.isNotBlank() -> logger.info(
+                        "Identifier submit rejected for {}: mode={} reason='{}'",
+                        sender.displayName,
+                        mode,
+                        response.failure,
+                    )
+                    response.choices.isNotEmpty() -> logger.info(
+                        "Identifier submit from {} returned {} choice(s): mode={}",
+                        sender.displayName,
+                        response.choices.size,
+                        mode,
+                    )
+                    else -> logger.info(
+                        "Identifier submit accepted from {}: trackId={} title='{}' mode={} resultMessage='{}'",
+                        sender.displayName,
+                        response.track_id,
+                        response.track_title,
+                        mode,
+                        response.success,
+                    )
+                }
             }
         }
 
@@ -437,12 +523,12 @@ class ServerPacketHandlers(
                 )
             }
             channel.sendToClient(sender, PacketIds.QUEUE_REMOVE_RESPONSE, response.encode())
-            logger.debug(
-                "QueueRemoveRequest from {} source={} trackId={} failure='{}'",
+            logger.info(
+                "Queue remove from {}: source={} trackId={} result={}",
                 sender.displayName,
                 msg.source_id,
                 msg.track_id,
-                response.failure,
+                if (response.failure.isBlank()) "REMOVED" else "REJECTED '${response.failure}'",
             )
         }
 
@@ -471,7 +557,17 @@ class ServerPacketHandlers(
                 )
             }
             channel.sendToClient(sender, PacketIds.PLAYBACK_CONTROL_RESPONSE, response.encode())
-            logger.debug("PlaybackControlRequest from {}: action={} posMs={}", sender.displayName, msg.action, msg.position_ms)
+            logger.info(
+                "Playback control from {}: action={} posMs={} result={}",
+                sender.displayName,
+                msg.action,
+                msg.position_ms,
+                when {
+                    response.failure.isNotBlank() -> "REJECTED '${response.failure}'"
+                    response.success.isNotBlank() -> "OK '${response.success}'"
+                    else -> "OK"
+                },
+            )
         }
 
         registry.register(
@@ -480,6 +576,15 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             if (!hasPermission(sender, PermissionNodes.CONTENT_FILTER_MANAGE)) {
+                logger.warn(
+                    "Rejected content filter action from {} without permission {}: action={} target={} source={} value={}",
+                    sender.displayName,
+                    PermissionNodes.CONTENT_FILTER_MANAGE.id,
+                    msg.action,
+                    msg.target,
+                    msg.source_id,
+                    msg.value_id,
+                )
                 channel.sendToClient(
                     sender,
                     PacketIds.CONTENT_FILTER_ACTION_RESPONSE,
@@ -498,6 +603,14 @@ class ServerPacketHandlers(
             val valueId = msg.value_id.trim()
             val note = msg.note.trim().ifEmpty { null }
             if (sourceId.isBlank() || valueId.isBlank()) {
+                logger.warn(
+                    "Rejected malformed content filter action from {}: action={} target={} source={} value={}",
+                    sender.displayName,
+                    msg.action,
+                    msg.target,
+                    sourceId,
+                    valueId,
+                )
                 channel.sendToClient(
                     sender,
                     PacketIds.CONTENT_FILTER_ACTION_RESPONSE,
@@ -564,6 +677,15 @@ class ServerPacketHandlers(
                 )
             }
             channel.sendToClient(sender, PacketIds.CONTENT_FILTER_ACTION_RESPONSE, response.encode())
+            logger.info(
+                "Content filter action from {}: action={} target={} source={} value={} result={}",
+                sender.displayName,
+                action,
+                msg.target,
+                sourceId,
+                valueId,
+                if (response.failure.isBlank()) "OK blockedNow=${response.blocked_now}" else "REJECTED '${response.failure}'",
+            )
         }
     }
 
@@ -618,7 +740,7 @@ class ServerPacketHandlers(
 
     private fun logHandledFailure(action: String, sender: MoeMusicUser, error: Exception) {
         if (UserFacingErrors.isExpected(error)) {
-            logger.debug("{} rejected for {}: {}", action, sender.displayName, error.message)
+            logger.info("{} rejected for {}: {}", action, sender.displayName, error.message)
         } else {
             logger.error("{} failed for {}: {}", action, sender.displayName, error.message, error)
         }

@@ -202,6 +202,15 @@ class ServerPlaybackController(
                 )
             )
         }
+        logger.info(
+            "Queue removal: requester={} bypass={} source={} trackId={} result={} title='{}'",
+            requester?.displayName ?: "<server>",
+            bypassOwnership,
+            sourceId,
+            trackId,
+            details.result,
+            details.removedTrack?.title.orEmpty(),
+        )
         return when (details.result) {
             TrackQueue.UserQueueRemovalResult.REMOVED -> QueueRemoveResult.REMOVED
             TrackQueue.UserQueueRemovalResult.NOT_FOUND -> QueueRemoveResult.NOT_FOUND
@@ -266,6 +275,15 @@ class ServerPlaybackController(
                 fromAutoplay = fromAutoplay,
             )
         )
+        logger.info(
+            "Playback started: source={} id={} title='{}' autoplay={} durationMs={}",
+            finalTrack.sourceId.orEmpty(),
+            finalTrack.id,
+            finalTrack.title,
+            fromAutoplay,
+            finalTrack.durationMs,
+        )
+        logger.debug("Playback resource for '{}' resolved to url='{}' headers={}", finalTrack.title, playback.url, playback.headers.keys)
         scheduleAdvance(finalTrack, positionMs = 0L, startDelayMs = BUFFER_NS / 1_000_000L)
         return PlayInternalResult.Started
     }
@@ -315,6 +333,14 @@ class ServerPlaybackController(
                 automatic = automatic,
             )
         )
+        logger.info(
+            "Playback paused: source={} id={} title='{}' positionMs={} automatic={}",
+            ctx.track.sourceId.orEmpty(),
+            ctx.track.id,
+            ctx.track.title,
+            positionMs,
+            automatic,
+        )
     }
 
     /**
@@ -328,7 +354,7 @@ class ServerPlaybackController(
         if (ctx.state !is PlaybackState.Playing || isAutoPaused) return
         pause(automatic = true)
         isAutoPaused = true
-        logger.debug("ServerPlaybackController: auto-paused (no clients).")
+        logger.info("Playback auto-paused because there are no active playback clients.")
     }
 
     /**
@@ -338,7 +364,7 @@ class ServerPlaybackController(
         if (!isAutoPaused) return
         isAutoPaused = false
         resume(automatic = true)
-        logger.debug("ServerPlaybackController: auto-resumed.")
+        logger.info("Playback auto-resume requested after a playback client became available.")
     }
 
     /**
@@ -382,6 +408,14 @@ class ServerPlaybackController(
                 automatic = automatic,
             )
         )
+        logger.info(
+            "Playback resumed: source={} id={} title='{}' positionMs={} automatic={}",
+            refreshReadyContext.track.sourceId.orEmpty(),
+            refreshReadyContext.track.id,
+            refreshReadyContext.track.title,
+            pausePos,
+            automatic,
+        )
     }
 
     /**
@@ -396,6 +430,16 @@ class ServerPlaybackController(
             currentContext ?: return
         }
         val normalizedPositionMs = normalizePosition(positionMs, ctx.track.durationMs)
+        if (normalizedPositionMs != positionMs) {
+            logger.warn(
+                "Playback seek position clamped: requestedMs={} normalizedMs={} source={} id={} title='{}'",
+                positionMs,
+                normalizedPositionMs,
+                ctx.track.sourceId.orEmpty(),
+                ctx.track.id,
+                ctx.track.title,
+            )
+        }
         val isPlaying = ctx.state is PlaybackState.Playing
         val anchorServerMonotonic = if (isPlaying) System.nanoTime() else 0L
         val newStart = if (isPlaying) {
@@ -429,6 +473,14 @@ class ServerPlaybackController(
                 positionMs = normalizedPositionMs,
                 wasPlaying = isPlaying,
             )
+        )
+        logger.info(
+            "Playback seeked: source={} id={} title='{}' positionMs={} wasPlaying={}",
+            ctx.track.sourceId.orEmpty(),
+            ctx.track.id,
+            ctx.track.title,
+            normalizedPositionMs,
+            isPlaying,
         )
     }
 
@@ -661,6 +713,13 @@ class ServerPlaybackController(
         currentTrackSource = null
         clearCurrentPlaybackRefreshState()
         eventBus.fire(OnPlaybackStopped(stoppedTrack, manual))
+        logger.info(
+            "Playback stopped: source={} id={} title='{}' manual={}",
+            stoppedTrack.sourceId.orEmpty(),
+            stoppedTrack.id,
+            stoppedTrack.title,
+            manual,
+        )
     }
 
     private fun allowAutoStart() {
