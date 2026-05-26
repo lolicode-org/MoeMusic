@@ -156,11 +156,19 @@ public data class OnPlaybackStopped(
     val manual: Boolean,
 )
 
-/** Fired on the client when playback starts or sync-state materializes a track locally. */
+/** Fired on the client when playback starts or an existing server playback materializes locally. */
 public data class OnClientPlaybackStarted(
     val track: TrackInfo,
     val playback: PlaybackResource,
     val positionMs: Long,
+    /**
+     * Historical 1.x compatibility flag.
+     *
+     * `false` means the server started or advanced to a new track. `true` means this client
+     * applied an already-existing playback snapshot, such as initial active join or standby to
+     * active catch-up. The name is historical; the protocol no longer has a SyncState packet.
+     * This field may be replaced with a clearer start-cause enum in API 2.0.
+     */
     val fromSyncState: Boolean,
 )
 

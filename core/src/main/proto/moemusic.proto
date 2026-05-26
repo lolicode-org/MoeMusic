@@ -101,6 +101,12 @@ enum ServerWelcomeRejectReason {
   SERVER_WELCOME_REJECT_SERVER_ERROR = 2;
 }
 
+enum PlaybackSnapshotPushReason {
+  PLAYBACK_SNAPSHOT_PUSH_REASON_UNSPECIFIED = 0;
+  PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK = 1;
+  PLAYBACK_SNAPSHOT_PUSH_REASON_CATCH_UP = 2;
+}
+
 // ---------------------------------------------------------------------------
 // C→S packets (client to server)
 // ---------------------------------------------------------------------------
@@ -122,8 +128,6 @@ message ClientHandshake {
 /** Client explicitly changes its playback participation state for this connection. */
 message ClientStateChange {
   ClientStateProto state = 1;
-  /** System.nanoTime() at the moment of sending, on the client's clock. */
-  int64 client_send_monotonic = 2;
 }
 
 /**
@@ -256,19 +260,15 @@ message ServerWelcome {
   repeated SearchSourceInfo sources = 7;
   /** Search source used when the client does not specify one. Empty when none are searchable. */
   string default_source_id = 8;
-  /** Current playback state for accepted active clients. Absent when nothing is loaded. */
-  PlaybackSnapshot initial_playback = 9;
 }
 
-/** Sent to all compatible clients when a new track starts. */
-message PlayTrack {
+/**
+ * Sent to active clients when the server wants them to apply the authoritative current playback snapshot.
+ * This covers both a newly started track and a catch-up snapshot for a client that just became active.
+ */
+message PlaybackSnapshotPush {
   PlaybackSnapshot snapshot = 1;
-}
-
-/** Sent to an active client that needs a full current-state snapshot. */
-message PlaybackSnapshotUpdate {
-  SyncResponse time_sync = 1;
-  PlaybackSnapshot snapshot = 2;
+  PlaybackSnapshotPushReason reason = 2;
 }
 
 /** Broadcast when the playback state changes (pause, resume, seek, stop). */

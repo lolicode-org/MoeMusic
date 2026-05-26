@@ -97,15 +97,6 @@ class ServerPacketHandlers(
                 MoeMusicProtocol.VERSION,
             )
 
-            val initialPlayback = if (initialParticipation == UserSessionRegistry.Participation.ACTIVE) {
-                // If the controller was auto-paused while no clients were connected, resume now.
-                // This restores the exact position + restarts the advance timer for remaining time.
-                ServerRuntimeCoordinator.ensureNativeAudienceLease()
-                ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()
-            } else {
-                null
-            }
-
             val searchService = PluginManager.searchService
             val sources = searchService.sourceSnapshot().map { source ->
                 SearchSourceInfo(
@@ -124,16 +115,29 @@ class ServerPacketHandlers(
                 accepted_state = msg.initial_state,
                 sources = sources,
                 default_source_id = defaultSourceId,
-                initial_playback = initialPlayback,
             )
             channel.sendToClient(user, PacketIds.SERVER_WELCOME, welcome.encode())
+            if (initialParticipation == UserSessionRegistry.Participation.ACTIVE) {
+                // If the controller was auto-paused while no clients were connected, resume now.
+                // This restores the exact position + restarts the advance timer for remaining time.
+                ServerRuntimeCoordinator.ensureNativeAudienceLease()
+                ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()?.let { snapshot ->
+                    channel.sendToClient(
+                        user,
+                        PacketIds.PLAYBACK_SNAPSHOT_PUSH,
+                        PlaybackSnapshotPush(
+                            snapshot = snapshot,
+                            reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_CATCH_UP,
+                        ).encode(),
+                    )
+                }
+            }
         }
 
         registry.register(
             PacketIds.CLIENT_STATE_CHANGE,
             { ClientStateChange.ADAPTER.decode(it) },
         ) { msg, sender ->
-            val serverRecvMonotonic = System.nanoTime()
             if (sender == null) return@register
             when (msg.state.toParticipation()) {
                 UserSessionRegistry.Participation.ACTIVE -> {
@@ -143,13 +147,16 @@ class ServerPacketHandlers(
                     val user = sessions.activate(sender, locale)
                     logger.debug("Client state change from {} -> ACTIVE", user.displayName)
                     ServerRuntimeCoordinator.ensureNativeAudienceLease()
-                    val snapshot = ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()
-                    val timeSync = buildSyncResponse(msg.client_send_monotonic, serverRecvMonotonic)
-                    val update = PlaybackSnapshotUpdate(
-                        time_sync = timeSync,
-                        snapshot = snapshot,
-                    )
-                    channel.sendToClient(user, PacketIds.PLAYBACK_SNAPSHOT_UPDATE, update.encode())
+                    ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()?.let { snapshot ->
+                        channel.sendToClient(
+                            user,
+                            PacketIds.PLAYBACK_SNAPSHOT_PUSH,
+                            PlaybackSnapshotPush(
+                                snapshot = snapshot,
+                                reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_CATCH_UP,
+                            ).encode(),
+                        )
+                    }
                 }
 
                 UserSessionRegistry.Participation.STANDBY -> {

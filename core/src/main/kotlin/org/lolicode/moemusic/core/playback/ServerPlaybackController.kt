@@ -241,15 +241,16 @@ class ServerPlaybackController(
         }
         startGeneration += 1
         val serverStartMonotonic = System.nanoTime() + BUFFER_NS
-        val msg = PlayTrack(
+        val msg = PlaybackSnapshotPush(
             snapshot = finalTrack.playbackSnapshot(
                 playback = playback,
                 state = PlaybackState.Playing(0L),
                 positionMs = 0L,
                 anchorServerMonotonic = serverStartMonotonic,
             ),
+            reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK,
         )
-        channel.sendToAllClients(PacketIds.PLAY_TRACK, msg.encode())
+        channel.sendToAllClients(PacketIds.PLAYBACK_SNAPSHOT_PUSH, msg.encode())
         currentContext = TrackContext(
             track = finalTrack,
             playback = playback,

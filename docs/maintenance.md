@@ -202,7 +202,7 @@ To prevent multiple clients running on the same local device from playing music 
   - **Windows**: `%APPDATA%/moemusic/instance-playback.lock` (or `%LOCALAPPDATA%` fallback)
   - **macOS**: `~/Library/Application Support/moemusic/instance-playback.lock`
   - **Linux/Other**: `$XDG_STATE_HOME/moemusic/instance-playback.lock` (or `~/.local/state/moemusic/instance-playback.lock` fallback)
-- **Lifecycle**: The lock is not acquired greedily on client launch. It is acquired only when a track begins playing or playback state becomes relevant (e.g. `PlayTrack`, `PlaybackSnapshotUpdate` with a current track, or a resume-like `StateUpdate`). If the lock cannot be acquired, the client switches its state to `STANDBY` and suspends network sync/playback. The lock is released on playback `STOPPED`, disconnect, or when the user explicitly opts out.
+- **Lifecycle**: The lock is not acquired greedily on client launch. It is acquired only when a track begins playing or playback state becomes relevant (e.g. `PlaybackSnapshotPush` with a current track, or a resume-like `StateUpdate`). If the lock cannot be acquired, the client switches its playback participation to `STANDBY` while the accepted session-level clock sync continues. The lock is released on playback `STOPPED`, disconnect, or when the user explicitly opts out.
 
 ## Networking Contracts
 

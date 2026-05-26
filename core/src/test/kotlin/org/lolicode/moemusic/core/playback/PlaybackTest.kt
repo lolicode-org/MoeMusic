@@ -17,7 +17,8 @@ import org.lolicode.moemusic.core.playback.autoplay.AutoplayManager
 import org.lolicode.moemusic.core.transport.NetworkChannel
 import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
-import org.lolicode.moemusic.core.protocol.proto.PlayTrack
+import org.lolicode.moemusic.core.protocol.proto.PlaybackSnapshotPush
+import org.lolicode.moemusic.core.protocol.proto.PlaybackSnapshotPushReason
 import org.lolicode.moemusic.core.protocol.proto.PlaybackStateProto
 import org.lolicode.moemusic.core.protocol.proto.StateUpdate
 import org.lolicode.moemusic.core.plugin.PluginManager
@@ -367,14 +368,18 @@ class TrackQueueTest {
 class ServerPlaybackControllerTest {
 
     @Test
-    fun `play broadcasts PlayTrack packet`() {
+    fun `play broadcasts PlaybackSnapshotPush packet`() {
         val (ctrl, channel) = freshController()
         ctrl.play(SAMPLE_TRACK, RESOLVED_PLAYBACK)
 
-        val pkt = channel.broadcasts.singleOrNull { it.id == PacketIds.PLAY_TRACK }
-        assertNotNull(pkt, "PlayTrack broadcast expected")
+        val pkt = channel.broadcasts.singleOrNull { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH }
+        assertNotNull(pkt, "PlaybackSnapshotPush broadcast expected")
 
-        val decoded = PlayTrack.ADAPTER.decode(pkt.payload)
+        val decoded = PlaybackSnapshotPush.ADAPTER.decode(pkt.payload)
+        assertEquals(
+            PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK,
+            decoded.reason,
+        )
         val snapshot = assertNotNull(decoded.snapshot)
         assertEquals(SAMPLE_TRACK.id, snapshot.track?.id)
         assertEquals(RESOLVED_PLAYBACK_URL, snapshot.playback?.url)
@@ -393,7 +398,7 @@ class ServerPlaybackControllerTest {
         val (ctrl, channel) = freshController()
         ctrl.play(SAMPLE_TRACK, PlaybackResource("file:///tmp/test.mp3"))
 
-        assertNull(channel.broadcasts.singleOrNull { it.id == PacketIds.PLAY_TRACK })
+        assertNull(channel.broadcasts.singleOrNull { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH })
         assertNull(ctrl.currentContext)
     }
 
@@ -408,8 +413,8 @@ class ServerPlaybackControllerTest {
 
         ctrl.play(track, RESOLVED_PLAYBACK)
 
-        val pkt = channel.broadcasts.single { it.id == PacketIds.PLAY_TRACK }
-        val decoded = PlayTrack.ADAPTER.decode(pkt.payload)
+        val pkt = channel.broadcasts.single { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH }
+        val decoded = PlaybackSnapshotPush.ADAPTER.decode(pkt.payload)
         val snapshot = assertNotNull(decoded.snapshot)
         assertEquals("[00:01.00]Hello", snapshot.lyric_lrc)
         assertEquals("[00:01.00]你好", snapshot.secondary_lyric_lrc)
@@ -494,7 +499,7 @@ class ServerPlaybackControllerTest {
             ctrl.seek(150L)
 
             assertTrue(awaitCondition(timeoutMs = 1_000) {
-                channel.broadcasts.count { it.id == PacketIds.PLAY_TRACK } >= 2
+                channel.broadcasts.count { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH } >= 2
             }, "seek should rebuild the advance timer based on the new remaining duration")
             assertEquals("next-track", ctrl.currentContext?.track?.id)
         }
@@ -514,13 +519,13 @@ class ServerPlaybackControllerTest {
             ctrl.pause()
 
             Thread.sleep(120)
-            assertEquals(1, channel.broadcasts.count { it.id == PacketIds.PLAY_TRACK },
+            assertEquals(1, channel.broadcasts.count { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH },
                 "pause should cancel the in-flight advance timer")
 
             ctrl.resume()
 
             assertTrue(awaitCondition(timeoutMs = 1_000) {
-                channel.broadcasts.count { it.id == PacketIds.PLAY_TRACK } >= 2
+                channel.broadcasts.count { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH } >= 2
             }, "resume should rebuild the advance timer from the paused position")
             assertEquals("next-track", ctrl.currentContext?.track?.id)
         }
@@ -616,14 +621,14 @@ class ServerPlaybackControllerTest {
             ctrl.skip()
 
             assertTrue(awaitCondition(timeoutMs = 1_000) {
-                channel.broadcasts.any { it.id == PacketIds.PLAY_TRACK }
+                channel.broadcasts.any { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH }
             })
             assertFalse(
                 channel.broadcasts.any { packet ->
                     packet.id == PacketIds.STATE_UPDATE &&
                         StateUpdate.ADAPTER.decode(packet.payload).state == PlaybackStateProto.STOPPED
                 },
-                "normal track advance should switch directly to PlayTrack without a transient STOPPED packet",
+                "normal track advance should switch directly to PlaybackSnapshotPush without a transient STOPPED packet",
             )
             assertEquals("next-track", ctrl.currentContext?.track?.id)
         }
@@ -643,13 +648,13 @@ class ServerPlaybackControllerTest {
             ctrl.startNextIfStopped()
             Thread.sleep(100)
 
-            assertEquals(1, channel.broadcasts.count { it.id == PacketIds.PLAY_TRACK })
+            assertEquals(1, channel.broadcasts.count { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH })
             assertNull(ctrl.currentContext)
 
             ctrl.resume()
 
             assertTrue(awaitCondition(timeoutMs = 1_000) {
-                channel.broadcasts.count { it.id == PacketIds.PLAY_TRACK } >= 2
+                channel.broadcasts.count { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH } >= 2
             })
             assertEquals("autoplay-track", ctrl.currentContext?.track?.id)
         }
@@ -665,7 +670,7 @@ class ServerPlaybackControllerTest {
         ctrl.enqueueAndPlay(queuedTrack)
         Thread.sleep(100)
 
-        assertEquals(1, channel.broadcasts.count { it.id == PacketIds.PLAY_TRACK })
+        assertEquals(1, channel.broadcasts.count { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH })
         assertNull(ctrl.currentContext)
         assertEquals(listOf("queued-after-stop"), ctrl.queue.userQueueSnapshot().map { it.id })
     }
@@ -683,7 +688,7 @@ class ServerPlaybackControllerTest {
             ctrl.resume()
 
             assertTrue(awaitCondition(timeoutMs = 1_000) {
-                channel.broadcasts.count { it.id == PacketIds.PLAY_TRACK } >= 2
+                channel.broadcasts.count { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH } >= 2
             })
             assertEquals("queued-after-stop", ctrl.currentContext?.track?.id)
         }
@@ -731,14 +736,14 @@ class ServerPlaybackControllerTest {
             ctrl.startNextIfStopped()
 
             assertTrue(awaitCondition(timeoutMs = 1_000) {
-                channel.broadcasts.count { it.id == PacketIds.PLAY_TRACK } >= 2
+                channel.broadcasts.count { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH } >= 2
             })
             assertEquals("autoplay-after-exhaust", ctrl.currentContext?.track?.id)
         }
     }
 
     @Test
-    fun `play failure emits start failed event and prevents PlayTrack broadcast`() {
+    fun `play failure emits start failed event and prevents PlaybackSnapshotPush broadcast`() {
         ModConfigManager.load(Files.createTempDirectory("moemusic-playback-start-failed-test"))
         ModConfigManager.save(MoeMusicConfig(media = MediaPolicyConfig(allowLocalFiles = false)))
         val channel = CapturingChannel()
@@ -758,7 +763,7 @@ class ServerPlaybackControllerTest {
         assertEquals(SAMPLE_TRACK.id, event.track.id)
         assertEquals(false, event.fromAutoplay)
         assertEquals(LocalizedText.key("error.moemusic.media_policy.local_file_disabled"), event.reason)
-        assertTrue(channel.broadcasts.none { it.id == PacketIds.PLAY_TRACK })
+        assertTrue(channel.broadcasts.none { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH })
         assertNull(ctrl.currentContext)
     }
 
