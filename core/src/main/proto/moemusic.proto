@@ -109,11 +109,15 @@ message ClientHandshake {
   string mod_version = 2;
   ClientStateProto initial_state = 3;
   int32 protocol_version = 4;
+  /** System.nanoTime() at the moment of sending, on the client's clock. */
+  int64 client_send_monotonic = 5;
 }
 
 /** Client explicitly changes its playback participation state for this connection. */
 message ClientStateChange {
   ClientStateProto state = 1;
+  /** System.nanoTime() at the moment of sending, on the client's clock. */
+  int64 client_send_monotonic = 2;
 }
 
 /**
@@ -213,59 +217,60 @@ message SyncResponse {
   int64 server_send_monotonic = 3;
 }
 
-/** Server metadata sent immediately after the client handshake. */
-message ServerHandshake {
-  repeated SearchSourceInfo sources = 1;
-  /** Search source used when the client does not specify one. Empty when none are searchable. */
-  string default_source_id = 2;
-}
-
 /**
- * Sent to all compatible clients when a new track starts.
- * server_start_monotonic is set ~2 s in the future to give clients time to buffer.
- * Clients seek to (now - server_start_monotonic) before unmuting.
+ * Full playback snapshot at a server monotonic anchor.
+ * When PLAYING, position advances from position_ms at position_anchor_server_monotonic.
+ * When PAUSED, position_ms is frozen and the anchor is ignored.
  */
-message PlayTrack {
+message PlaybackSnapshot {
   TrackInfoProto track = 1;
-  /** Monotonic nanoseconds (server clock) at which position 0 begins. */
-  int64 server_start_monotonic = 2;
-  /** Direct client-playable resource resolved by the server immediately before playback. */
-  PlaybackResourceProto playback = 3;
-  /** Primary line-timed lyrics for the active track. Empty string means unavailable. */
-  string lyric_lrc = 4;
-  /** Secondary aligned lyrics (translation / romanization). Empty string means unavailable. */
-  string secondary_lyric_lrc = 5;
-}
-
-/**
- * Sent to a late-joining client to bring them in sync with the current track.
- * Contains the full current state so the client can seek to the correct position.
- */
-message SyncState {
-  TrackInfoProto track = 1;
-  /** Same semantics as PlayTrack.server_start_monotonic. */
-  int64 server_start_monotonic = 2;
+  /** Direct client-playable resource for this track. */
+  PlaybackResourceProto playback = 2;
   PlaybackStateProto state = 3;
-  /** Current playback position in ms at the time of pausing (only meaningful when PAUSED). */
-  int64 pause_position_ms = 4;
-  /** Direct client-playable resource for the currently loaded track. */
-  PlaybackResourceProto playback = 5;
+  /** Track position at the anchor time, in milliseconds. */
+  int64 position_ms = 4;
+  /** Server monotonic time at which position_ms was measured. */
+  int64 position_anchor_server_monotonic = 5;
   /** Primary line-timed lyrics for the active track. Empty string means unavailable. */
   string lyric_lrc = 6;
   /** Secondary aligned lyrics (translation / romanization). Empty string means unavailable. */
   string secondary_lyric_lrc = 7;
 }
 
+/** Server response that accepts or rejects the client session handshake. */
+message ServerWelcome {
+  bool accepted = 1;
+  /** Non-empty when accepted is false. */
+  string failure = 2;
+  int32 server_protocol_version = 3;
+  /** Initial clock-sync response for this accepted/rejected handshake. */
+  SyncResponse initial_time_sync = 4;
+  ClientStateProto accepted_state = 5;
+  repeated SearchSourceInfo sources = 6;
+  /** Search source used when the client does not specify one. Empty when none are searchable. */
+  string default_source_id = 7;
+  /** Current playback state for accepted active clients. Absent when nothing is loaded. */
+  PlaybackSnapshot initial_playback = 8;
+}
+
+/** Sent to all compatible clients when a new track starts. */
+message PlayTrack {
+  PlaybackSnapshot snapshot = 1;
+}
+
+/** Sent to an active client that needs a full current-state snapshot. */
+message PlaybackSnapshotUpdate {
+  SyncResponse time_sync = 1;
+  PlaybackSnapshot snapshot = 2;
+}
+
 /** Broadcast when the playback state changes (pause, resume, seek, stop). */
 message StateUpdate {
   PlaybackStateProto state = 1;
-  /** Position in ms. Used for seek and as the pause reference point. */
+  /** Track position at the anchor time, in milliseconds. */
   int64 position_ms = 2;
-  /**
-   * New server_start_monotonic after a seek or resume.
-   * Zero when state = PAUSED or STOPPED (position_ms is authoritative in those cases).
-   */
-  int64 server_start_monotonic = 3;
+  /** Server monotonic time at which position_ms was measured. Ignored unless state = PLAYING. */
+  int64 position_anchor_server_monotonic = 3;
   /**
    * Optional current playback resource for reopen paths such as resume or seek.
    * Absent when the existing client-side resource should be reused.

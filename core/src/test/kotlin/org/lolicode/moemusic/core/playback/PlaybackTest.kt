@@ -375,13 +375,14 @@ class ServerPlaybackControllerTest {
         assertNotNull(pkt, "PlayTrack broadcast expected")
 
         val decoded = PlayTrack.ADAPTER.decode(pkt.payload)
-        assertEquals(SAMPLE_TRACK.id, decoded.track?.id)
-        assertEquals(RESOLVED_PLAYBACK_URL, decoded.playback?.url)
-        assertEquals(RESOLVED_PLAYBACK.headers, decoded.playback?.headers)
-        assertEquals("", decoded.lyric_lrc)
-        assertEquals("", decoded.secondary_lyric_lrc)
-        assertTrue(decoded.server_start_monotonic > System.nanoTime() - 3_000_000_000L,
-            "server_start_monotonic should be recent + 2s buffer")
+        val snapshot = assertNotNull(decoded.snapshot)
+        assertEquals(SAMPLE_TRACK.id, snapshot.track?.id)
+        assertEquals(RESOLVED_PLAYBACK_URL, snapshot.playback?.url)
+        assertEquals(RESOLVED_PLAYBACK.headers, snapshot.playback?.headers)
+        assertEquals("", snapshot.lyric_lrc)
+        assertEquals("", snapshot.secondary_lyric_lrc)
+        assertTrue(snapshot.position_anchor_server_monotonic > System.nanoTime() - 3_000_000_000L,
+            "position anchor should be recent + 2s buffer")
     }
 
     @Test
@@ -409,8 +410,9 @@ class ServerPlaybackControllerTest {
 
         val pkt = channel.broadcasts.single { it.id == PacketIds.PLAY_TRACK }
         val decoded = PlayTrack.ADAPTER.decode(pkt.payload)
-        assertEquals("[00:01.00]Hello", decoded.lyric_lrc)
-        assertEquals("[00:01.00]你好", decoded.secondary_lyric_lrc)
+        val snapshot = assertNotNull(decoded.snapshot)
+        assertEquals("[00:01.00]Hello", snapshot.lyric_lrc)
+        assertEquals("[00:01.00]你好", snapshot.secondary_lyric_lrc)
     }
 
     @Test
@@ -457,8 +459,8 @@ class ServerPlaybackControllerTest {
         val last = StateUpdate.ADAPTER.decode(updates.last().payload)
         assertEquals(PlaybackStateProto.PLAYING, last.state)
         assertNotNull(last.playback)
-        assertTrue(last.server_start_monotonic <= System.nanoTime(),
-            "resume should use an immediate server_start_monotonic reference")
+        assertTrue(last.position_anchor_server_monotonic <= System.nanoTime(),
+            "resume should use an immediate position anchor")
         assertTrue(ctrl.currentContext?.state is PlaybackState.Playing)
     }
 
@@ -474,8 +476,8 @@ class ServerPlaybackControllerTest {
         assertEquals(PlaybackStateProto.PLAYING, last.state)
         assertEquals(42_000L, last.position_ms)
         assertNotNull(last.playback)
-        assertTrue(last.server_start_monotonic <= System.nanoTime(),
-            "seek should use an immediate server_start_monotonic reference")
+        assertTrue(last.position_anchor_server_monotonic <= System.nanoTime(),
+            "seek should use an immediate position anchor")
         assertEquals(42_000L, (ctrl.currentContext?.state as? PlaybackState.Playing)?.positionMs)
     }
 
@@ -881,23 +883,37 @@ class ServerPlaybackControllerTest {
     }
 
     @Test
-    fun `buildSyncState returns null when stopped`() {
+    fun `buildPlaybackSnapshot returns null when stopped`() {
         val (ctrl, _) = freshController()
-        assertNull(ctrl.buildSyncState())
+        assertNull(ctrl.buildPlaybackSnapshot())
     }
 
     @Test
-    fun `buildSyncState returns SyncState when playing`() {
+    fun `buildPlaybackSnapshot returns snapshot when playing`() {
         val (ctrl, _) = freshController()
         ctrl.play(SAMPLE_TRACK.copy(sourceId = "ncm"), RESOLVED_PLAYBACK)
-        val sync = ctrl.buildSyncState()
-        assertNotNull(sync)
-        assertEquals("", sync.lyric_lrc)
-        assertEquals("", sync.secondary_lyric_lrc)
+        val snapshot = ctrl.buildPlaybackSnapshot()
+        assertNotNull(snapshot)
+        assertEquals("", snapshot.lyric_lrc)
+        assertEquals("", snapshot.secondary_lyric_lrc)
     }
 
     @Test
-    fun `buildSyncState includes lyrics for late joiners`() {
+    fun `buildPlaybackSnapshot includes playing position for unsynced clients`() {
+        val (ctrl, _) = freshController()
+        ctrl.play(SAMPLE_TRACK.copy(sourceId = "ncm"), RESOLVED_PLAYBACK)
+        ctrl.seek(65_000L)
+
+        val snapshot = ctrl.buildPlaybackSnapshot()
+
+        assertNotNull(snapshot)
+        assertEquals(PlaybackStateProto.PLAYING, snapshot.state)
+        assertTrue(snapshot.position_ms in 65_000L..66_000L)
+        assertTrue(snapshot.position_anchor_server_monotonic > 0L)
+    }
+
+    @Test
+    fun `buildPlaybackSnapshot includes lyrics for late joiners`() {
         val (ctrl, _) = freshController()
         ctrl.play(
             SAMPLE_TRACK.copy(
@@ -909,14 +925,14 @@ class ServerPlaybackControllerTest {
             RESOLVED_PLAYBACK,
         )
 
-        val sync = ctrl.buildSyncState()
-        assertNotNull(sync)
-        assertEquals("[00:01.00]Hello", sync.lyric_lrc)
-        assertEquals("[00:01.00]你好", sync.secondary_lyric_lrc)
+        val snapshot = ctrl.buildPlaybackSnapshot()
+        assertNotNull(snapshot)
+        assertEquals("[00:01.00]Hello", snapshot.lyric_lrc)
+        assertEquals("[00:01.00]你好", snapshot.secondary_lyric_lrc)
     }
 
     @Test
-    fun `buildSyncState refreshes playback at most once per cooldown window`() {
+    fun `buildPlaybackSnapshot refreshes playback at most once per cooldown window`() {
         val source = object : MusicSource {
             override val id: String = SAMPLE_SOURCE_ID
             var resolveCalls: Int = 0
@@ -940,8 +956,8 @@ class ServerPlaybackControllerTest {
             ctrl.play(track, PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=initial"))
 
             Thread.sleep(30)
-            val first = assertNotNull(ctrl.buildSyncState())
-            val second = assertNotNull(ctrl.buildSyncState())
+            val first = assertNotNull(ctrl.buildPlaybackSnapshot())
+            val second = assertNotNull(ctrl.buildPlaybackSnapshot())
 
             assertEquals(1, source.resolveCalls)
             assertEquals("https://cdn.example.com/audio/${track.id}.mp3?sig=1", first.playback?.url)
@@ -953,7 +969,7 @@ class ServerPlaybackControllerTest {
     }
 
     @Test
-    fun `buildSyncState backs off repeated refresh failures and keeps existing playback`() {
+    fun `buildPlaybackSnapshot backs off repeated refresh failures and keeps existing playback`() {
         val source = object : MusicSource {
             override val id: String = SAMPLE_SOURCE_ID
             var resolveCalls: Int = 0
@@ -977,8 +993,8 @@ class ServerPlaybackControllerTest {
             val initialPlayback = PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=initial")
             ctrl.play(track, initialPlayback)
 
-            val first = assertNotNull(ctrl.buildSyncState())
-            val second = assertNotNull(ctrl.buildSyncState())
+            val first = assertNotNull(ctrl.buildPlaybackSnapshot())
+            val second = assertNotNull(ctrl.buildPlaybackSnapshot())
 
             assertEquals(1, source.resolveCalls)
             assertEquals(initialPlayback.url, first.playback?.url)

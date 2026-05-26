@@ -242,11 +242,12 @@ class ServerPlaybackController(
         startGeneration += 1
         val serverStartMonotonic = System.nanoTime() + BUFFER_NS
         val msg = PlayTrack(
-            track = finalTrack.toProto(),
-            server_start_monotonic = serverStartMonotonic,
-            playback = playback.toProto(),
-            lyric_lrc = finalTrack.lyricLrc.orEmpty(),
-            secondary_lyric_lrc = finalTrack.secondaryLyricLrc.orEmpty(),
+            snapshot = finalTrack.playbackSnapshot(
+                playback = playback,
+                state = PlaybackState.Playing(0L),
+                positionMs = 0L,
+                anchorServerMonotonic = serverStartMonotonic,
+            ),
         )
         channel.sendToAllClients(PacketIds.PLAY_TRACK, msg.encode())
         currentContext = TrackContext(
@@ -299,7 +300,11 @@ class ServerPlaybackController(
         if (!automatic) {
             isAutoPaused = false
         }
-        val msg = StateUpdate(state = PlaybackStateProto.PAUSED, position_ms = positionMs)
+        val msg = StateUpdate(
+            state = PlaybackStateProto.PAUSED,
+            position_ms = positionMs,
+            position_anchor_server_monotonic = 0L,
+        )
         channel.sendToAllClients(PacketIds.STATE_UPDATE, msg.encode())
         currentContext = ctx.copy(state = PlaybackState.Paused(positionMs))
         eventBus.fire(
@@ -336,8 +341,8 @@ class ServerPlaybackController(
     }
 
     /**
-     * Resume from pause. Computes a new [TrackContext.serverStartMonotonic] so that clients seeking
-     * to `now - startMono` land at the correct position, then broadcasts [StateUpdate].
+     * Resume from pause. Computes a fresh position anchor so clients can land at the correct position,
+     * then broadcasts [StateUpdate].
      */
     override fun resume() {
         resume(automatic = false)
@@ -354,18 +359,19 @@ class ServerPlaybackController(
         val refreshReadyContext = refreshCurrentPlaybackIfDue("resume") ?: return
         val pausePos = (refreshReadyContext.state as? PlaybackState.Paused)?.positionMs ?: return
         autoStartPolicy = AutoStartPolicy.ALLOWED
-        val newStart = System.nanoTime() - pausePos * 1_000_000L
+        val anchorServerMonotonic = System.nanoTime()
+        val newStart = anchorServerMonotonic - pausePos * 1_000_000L
         val msg = StateUpdate(
             state = PlaybackStateProto.PLAYING,
             position_ms = pausePos,
-            server_start_monotonic = newStart,
+            position_anchor_server_monotonic = anchorServerMonotonic,
             playback = refreshReadyContext.playback.toProto(),
         )
         channel.sendToAllClients(PacketIds.STATE_UPDATE, msg.encode())
         currentContext = refreshReadyContext.copy(
             state = PlaybackState.Playing(pausePos),
             serverStartMonotonic = newStart,
-            serverResumeMonotonic = System.nanoTime(),
+            serverResumeMonotonic = anchorServerMonotonic,
         )
         scheduleAdvance(refreshReadyContext.track, positionMs = pausePos)
         eventBus.fire(
@@ -379,7 +385,7 @@ class ServerPlaybackController(
 
     /**
      * Seek to [positionMs]. Works whether playing or paused.
-     * Broadcasts [StateUpdate] with an immediate start reference when currently playing.
+     * Broadcasts [StateUpdate] with an immediate position anchor when currently playing.
      */
     override fun seek(positionMs: Long) {
         val initialContext = currentContext ?: return
@@ -390,8 +396,9 @@ class ServerPlaybackController(
         }
         val normalizedPositionMs = normalizePosition(positionMs, ctx.track.durationMs)
         val isPlaying = ctx.state is PlaybackState.Playing
+        val anchorServerMonotonic = if (isPlaying) System.nanoTime() else 0L
         val newStart = if (isPlaying) {
-            System.nanoTime() - normalizedPositionMs * 1_000_000L
+            anchorServerMonotonic - normalizedPositionMs * 1_000_000L
         } else {
             ctx.serverStartMonotonic
         }
@@ -399,7 +406,7 @@ class ServerPlaybackController(
         val msg = StateUpdate(
             state = protoState,
             position_ms = normalizedPositionMs,
-            server_start_monotonic = if (isPlaying) newStart else 0L,
+            position_anchor_server_monotonic = anchorServerMonotonic,
             playback = if (isPlaying) ctx.playback.toProto() else null,
         )
         channel.sendToAllClients(PacketIds.STATE_UPDATE, msg.encode())
@@ -408,7 +415,7 @@ class ServerPlaybackController(
         currentContext = ctx.copy(
             state = newState,
             serverStartMonotonic = newStart,
-            serverResumeMonotonic = if (isPlaying) System.nanoTime() else ctx.serverResumeMonotonic,
+            serverResumeMonotonic = if (isPlaying) anchorServerMonotonic else ctx.serverResumeMonotonic,
         )
         if (isPlaying) {
             scheduleAdvance(ctx.track, positionMs = normalizedPositionMs)
@@ -447,33 +454,11 @@ class ServerPlaybackController(
     }
 
     /**
-     * Build a [SyncState] for a late-joining client, reflecting the current playback position.
+     * Build a [PlaybackSnapshot] for a newly active or late-joining client, reflecting the current playback position.
      * Returns null if nothing is playing.
      */
-    fun buildSyncState(): SyncState? {
-        val ctx = refreshCurrentPlaybackIfDue("sync_state") ?: return null
-        val posMs = when (val s = ctx.state) {
-            is PlaybackState.Playing ->
-                ((System.nanoTime() - ctx.serverStartMonotonic) / 1_000_000L).coerceAtLeast(0L)
-
-            is PlaybackState.Paused -> s.positionMs
-            PlaybackState.Stopped -> return null
-        }
-        val protoState = when (ctx.state) {
-            is PlaybackState.Playing -> PlaybackStateProto.PLAYING
-            is PlaybackState.Paused -> PlaybackStateProto.PAUSED
-            PlaybackState.Stopped -> PlaybackStateProto.STOPPED
-        }
-        return SyncState(
-            track = ctx.track.toProto(),
-            server_start_monotonic = ctx.serverStartMonotonic,
-            state = protoState,
-            pause_position_ms = posMs,
-            playback = ctx.playback.toProto(),
-            lyric_lrc = ctx.track.lyricLrc.orEmpty(),
-            secondary_lyric_lrc = ctx.track.secondaryLyricLrc.orEmpty(),
-        )
-    }
+    fun buildPlaybackSnapshot(): PlaybackSnapshot? =
+        refreshCurrentPlaybackIfDue("playback_snapshot")?.toPlaybackSnapshot()
 
     // -------------------------------------------------------------------------
     // Internal helpers
@@ -665,7 +650,11 @@ class ServerPlaybackController(
         } else {
             autoStartPolicy = AutoStartPolicy.ALLOWED
         }
-        val msg = StateUpdate(state = PlaybackStateProto.STOPPED, position_ms = 0L)
+        val msg = StateUpdate(
+            state = PlaybackStateProto.STOPPED,
+            position_ms = 0L,
+            position_anchor_server_monotonic = 0L,
+        )
         channel.sendToAllClients(PacketIds.STATE_UPDATE, msg.encode())
         currentContext = null
         currentTrackSource = null
@@ -801,6 +790,51 @@ class ServerPlaybackController(
         val nonNegative = positionMs.coerceAtLeast(0L)
         if (durationMs <= 0L) return nonNegative
         return nonNegative.coerceAtMost(durationMs)
+    }
+
+    private fun TrackContext.toPlaybackSnapshot(): PlaybackSnapshot? {
+        val now = System.nanoTime()
+        return when (val playbackState = state) {
+            is PlaybackState.Playing -> track.playbackSnapshot(
+                playback = playback,
+                state = playbackState,
+                positionMs = normalizePosition(
+                    (now - serverStartMonotonic) / 1_000_000L,
+                    track.durationMs,
+                ),
+                anchorServerMonotonic = now,
+            )
+
+            is PlaybackState.Paused -> track.playbackSnapshot(
+                playback = playback,
+                state = playbackState,
+                positionMs = normalizePosition(playbackState.positionMs, track.durationMs),
+                anchorServerMonotonic = 0L,
+            )
+
+            PlaybackState.Stopped -> null
+        }
+    }
+
+    private fun TrackInfo.playbackSnapshot(
+        playback: PlaybackResource,
+        state: PlaybackState,
+        positionMs: Long,
+        anchorServerMonotonic: Long,
+    ): PlaybackSnapshot = PlaybackSnapshot(
+        track = toProto(),
+        playback = playback.toProto(),
+        state = state.toProto(),
+        position_ms = normalizePosition(positionMs, durationMs),
+        position_anchor_server_monotonic = anchorServerMonotonic,
+        lyric_lrc = lyricLrc.orEmpty(),
+        secondary_lyric_lrc = secondaryLyricLrc.orEmpty(),
+    )
+
+    private fun PlaybackState.toProto(): PlaybackStateProto = when (this) {
+        is PlaybackState.Playing -> PlaybackStateProto.PLAYING
+        is PlaybackState.Paused -> PlaybackStateProto.PAUSED
+        PlaybackState.Stopped -> PlaybackStateProto.STOPPED
     }
 
     private fun sanitizeTrackForClient(track: TrackInfo): TrackInfo =

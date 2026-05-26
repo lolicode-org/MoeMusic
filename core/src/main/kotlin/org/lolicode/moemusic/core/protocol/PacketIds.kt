@@ -62,17 +62,17 @@ object PacketIds {
     /** Server's response to a SyncRequest. */
     val SYNC_RESPONSE = PacketId(NS, "sync_response")
 
-    /** Server metadata sent immediately after the client handshake. */
-    val SERVER_HANDSHAKE = PacketId(NS, "server_handshake")
+    /** Server response that accepts/rejects the client handshake and provides initial state. */
+    val SERVER_WELCOME = PacketId(NS, "server_welcome")
 
-    /** Broadcast when a new track starts: includes future start timestamp. */
+    /** Broadcast when a new track starts: includes a full anchored playback snapshot. */
     val PLAY_TRACK = PacketId(NS, "play_track")
 
     /**
-     * Sent to a late-joining or desynced client: full current state snapshot
+     * Sent to a newly active or desynced client: full current state snapshot
      * so the client can seek to the correct position.
      */
-    val SYNC_STATE = PacketId(NS, "sync_state")
+    val PLAYBACK_SNAPSHOT_UPDATE = PacketId(NS, "playback_snapshot_update")
 
     /** Broadcast when playback state changes (pause, resume, seek, stop). */
     val STATE_UPDATE = PacketId(NS, "state_update")
@@ -96,7 +96,7 @@ object PacketIds {
     val ALL: List<PacketId> = listOf(
         CLIENT_HANDSHAKE, CLIENT_STATE_CHANGE, SYNC_REQUEST, TRACK_SUBMIT, IDENTIFIER_SUBMIT, SELECTION_SUBMIT, SEARCH_REQUEST,
         QUEUE_REQUEST, QUEUE_REMOVE_REQUEST, PLAYBACK_CONTROL_REQUEST, CONTENT_FILTER_ACTION_REQUEST,
-        TRACK_SUBMIT_RESPONSE, IDENTIFIER_SUBMIT_RESPONSE, SELECTION_SUBMIT_RESPONSE, SYNC_RESPONSE, SERVER_HANDSHAKE, PLAY_TRACK, SYNC_STATE, STATE_UPDATE,
+        TRACK_SUBMIT_RESPONSE, IDENTIFIER_SUBMIT_RESPONSE, SELECTION_SUBMIT_RESPONSE, SYNC_RESPONSE, SERVER_WELCOME, PLAY_TRACK, PLAYBACK_SNAPSHOT_UPDATE, STATE_UPDATE,
         SEARCH_RESPONSE,
         QUEUE_RESPONSE, QUEUE_REMOVE_RESPONSE, PLAYBACK_CONTROL_RESPONSE, CONTENT_FILTER_ACTION_RESPONSE,
     )

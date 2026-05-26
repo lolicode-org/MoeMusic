@@ -57,7 +57,27 @@ class ServerPacketHandlers(
             PacketIds.CLIENT_HANDSHAKE,
             { ClientHandshake.ADAPTER.decode(it) },
         ) { msg, sender ->
+            val serverRecvMonotonic = System.nanoTime()
             if (sender == null) return@register
+            if (msg.protocol_version != MoeMusicProtocol.VERSION) {
+                val welcome = ServerWelcome(
+                    accepted = false,
+                    failure = "MoeMusic protocol mismatch: client=${msg.protocol_version}, server=${MoeMusicProtocol.VERSION}",
+                    server_protocol_version = MoeMusicProtocol.VERSION,
+                    initial_time_sync = buildSyncResponse(msg.client_send_monotonic, serverRecvMonotonic),
+                    accepted_state = msg.initial_state,
+                )
+                channel.sendToClient(sender, PacketIds.SERVER_WELCOME, welcome.encode())
+                logger.debug(
+                    "Rejected client handshake from {} (mod={}, protocol={} serverProtocol={})",
+                    sender.displayName,
+                    msg.mod_version,
+                    msg.protocol_version,
+                    MoeMusicProtocol.VERSION,
+                )
+                return@register
+            }
+
             val normalizedLocale = Localization.normalizeLocale(msg.locale)
             val initialParticipation = msg.initial_state.toParticipation()
             val user = when (initialParticipation) {
@@ -76,28 +96,43 @@ class ServerPacketHandlers(
                 MoeMusicProtocol.VERSION,
             )
 
-            val searchService = PluginManager.searchService
-            val handshake = ServerHandshake(
-                sources = searchService.sourceSnapshot().map { source ->
-                    SearchSourceInfo(
-                        id = source.id,
-                        display_name = Localization.render(user.locale, source.displayName),
-                        searchable = source is SearchableMusicSource,
-                    )
-                },
-                default_source_id = searchService.defaultSearchSourceId(),
-            )
-            channel.sendToClient(user, PacketIds.SERVER_HANDSHAKE, handshake.encode())
-
-            if (initialParticipation == UserSessionRegistry.Participation.ACTIVE) {
-                onClientBecameActive(channel, user)
+            val initialPlayback = if (initialParticipation == UserSessionRegistry.Participation.ACTIVE) {
+                // If the controller was auto-paused while no clients were connected, resume now.
+                // This restores the exact position + restarts the advance timer for remaining time.
+                ServerRuntimeCoordinator.ensureNativeAudienceLease()
+                ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()
+            } else {
+                null
             }
+
+            val searchService = PluginManager.searchService
+            val sources = searchService.sourceSnapshot().map { source ->
+                SearchSourceInfo(
+                    id = source.id,
+                    display_name = Localization.render(user.locale, source.displayName),
+                    searchable = source is SearchableMusicSource,
+                )
+            }
+            val defaultSourceId = searchService.defaultSearchSourceId()
+            val initialTimeSync = buildSyncResponse(msg.client_send_monotonic, serverRecvMonotonic)
+            val welcome = ServerWelcome(
+                accepted = true,
+                failure = "",
+                server_protocol_version = MoeMusicProtocol.VERSION,
+                initial_time_sync = initialTimeSync,
+                accepted_state = msg.initial_state,
+                sources = sources,
+                default_source_id = defaultSourceId,
+                initial_playback = initialPlayback,
+            )
+            channel.sendToClient(user, PacketIds.SERVER_WELCOME, welcome.encode())
         }
 
         registry.register(
             PacketIds.CLIENT_STATE_CHANGE,
             { ClientStateChange.ADAPTER.decode(it) },
         ) { msg, sender ->
+            val serverRecvMonotonic = System.nanoTime()
             if (sender == null) return@register
             when (msg.state.toParticipation()) {
                 UserSessionRegistry.Participation.ACTIVE -> {
@@ -106,7 +141,14 @@ class ServerPacketHandlers(
                     )
                     val user = sessions.activate(sender, locale)
                     logger.debug("Client state change from {} -> ACTIVE", user.displayName)
-                    onClientBecameActive(channel, user)
+                    ServerRuntimeCoordinator.ensureNativeAudienceLease()
+                    val snapshot = ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()
+                    val timeSync = buildSyncResponse(msg.client_send_monotonic, serverRecvMonotonic)
+                    val update = PlaybackSnapshotUpdate(
+                        time_sync = timeSync,
+                        snapshot = snapshot,
+                    )
+                    channel.sendToClient(user, PacketIds.PLAYBACK_SNAPSHOT_UPDATE, update.encode())
                 }
 
                 UserSessionRegistry.Participation.STANDBY -> {
@@ -607,21 +649,17 @@ class ServerPacketHandlers(
             PlaybackControlAction.SEEK -> PlaybackAction.SEEK
         }
 
-    private fun onClientBecameActive(channel: NetworkChannel, user: MoeMusicUser) {
-        // If the controller was auto-paused while no clients were connected, resume now.
-        // This restores the exact position + restarts the advance timer for remaining time.
-        ServerRuntimeCoordinator.ensureNativeAudienceLease()
-
-        val syncState = ServerRuntimeCoordinator.playbackController.buildSyncState()
-        if (syncState != null) {
-            channel.sendToClient(user, PacketIds.SYNC_STATE, syncState.encode())
-        }
-    }
-
     private fun TrackAddModeProto.toTrackAddMode(): TrackAddMode =
         when (this) {
             TrackAddModeProto.TRACK_ADD_MODE_NORMAL -> TrackAddMode.NORMAL
             TrackAddModeProto.TRACK_ADD_MODE_SKIP_AUTOPLAY -> TrackAddMode.SKIP_AUTOPLAY
             TrackAddModeProto.TRACK_ADD_MODE_PLAY_NOW -> TrackAddMode.PLAY_NOW
         }
+
+    private fun buildSyncResponse(clientSendMonotonic: Long, serverRecvMonotonic: Long): SyncResponse =
+        SyncResponse(
+            client_send_monotonic = clientSendMonotonic,
+            server_recv_monotonic = serverRecvMonotonic,
+            server_send_monotonic = System.nanoTime(),
+        )
 }
