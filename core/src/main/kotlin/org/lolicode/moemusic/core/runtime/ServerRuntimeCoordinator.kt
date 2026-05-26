@@ -184,9 +184,9 @@ object ServerRuntimeCoordinator {
         check(serverRuntimeInitialized) { "Server runtime is not initialized." }
         ModConfigManager.reload(configDir)
         Localization.validateConfiguredDefaultLanguage()
+        val pluginReport = PluginManager.reloadConfigFilesFromDisk()
         val builtinSections = applyReloadableServerConfig(refreshAutoplayIfNeeded = false)
         refreshAutoplayRuntime()
-        val pluginReport = PluginManager.reloadConfigFilesFromDisk()
         return pluginReloadReport(builtinSections, pluginReport)
     }
 
