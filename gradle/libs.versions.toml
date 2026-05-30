@@ -3,15 +3,15 @@
 moemusic-api = "1.0.0"  # Used as maven artifact version for API modules.
 moemusic-api-compat = "1.0.0"  # Used in core for plugin compatibility checks.
 moemusic-protocol = "2"
-moemusic-core = "1.2.1"
-moemusic-client-core = "1.1.0"
+moemusic-core = "1.2.2"
+moemusic-client-core = "1.1.1"
 
 # Kotlin and build tooling.
 kotlin = "2.3.21"
 wire = "6.4.0"
 
 # Runtime libraries.
-lavaplayer = "2.4.0-beta.2"
+lavaplayer = "2.4.1"
 ktoml-core = "0.7.1"
 ktoml-file = "0.7.1"
 slf4j = "2.0.17"
