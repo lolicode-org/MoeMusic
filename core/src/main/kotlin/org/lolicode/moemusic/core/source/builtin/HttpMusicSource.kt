@@ -38,15 +38,17 @@ object HttpMusicSource : IdentifierResolvableMusicSource {
         }
 
         val filename = identifier.substringAfterLast('/').ifBlank { identifier }
+        val srcId = id
         return IdentifierResolutionResult.Resolved(
             TrackInfo(
                 id = identifier,
                 title = probe.title.ifBlank { filename },
                 artists = listOf(probe.artist.ifBlank { "HTTP Source" }).toArtistInfos(),
                 durationMs = probe.durationMs,
-                coverUrl = probe.artworkUrl,
-                sourceId = id,
-            ),
+            ) {
+                coverUrl = probe.artworkUrl
+                sourceId = srcId
+            },
         )
     }
 

@@ -31,13 +31,7 @@ class TrackSubmissionServiceTest {
                 UserResult.Success(
                     SelectionResolveResult.Choices(
                         listOf(
-                            SelectionEntry(
-                                selectionId = "track-1",
-                                title = "Track 1",
-                                artists = listOf("Artist").toArtistInfos(),
-                                durationMs = 60_000,
-                                kind = SelectionEntryKind.TRACK,
-                            )
+                            SelectionEntry(selectionId = "track-1", title = "Track 1", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { kind = SelectionEntryKind.TRACK }
                         )
                     )
                 )
@@ -65,13 +59,7 @@ class TrackSubmissionServiceTest {
             override suspend fun resolveSelection(selectionId: String, submitter: MoeMusicUser?): UserResult<SelectionResolveResult?> =
                 UserResult.Success(
                     SelectionResolveResult.Track(
-                        TrackInfo(
-                            id = selectionId,
-                            title = "Playable",
-                            artists = listOf("Artist").toArtistInfos(),
-                            durationMs = 60_000,
-                            sourceId = id,
-                        )
+                        TrackInfo(id = selectionId, title = "Playable", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = "source" }
                     )
                 )
 
@@ -103,13 +91,7 @@ class TrackSubmissionServiceTest {
             val service = TrackSubmissionService(freshController())
             val error = assertFailsWith<UserFacingException> {
                 service.submitResolved(
-                    track = TrackInfo(
-                        id = "track-1",
-                        title = "Live Track",
-                        artists = listOf("Artist").toArtistInfos(),
-                        durationMs = -1,
-                        sourceId = source.id,
-                    ),
+                    track = TrackInfo(id = "track-1", title = "Live Track", artists = listOf("Artist").toArtistInfos(), durationMs = -1) { sourceId = source.id },
                     submitter = fakePlayer(),
                     mode = TrackAddMode.NORMAL,
                 )
@@ -131,13 +113,7 @@ class TrackSubmissionServiceTest {
             val service = TrackSubmissionService(freshController())
             val error = assertFailsWith<UserFacingException> {
                 service.submitResolved(
-                    track = TrackInfo(
-                        id = "track-1",
-                        title = "Epic Mix",
-                        artists = listOf("Artist").toArtistInfos(),
-                        durationMs = 61_000,
-                        sourceId = source.id,
-                    ),
+                    track = TrackInfo(id = "track-1", title = "Epic Mix", artists = listOf("Artist").toArtistInfos(), durationMs = 61_000) { sourceId = source.id },
                     submitter = fakePlayer(),
                     mode = TrackAddMode.NORMAL,
                 )
@@ -154,17 +130,19 @@ class TrackSubmissionServiceTest {
 
             override suspend fun getTrackInfo(trackId: String, submitter: MoeMusicUser?): UserResult<TrackInfo?> {
                 getTrackInfoCalls++
+                val srcId = id
                 return UserResult.Success(
                     TrackInfo(
                         id = trackId,
                         title = "Authoritative",
                         artists = listOf("Artist").toArtistInfos(),
                         durationMs = 60_000,
-                        sourceId = id,
+                    ) {
+                        sourceId = srcId
                         // Keep this test scoped to submitResolved's authoritative refresh.
                         // Auto-started playback may do its own lyric metadata refresh otherwise.
-                        lyricsFetched = true,
-                    )
+                        lyricsFetched = true
+                    }
                 )
             }
 
@@ -175,13 +153,7 @@ class TrackSubmissionServiceTest {
         withMusicSource(source) {
             val service = TrackSubmissionService(freshController())
             val outcome = service.submitResolved(
-                track = TrackInfo(
-                    id = "track-1",
-                    title = "Caller Supplied",
-                    artists = listOf("Artist").toArtistInfos(),
-                    durationMs = 60_000,
-                    sourceId = source.id,
-                ),
+                track = TrackInfo(id = "track-1", title = "Caller Supplied", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
                 mode = TrackAddMode.NORMAL,
             )
 
@@ -208,13 +180,7 @@ class TrackSubmissionServiceTest {
         withMusicSource(source) {
             val service = TrackSubmissionService(freshController())
             val outcome = service.submitResolvedFromSource(
-                track = TrackInfo(
-                    id = "track-1",
-                    title = "Source Resolved",
-                    artists = listOf("Artist").toArtistInfos(),
-                    durationMs = 60_000,
-                    sourceId = source.id,
-                ),
+                track = TrackInfo(id = "track-1", title = "Source Resolved", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
                 mode = TrackAddMode.NORMAL,
             )
 
@@ -239,13 +205,7 @@ class TrackSubmissionServiceTest {
             val service = TrackSubmissionService(freshController())
             val submitter = fakePlayer()
             val outcome = service.submitResolved(
-                track = TrackInfo(
-                    id = "track-1",
-                    title = "Playable",
-                    artists = listOf("Artist").toArtistInfos(),
-                    durationMs = 60_000,
-                    sourceId = source.id,
-                ),
+                track = TrackInfo(id = "track-1", title = "Playable", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
                 submitter = submitter,
                 mode = TrackAddMode.NORMAL,
             )

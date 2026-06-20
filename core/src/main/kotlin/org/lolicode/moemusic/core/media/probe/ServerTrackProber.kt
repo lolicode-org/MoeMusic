@@ -71,7 +71,7 @@ object ServerTrackProber {
      *         or [ProbeResult.Unknown] on failure/timeout.
      */
     suspend fun probe(url: String, headers: Map<String, String> = emptyMap()): ProbeResult =
-        probe(PlaybackResource(url = url, headers = headers))
+        probe(PlaybackResource(url) { this.headers = headers })
 
     /**
      * Probe [playback] for metadata. Suspends on [Dispatchers.IO].

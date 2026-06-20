@@ -329,6 +329,28 @@ class PluginManagerTest {
     }
 
     @Test
+    fun `plugin built against API 1_x range is refused after 2_0 bump`() {
+        // The plugin compatibility version is now 2.0.0, so a plugin declaring the historical
+        // 1.x range must be cleanly refused at load (fail-fast) rather than crash at runtime.
+        val plugin = object : Plugin {
+            override val id = "test-compat-1x-${System.nanoTime()}"
+            override val version = "1.0.0"
+            override val supportedApiVersions = ">=1.0.0 <2.0.0"
+        }
+
+        val tmpDir = Files.createTempDirectory("moemusic-test")
+        MoeMusicApi.registerPlugin(plugin)
+
+        val error = assertFailsWith<IllegalStateException> {
+            PluginManager.initialize(tmpDir)
+        }
+
+        assertContains(error.message.orEmpty(), plugin.id)
+        assertContains(error.message.orEmpty(), "requires API version")
+        tmpDir.toFile().deleteRecursively()
+    }
+
+    @Test
     fun `plugin with invalid config id fails initialization`() {
         val plugin = object : Plugin {
             override val id = "test-invalid-config-${System.nanoTime()}"

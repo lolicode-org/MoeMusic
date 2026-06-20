@@ -53,7 +53,7 @@ dependencies {
 本项目接口版本遵循语义化版本规范，并且在主版本号不变的前提下保持向后兼容。因此，推荐的声明方式为：大于等于当前的最新次要版本号，并且小于下一个主版本号，例如：
 
 ```kotlin
-override val supportedApiVersions: String = ">=1.0.0 <2.0.0"
+override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
 ```
 
 ## 创建插件

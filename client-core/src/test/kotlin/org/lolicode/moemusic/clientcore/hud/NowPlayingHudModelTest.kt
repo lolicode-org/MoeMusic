@@ -82,14 +82,7 @@ class NowPlayingHudModelTest {
 
     private fun trackContext(durationMs: Long): TrackContext =
         TrackContext(
-            track = TrackInfo(
-                id = "track-1",
-                title = "Song Title",
-                artists = listOf("Artist Name").toArtistInfos(),
-                durationMs = durationMs,
-                sourceId = "http",
-                album = "Album Name",
-            ),
+            track = TrackInfo(id = "track-1", title = "Song Title", artists = listOf("Artist Name").toArtistInfos(), durationMs = durationMs) { sourceId = "http"; album = "Album Name" },
             playback = PlaybackResource(url = "https://example.com/audio.mp3"),
             state = PlaybackState.Playing(positionMs = 65_000),
         )

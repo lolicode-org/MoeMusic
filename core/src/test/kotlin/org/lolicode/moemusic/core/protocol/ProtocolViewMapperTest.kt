@@ -36,13 +36,7 @@ class ProtocolViewMapperTest {
                 ),
             )
         )
-        val track = TrackInfo(
-            id = "123",
-            title = "Blocked Song",
-            artists = listOf("Artist").toArtistInfos(),
-            durationMs = 180_000,
-            sourceId = "netease",
-        )
+        val track = TrackInfo(id = "123", title = "Blocked Song", artists = listOf("Artist").toArtistInfos(), durationMs = 180_000) { sourceId = "netease" }
 
         val masked = ProtocolViewMapper.trackToClientProto(track, canBypass = false, canSeeDetail = false, ::render)
         val detailed = ProtocolViewMapper.trackToClientProto(track, canBypass = false, canSeeDetail = true, ::render)
@@ -61,15 +55,7 @@ class ProtocolViewMapperTest {
                 ),
             )
         )
-        val entry = SelectionEntry(
-            selectionId = "123",
-            title = "Blocked Song",
-            artists = listOf("Artist").toArtistInfos(),
-            durationMs = 180_000,
-            sourceId = "netease",
-            unavailableReason = LocalizedText.key("error.moemusic.track_unavailable"),
-            kind = SelectionEntryKind.TRACK,
-        )
+        val entry = SelectionEntry(selectionId = "123", title = "Blocked Song", artists = listOf("Artist").toArtistInfos(), durationMs = 180_000) { sourceId = "netease"; unavailableReason = LocalizedText.key("error.moemusic.track_unavailable"); kind = SelectionEntryKind.TRACK }
 
         val proto = ProtocolViewMapper.selectionToClientProto(
             entry = entry,

@@ -4,6 +4,7 @@ import org.lolicode.moemusic.api.MoeMusicUser
 import org.lolicode.moemusic.api.MusicSource
 import org.lolicode.moemusic.api.model.PlaybackState
 import org.lolicode.moemusic.api.model.PlaybackResource
+import org.lolicode.moemusic.api.model.copy
 import org.lolicode.moemusic.api.model.TrackInfo
 import org.lolicode.moemusic.api.model.toArtistInfos
 import org.lolicode.moemusic.core.event.EventBusImpl
@@ -36,13 +37,7 @@ class PlaybackAudienceLeaseCoordinatorTest {
         PluginManager.reset()
     }
 
-    private val sampleTrack = TrackInfo(
-        id = "lease-track",
-        title = "Lease Track",
-        artists = listOf("Lease Artist").toArtistInfos(),
-        durationMs = 120_000,
-        sourceId = "lease-source",
-    )
+    private val sampleTrack = TrackInfo(id = "lease-track", title = "Lease Track", artists = listOf("Lease Artist").toArtistInfos(), durationMs = 120_000) { sourceId = "lease-source" }
 
     private val sampleSource = object : MusicSource {
         override val id: String = "lease-source"
@@ -83,7 +78,7 @@ class PlaybackAudienceLeaseCoordinatorTest {
     @Test
     fun `first lease can start autoplay when nothing is loaded`() {
         val queue = TrackQueue().apply {
-            autoplaySupplier = { sampleTrack.copy(id = "autoplay-lease-track", title = "Autoplay Lease Track") }
+            autoplaySupplier = { sampleTrack.copy { id = "autoplay-lease-track"; title = "Autoplay Lease Track" } }
         }
         val ctrl = controller(queue)
         val coordinator = PlaybackAudienceLeaseCoordinator(ctrl)

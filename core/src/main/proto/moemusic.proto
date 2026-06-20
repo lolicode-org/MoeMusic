@@ -39,6 +39,8 @@ message SelectionEntryProto {
   string unavailable_reason = 8;
 }
 
+/** IMPORTANT NOTE: Before changing/adding any enums in the proto,
+check `## Protocol Evolution Rules` in maintenance.md! */
 enum SelectionEntryKindProto {
   SELECTION_ENTRY_KIND_TRACK = 0;
   SELECTION_ENTRY_KIND_CONTAINER = 1;

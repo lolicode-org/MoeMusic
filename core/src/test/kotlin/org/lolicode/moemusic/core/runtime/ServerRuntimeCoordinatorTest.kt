@@ -63,13 +63,7 @@ class ServerRuntimeCoordinatorTest {
                     initialFetch.countDown()
                 }
                 return listOf(
-                    TrackInfo(
-                        id = playlistId,
-                        title = "Track $playlistId",
-                        artists = listOf("Artist").toArtistInfos(),
-                        durationMs = 60_000,
-                        sourceId = id,
-                    )
+                    TrackInfo(id = playlistId, title = "Track $playlistId", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = "test-reload-order-source" }
                 )
             }
         }

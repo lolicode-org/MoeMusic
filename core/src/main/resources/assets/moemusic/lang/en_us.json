@@ -275,6 +275,7 @@
   "screen.moemusic.now_playing.state.playing": "▶ Playing",
   "screen.moemusic.now_playing.state.paused": "⏸ Paused",
   "screen.moemusic.now_playing.state.stopped": "⏹ Stopped",
+  "screen.moemusic.now_playing.state.unknown": "❌ Unknown",
   "screen.moemusic.quick_add.title": "Quick Add",
   "screen.moemusic.quick_add.subtitle": "Paste a share link or song ID.",
   "screen.moemusic.quick_add.identifier": "Link or ID",

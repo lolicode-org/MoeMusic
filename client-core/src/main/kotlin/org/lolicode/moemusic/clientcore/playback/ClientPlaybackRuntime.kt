@@ -774,6 +774,7 @@ class ClientPlaybackRuntime(
             is PlaybackState.Playing -> platform.audio.currentPositionMs()
             is PlaybackState.Paused -> state.positionMs
             PlaybackState.Stopped -> 0L
+            else -> 0L
         }.coerceAtMost(ctx.track.durationMs.takeIf { it > 0 } ?: Long.MAX_VALUE)
 
     fun sourceDisplayName(sourceId: String?): String {
@@ -919,7 +920,7 @@ class ClientPlaybackRuntime(
                         track = locallyAllowedTrack,
                         playback = playback,
                         positionMs = seekMs,
-                        fromSyncState = fromSyncState,
+                        startCause = if (fromSyncState) PlaybackStartCause.CATCH_UP else PlaybackStartCause.NEW_TRACK,
                     )
                 )
             }
@@ -959,7 +960,7 @@ class ClientPlaybackRuntime(
                         track = locallyAllowedTrack,
                         playback = playback,
                         positionMs = posMs,
-                        fromSyncState = fromSyncState,
+                        startCause = if (fromSyncState) PlaybackStartCause.CATCH_UP else PlaybackStartCause.NEW_TRACK,
                     )
                 )
             }
@@ -1113,11 +1114,11 @@ class ClientPlaybackRuntime(
         }
     }
 
-    private fun TrackInfo.withLyrics(primary: String, secondary: String): TrackInfo = copy(
-        lyricLrc = primary.ifEmpty { null },
-        secondaryLyricLrc = secondary.ifEmpty { null },
-        lyricsFetched = primary.isNotEmpty() || secondary.isNotEmpty(),
-    )
+    private fun TrackInfo.withLyrics(primary: String, secondary: String): TrackInfo = copy {
+        lyricLrc = primary.ifEmpty { null }
+        secondaryLyricLrc = secondary.ifEmpty { null }
+        lyricsFetched = primary.isNotEmpty() || secondary.isNotEmpty()
+    }
 
     private fun applyClientMediaPolicy(track: TrackInfo, url: String): Boolean =
         when (val verdict = ClientMediaFirewall.evaluate(url)) {
@@ -1474,15 +1475,17 @@ class ClientPlaybackRuntime(
 
     private fun SelectionEntry.toDirectTrackSubmitTrack(): TrackInfo? {
         val trackId = directTrackId?.takeIf(String::isNotBlank) ?: return null
+        val entry = this
         return TrackInfo(
             id = trackId,
-            title = title,
-            artists = artists,
-            durationMs = durationMs,
-            sourceId = sourceId,
-            album = album,
-            unavailableReason = unavailableReason,
-        )
+            title = entry.title,
+            artists = entry.artists,
+            durationMs = entry.durationMs,
+        ) {
+            sourceId = entry.sourceId
+            album = entry.album
+            unavailableReason = entry.unavailableReason
+        }
     }
 
     private fun serverWelcomeRejection(msg: ServerWelcome): ServerWelcomeRejection =

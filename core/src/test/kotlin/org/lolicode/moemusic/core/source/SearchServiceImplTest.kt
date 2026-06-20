@@ -34,13 +34,7 @@ class SearchServiceImplTest {
 
             override suspend fun search(query: SearchQuery, submitter: MoeMusicUser?): UserResult<SearchResult> {
                 val entries = (query.offset until query.offset + query.limit).map { index ->
-                    SelectionEntry(
-                        selectionId = "track-$index",
-                        title = "Track $index",
-                        artists = listOf("Artist").toArtistInfos(),
-                        durationMs = 60_000,
-                        sourceId = id,
-                    )
+                    SelectionEntry(selectionId = "track-$index", title = "Track $index", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = "alpha" }
                 }
                 return UserResult.Success(SearchResult(
                     entries = entries,
@@ -80,13 +74,7 @@ class SearchServiceImplTest {
                 UserResult.Success(
                     SearchResult(
                         entries = listOf(
-                            SelectionEntry(
-                                selectionId = "beta-1",
-                                title = "Beta Result",
-                                artists = listOf("Artist").toArtistInfos(),
-                                durationMs = 60_000,
-                                sourceId = id,
-                            )
+                            SelectionEntry(selectionId = "beta-1", title = "Beta Result", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = "beta" }
                         ),
                         sourceId = id,
                         total = 1,
@@ -119,7 +107,7 @@ class SearchServiceImplTest {
             override suspend fun search(query: SearchQuery, submitter: MoeMusicUser?): UserResult<SearchResult> =
                 UserResult.Success(
                     SearchResult(
-                        entries = listOf(SelectionEntry("alpha-1", "Alpha", listOf("Artist").toArtistInfos(), 60_000, sourceId = id)),
+                        entries = listOf(SelectionEntry("alpha-1", "Alpha", listOf("Artist").toArtistInfos(), 60_000) { sourceId = "alpha" }),
                         sourceId = id,
                         total = 1,
                     )
@@ -131,7 +119,7 @@ class SearchServiceImplTest {
             override suspend fun search(query: SearchQuery, submitter: MoeMusicUser?): UserResult<SearchResult> =
                 UserResult.Success(
                     SearchResult(
-                        entries = listOf(SelectionEntry("beta-1", "Beta", listOf("Artist").toArtistInfos(), 60_000, sourceId = id)),
+                        entries = listOf(SelectionEntry("beta-1", "Beta", listOf("Artist").toArtistInfos(), 60_000) { sourceId = "beta" }),
                         sourceId = id,
                         total = 1,
                     )
@@ -158,7 +146,7 @@ class SearchServiceImplTest {
             override suspend fun search(query: SearchQuery, submitter: MoeMusicUser?): UserResult<SearchResult> =
                 UserResult.Success(
                     SearchResult(
-                        entries = listOf(SelectionEntry("beta-1", "Beta", listOf("Artist").toArtistInfos(), 60_000, sourceId = id)),
+                        entries = listOf(SelectionEntry("beta-1", "Beta", listOf("Artist").toArtistInfos(), 60_000) { sourceId = "beta" }),
                         sourceId = id,
                         total = 1,
                     )
@@ -220,7 +208,7 @@ class SearchServiceImplTest {
                 return UserResult.Success(
                     SearchResult(
                         entries = (0 until query.limit).map { index ->
-                            SelectionEntry("track-$index", "Track $index", listOf("Artist").toArtistInfos(), 60_000, sourceId = id)
+                            SelectionEntry("track-$index", "Track $index", listOf("Artist").toArtistInfos(), 60_000) { sourceId = "alpha" }
                         },
                         sourceId = id,
                         total = query.limit,
@@ -295,7 +283,7 @@ class SearchServiceImplTest {
                 UserResult.Success(
                     SearchResult(
                         entries = listOf(
-                            SelectionEntry("track-1", "Track 1", listOf("Artist").toArtistInfos(), 60_000, sourceId = id)
+                            SelectionEntry("track-1", "Track 1", listOf("Artist").toArtistInfos(), 60_000) { sourceId = "alpha" }
                         ),
                         sourceId = id,
                         total = 1,

@@ -16,11 +16,11 @@ public interface IClientPlaybackService {
     public val currentParticipationState: UserParticipationState?
 
     /**
-     * Current local availability issue for the builtin MoeMusic client UI, if any.
+     * Current local availability issue for the builtin MoeMusic client UI, or null when none.
      *
-     * In the 1.x API, [ClientAvailabilityIssue.SERVER_MISSING] means that the client failed
-     * to establish a usable MoeMusic handshake for any reason. The old name is kept for
-     * compatibility and this coarse field may be renamed or removed in API 2.0.
+     * [ClientAvailabilityIssue.HANDSHAKE_UNAVAILABLE] is the coarse "no usable MoeMusic handshake"
+     * signal; finer reasons may be reported as the handshake layer learns to distinguish them.
+     * [ClientAvailabilityIssue] is an open value set — always handle unrecognized values.
      */
     public val currentAvailabilityIssue: ClientAvailabilityIssue?
 

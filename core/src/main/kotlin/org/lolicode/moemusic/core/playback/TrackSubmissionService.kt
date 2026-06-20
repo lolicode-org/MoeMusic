@@ -17,6 +17,7 @@ import org.lolicode.moemusic.api.model.SelectionResolveResult
 import org.lolicode.moemusic.api.model.TrackAddMode
 import org.lolicode.moemusic.api.model.TrackInfo
 import org.lolicode.moemusic.api.model.isAvailable
+import org.lolicode.moemusic.api.model.copy
 import org.lolicode.moemusic.api.model.mergePreservingRuntimeMetadata
 import org.lolicode.moemusic.api.model.unavailabilityMessage
 import org.lolicode.moemusic.core.config.ModConfigManager
@@ -95,7 +96,7 @@ class TrackSubmissionService(
                 // per-sender verdict checks at the wire boundary.
                 SelectionSubmitOutcome.Choices(
                     entries = selection.entries
-                        .map { entry -> entry.copy(sourceId = entry.sourceId ?: source.id) },
+                        .map { entry -> entry.copy { this.sourceId = entry.sourceId ?: source.id } },
                     sourceId = source.id,
                 )
         }
@@ -148,9 +149,9 @@ class TrackSubmissionService(
         submitter: MoeMusicUser?,
         mode: TrackAddMode,
     ): SubmitOutcome {
-        val stamped = track.copy(
-            submittedByUserName = track.submittedByUserName ?: submitter?.displayName,
-        )
+        val stamped = track.copy {
+            this.submittedByUserName = track.submittedByUserName ?: submitter?.displayName
+        }
 
         enforceDurationPolicy(stamped, submitter)
 

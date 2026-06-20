@@ -23,7 +23,14 @@ public data class ExactArtistFilterRule(
     val note: String? = null,
 )
 
-/** Matching strategy for common text rules. */
+/**
+ * Matching strategy for common text rules.
+ *
+ * Serialized by name into persisted content-filter config, so this stays an `enum` (a value-class
+ * token would need a custom serializer to preserve stored rules). It is nonetheless
+ * **non-exhaustive across API versions** — future versions may add modes, so `when` over a
+ * [ContentFilterTextRuleMode] should include an `else` branch and tolerate unknown persisted values.
+ */
 @Serializable
 public enum class ContentFilterTextRuleMode {
     SUBSTRING,
@@ -38,7 +45,13 @@ public enum class ContentFilterRuleAction {
     TOGGLE,
 }
 
-/** User-visible text fields that a shared text rule may inspect. */
+/**
+ * User-visible text fields that a shared text rule may inspect.
+ *
+ * Like [ContentFilterTextRuleMode], this is serialized into persisted config so it stays an `enum`,
+ * but it is **non-exhaustive across API versions** — future versions may add scopes. Consumers
+ * should branch with an `else` and tolerate unknown persisted values.
+ */
 @Serializable
 public enum class ContentFilterTextRuleScope {
     /** Search query text before it is sent to a music source. Server-side only. */

@@ -11,6 +11,7 @@ import org.lolicode.moemusic.api.model.ContentFilterTextRuleScope
 import org.lolicode.moemusic.api.model.SearchQuery
 import org.lolicode.moemusic.api.model.SearchResult
 import org.lolicode.moemusic.api.model.SelectionEntry
+import org.lolicode.moemusic.api.model.copy
 import org.lolicode.moemusic.api.service.FilterVerdict
 import org.lolicode.moemusic.api.service.ISearchService
 import org.lolicode.moemusic.core.config.ModConfigManager
@@ -122,7 +123,7 @@ class SearchServiceImpl(
 
         val page = searchResult.entries
             .take(effectiveLimit)
-            .map { entry -> entry.copy(sourceId = entry.sourceId ?: resolvedSource.id) }
+            .map { entry -> entry.copy { this.sourceId = entry.sourceId ?: resolvedSource.id } }
             // Filter annotation is deferred to ServerPacketHandlers so it can be applied per-sender.
             // with bypass-privilege awareness. Do not annotate here.
         val reportedTotal = searchResult.total.coerceAtLeast(0)
@@ -149,11 +150,12 @@ class SearchServiceImpl(
     ): SearchResult {
         val outcome = SearchResult(
             entries = entries,
-            total = total,
-            hasMore = hasMore,
             sourceId = sourceId,
-            failure = failure,
-        )
+            total = total,
+        ) {
+            this.hasMore = hasMore
+            this.failure = failure
+        }
         CoreEvents.bus.fire(
             OnSearchCompleted(
                 query = query,

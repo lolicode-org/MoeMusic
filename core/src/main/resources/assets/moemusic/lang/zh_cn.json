@@ -275,6 +275,7 @@
   "screen.moemusic.now_playing.state.playing": "▶ 播放中",
   "screen.moemusic.now_playing.state.paused": "⏸ 已暂停",
   "screen.moemusic.now_playing.state.stopped": "⏹ 已停止",
+  "screen.moemusic.now_playing.state.unknown": "❌ 未知状态",
   "screen.moemusic.quick_add.title": "快速添加",
   "screen.moemusic.quick_add.subtitle": "粘贴分享链接或歌曲 ID。",
   "screen.moemusic.quick_add.identifier": "链接或 ID",

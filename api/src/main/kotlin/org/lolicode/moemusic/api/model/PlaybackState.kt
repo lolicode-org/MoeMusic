@@ -6,7 +6,7 @@ package org.lolicode.moemusic.api.model
  * All position values are in milliseconds.
  * Timing logic must use monotonic clocks; these values are deltas, not wall-clock times.
  */
-public sealed class PlaybackState {
+public abstract class PlaybackState internal constructor() {
 
     /** Audio is actively playing. [positionMs] is the current playback position. */
     public data class Playing(val positionMs: Long) : PlaybackState()

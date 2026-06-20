@@ -22,11 +22,28 @@ public sealed interface IdentifierSubmitOutcome {
     ) : IdentifierSubmitOutcome
 }
 
-/** Result of attempting to remove a queued track. */
-public enum class QueueRemoveResult {
-    REMOVED,
-    NOT_FOUND,
-    FORBIDDEN,
+/**
+ * Result of attempting to remove a queued track.
+ *
+ * This is an **open** value set, not an enum: future API versions may add results, so `when` over
+ * a [QueueRemoveResult] cannot be exhaustive and must always include an `else` branch.
+ */
+@JvmInline
+public value class QueueRemoveResult private constructor(public val id: String) {
+    override fun toString(): String = id
+
+    public companion object {
+        public val REMOVED: QueueRemoveResult = QueueRemoveResult("REMOVED")
+        public val NOT_FOUND: QueueRemoveResult = QueueRemoveResult("NOT_FOUND")
+        public val FORBIDDEN: QueueRemoveResult = QueueRemoveResult("FORBIDDEN")
+        public val UNKNOWN: QueueRemoveResult = QueueRemoveResult("UNKNOWN")
+
+        /** Values known to this build. New values may appear at runtime; always handle `else`. */
+        public val entries: List<QueueRemoveResult> = listOf(REMOVED, NOT_FOUND, FORBIDDEN, UNKNOWN)
+
+        /** Returns the value for [id], creating an unknown-but-valid value when not recognized. */
+        public fun of(id: String): QueueRemoveResult = QueueRemoveResult(id)
+    }
 }
 
 /** Queue removal outcome from [IUserActionService.removeQueuedTrack]. */

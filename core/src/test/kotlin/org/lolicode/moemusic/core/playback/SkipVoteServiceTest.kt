@@ -111,11 +111,5 @@ class SkipVoteServiceTest {
         )
 
     private fun track(): TrackInfo =
-        TrackInfo(
-            id = "track-1",
-            title = "Test Track",
-            artists = listOf("Artist").toArtistInfos(),
-            durationMs = 180_000,
-            sourceId = "http",
-        )
+        TrackInfo(id = "track-1", title = "Test Track", artists = listOf("Artist").toArtistInfos(), durationMs = 180_000) { sourceId = "http" }
 }

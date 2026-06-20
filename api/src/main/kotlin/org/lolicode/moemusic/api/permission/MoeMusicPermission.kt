@@ -6,6 +6,10 @@ package org.lolicode.moemusic.api.permission
  * Plugins may continue to use [org.lolicode.moemusic.api.MoeMusicUser.hasPermission] directly for custom permission nodes that
  * MoeMusic does not own. Source-private built-in nodes (for example the builtin HTTP source's
  * direct-URL gate) are intentionally excluded from this enum.
+ *
+ * This enum is **non-exhaustive across API versions**: future versions may add nodes. Plugins
+ * typically reference individual constants explicitly, but any `when` over a [MoeMusicPermission]
+ * must include an `else` branch and must not assume the set is closed.
  */
 public enum class MoeMusicPermission(
     public val nodeId: String,

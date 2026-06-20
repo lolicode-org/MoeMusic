@@ -579,9 +579,9 @@ class ServerPlaybackController(
 
         val metadataTrack = if (refreshMetadata && !track.lyricsFetched && track.id.isNotBlank()) {
             when (val metadata = source.getTrackInfo(track.id)) {
-                is UserResult.Success -> metadata.value?.let(track::mergePreservingRuntimeMetadata) ?: track.copy(
+                is UserResult.Success -> metadata.value?.let(track::mergePreservingRuntimeMetadata) ?: track.copy {
                     lyricsFetched = true
-                )
+                }
 
                 is UserResult.Error -> {
                     logger.warn(
@@ -590,7 +590,7 @@ class ServerPlaybackController(
                         sourceId,
                         metadata.message.debugString(),
                     )
-                    track.copy(lyricsFetched = true)
+                    track.copy { lyricsFetched = true }
                 }
             }
         } else {
@@ -873,6 +873,7 @@ class ServerPlaybackController(
             )
 
             PlaybackState.Stopped -> null
+            else -> null
         }
     }
 
@@ -895,10 +896,11 @@ class ServerPlaybackController(
         is PlaybackState.Playing -> PlaybackStateProto.PLAYING
         is PlaybackState.Paused -> PlaybackStateProto.PAUSED
         PlaybackState.Stopped -> PlaybackStateProto.STOPPED
+        else -> PlaybackStateProto.STOPPED
     }
 
     private fun sanitizeTrackForClient(track: TrackInfo): TrackInfo =
-        track.copy(coverUrl = sanitizeCoverUrl(track.coverUrl))
+        track.copy { coverUrl = sanitizeCoverUrl(track.coverUrl) }
 
     private fun sanitizeCoverUrl(coverUrl: String?): String? {
         val url = coverUrl?.takeIf { it.isNotBlank() } ?: return null
@@ -982,30 +984,38 @@ fun PlaybackResource.toProto(): PlaybackResourceProto = PlaybackResourceProto(
 )
 
 /** Convert proto [TrackInfoProto] to API [TrackInfo]. */
-fun TrackInfoProto.toApi(): TrackInfo = TrackInfo(
-    id = id,
-    title = title,
-    artists = artists.map(ArtistInfoProto::toApi),
-    durationMs = duration_ms,
-    coverUrl = cover_url.ifEmpty { null },
-    sourceId = source_id.ifEmpty { null },
-    album = album.ifEmpty { null },
-    submittedByUserName = submitted_by_player_name.ifEmpty { null },
-    unavailableReason = unavailable_reason.ifEmpty { null }?.let(LocalizedText::plain),
-    lyricsFetched = false,
-)
+fun TrackInfoProto.toApi(): TrackInfo {
+    val proto = this
+    return TrackInfo(
+        id = proto.id,
+        title = proto.title,
+        artists = proto.artists.map(ArtistInfoProto::toApi),
+        durationMs = proto.duration_ms,
+    ) {
+        coverUrl = proto.cover_url.ifEmpty { null }
+        sourceId = proto.source_id.ifEmpty { null }
+        album = proto.album.ifEmpty { null }
+        submittedByUserName = proto.submitted_by_player_name.ifEmpty { null }
+        unavailableReason = proto.unavailable_reason.ifEmpty { null }?.let(LocalizedText::plain)
+        lyricsFetched = false
+    }
+}
 
 /** Convert proto [SelectionEntryProto] to API [SelectionEntry]. */
-fun SelectionEntryProto.toApi(): SelectionEntry = SelectionEntry(
-    selectionId = selection_id,
-    title = title,
-    artists = artists.map(ArtistInfoProto::toApi),
-    durationMs = duration_ms,
-    sourceId = source_id.ifEmpty { null },
-    album = album.ifEmpty { null },
-    unavailableReason = unavailable_reason.ifEmpty { null }?.let(LocalizedText::plain),
-    kind = kind.toApi(),
-)
+fun SelectionEntryProto.toApi(): SelectionEntry {
+    val proto = this
+    return SelectionEntry(
+        selectionId = proto.selection_id,
+        title = proto.title,
+        artists = proto.artists.map(ArtistInfoProto::toApi),
+        durationMs = proto.duration_ms,
+    ) {
+        sourceId = proto.source_id.ifEmpty { null }
+        album = proto.album.ifEmpty { null }
+        unavailableReason = proto.unavailable_reason.ifEmpty { null }?.let(LocalizedText::plain)
+        kind = proto.kind.toApi()
+    }
+}
 
 private fun ArtistInfoProto.toApi(): ArtistInfo = ArtistInfo(
     id = id,
@@ -1013,15 +1023,16 @@ private fun ArtistInfoProto.toApi(): ArtistInfo = ArtistInfo(
 )
 
 /** Convert proto [PlaybackResourceProto] to API [PlaybackResource]. */
-fun PlaybackResourceProto.toApi(): PlaybackResource = PlaybackResource(
-    url = url,
-    headers = headers,
-)
+fun PlaybackResourceProto.toApi(): PlaybackResource {
+    val proto = this
+    return PlaybackResource(proto.url) { headers = proto.headers }
+}
 
 private fun SelectionEntryKind.toProto(): SelectionEntryKindProto = when (this) {
     SelectionEntryKind.TRACK -> SelectionEntryKindProto.SELECTION_ENTRY_KIND_TRACK
     SelectionEntryKind.CONTAINER -> SelectionEntryKindProto.SELECTION_ENTRY_KIND_CONTAINER
     SelectionEntryKind.UNKNOWN -> SelectionEntryKindProto.SELECTION_ENTRY_KIND_UNKNOWN
+    else -> SelectionEntryKindProto.SELECTION_ENTRY_KIND_UNKNOWN
 }
 
 private fun SelectionEntryKindProto.toApi(): SelectionEntryKind = when (this) {

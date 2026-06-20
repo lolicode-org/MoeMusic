@@ -25,8 +25,7 @@ public object MoeMusicApi {
     public val API_VERSION: String
         get() = MoeMusicApiBuildInfo.API_VERSION
 
-    @PublishedApi
-    internal val _plugins: LinkedHashMap<String, Plugin> = linkedMapOf()
+    private val _plugins: LinkedHashMap<String, Plugin> = linkedMapOf()
 
     /** Read-only view of all registered plugins in registration order. */
     public val plugins: List<Plugin>

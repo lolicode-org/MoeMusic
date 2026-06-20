@@ -416,13 +416,7 @@ class UserActionServiceImplTest {
     }
 
     private companion object {
-        val SampleTrack: TrackInfo = TrackInfo(
-            id = "track-1",
-            title = "Track 1",
-            artists = listOf(ArtistInfo(id = "artist-1", name = "Artist 1")),
-            durationMs = 60_000L,
-            sourceId = "alpha",
-        )
+        val SampleTrack: TrackInfo = TrackInfo(id = "track-1", title = "Track 1", artists = listOf(ArtistInfo(id = "artist-1", name = "Artist 1")), durationMs = 60_000L) { sourceId = "alpha" }
 
         val NoopSearchService: ISearchService = object : ISearchService {
             override suspend fun search(query: SearchQuery, submitter: MoeMusicUser?): SearchResult =

@@ -514,6 +514,11 @@ class ServerPacketHandlers(
                             failure = render(sender, LocalizedText.key("error.moemusic.queue.remove_forbidden")),
                             request_id = msg.request_id,
                         )
+                    else ->
+                        QueueRemoveResponse(
+                            failure = render(sender, LocalizedText.key("error.moemusic.internal")),
+                            request_id = msg.request_id,
+                        )
                 }
             } catch (e: Exception) {
                 logHandledFailure("QueueRemoveRequest", sender, e)

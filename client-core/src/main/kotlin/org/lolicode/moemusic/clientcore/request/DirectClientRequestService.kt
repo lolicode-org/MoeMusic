@@ -57,8 +57,9 @@ class DirectClientRequestService(
                 entries = response.entries.map { it.toApi() },
                 sourceId = response.source_id,
                 total = response.total,
-                hasMore = response.has_more,
-            ),
+            ) {
+                hasMore = response.has_more
+            },
             failureMessage = response.failure.ifEmpty { null },
         )
     }
@@ -145,6 +146,8 @@ class DirectClientRequestService(
 
                 ContentFilterMutationTarget.ARTIST ->
                     transport.beginContentFilterArtistActionRequest(sourceId, valueId, note, ban)
+
+                else -> error("Unsupported content filter target: $target")
             }
         }
         return ClientContentFilterActionResult(

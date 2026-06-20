@@ -5,19 +5,40 @@ import org.lolicode.moemusic.api.model.SelectionEntry
 import org.lolicode.moemusic.api.model.TrackInfo
 
 /**
- * Coarse local availability issue for the builtin client request/playback UI.
+ * Local availability issue for the builtin client request/playback UI.
  *
- * This 1.x API intentionally keeps the historical names for compatibility.
+ * This is an **open** value set, not an enum: more specific reasons may be reported as the handshake
+ * layer learns to distinguish them, and future API versions may add values. `when` over a
+ * [ClientAvailabilityIssue] therefore cannot be exhaustive and must always include an `else` branch.
+ * Treat any unrecognized value like the coarse [HANDSHAKE_UNAVAILABLE].
  */
-public enum class ClientAvailabilityIssue {
-    /**
-     * The client has no usable MoeMusic handshake for the current connection.
-     *
-     * The name is historical: this covers any handshake failure, including no server
-     * response, a missing server-side mod, protocol mismatch, or explicit server rejection.
-     * It is kept for 1.x compatibility and may be renamed or removed in API 2.0.
-     */
-    SERVER_MISSING,
+@JvmInline
+public value class ClientAvailabilityIssue private constructor(public val id: String) {
+    override fun toString(): String = id
+
+    public companion object {
+        /** No usable MoeMusic handshake for the current connection; specific cause unspecified. */
+        public val HANDSHAKE_UNAVAILABLE: ClientAvailabilityIssue = ClientAvailabilityIssue("HANDSHAKE_UNAVAILABLE")
+
+        /** The server never answered the MoeMusic handshake. */
+        public val NO_RESPONSE: ClientAvailabilityIssue = ClientAvailabilityIssue("NO_RESPONSE")
+
+        /** The server is reachable but has no MoeMusic server-side mod installed. */
+        public val SERVER_MOD_MISSING: ClientAvailabilityIssue = ClientAvailabilityIssue("SERVER_MOD_MISSING")
+
+        /** The server runs an incompatible MoeMusic protocol version. */
+        public val PROTOCOL_MISMATCH: ClientAvailabilityIssue = ClientAvailabilityIssue("PROTOCOL_MISMATCH")
+
+        /** The server explicitly rejected the MoeMusic handshake. */
+        public val REJECTED: ClientAvailabilityIssue = ClientAvailabilityIssue("REJECTED")
+
+        /** Values known to this build. New values may appear at runtime; always handle `else`. */
+        public val entries: List<ClientAvailabilityIssue> =
+            listOf(HANDSHAKE_UNAVAILABLE, NO_RESPONSE, SERVER_MOD_MISSING, PROTOCOL_MISMATCH, REJECTED)
+
+        /** Returns the value for [id], creating an unknown-but-valid value when not recognized. */
+        public fun of(id: String): ClientAvailabilityIssue = ClientAvailabilityIssue(id)
+    }
 }
 
 /** Server-provided search source descriptor from the connection handshake. */
@@ -77,10 +98,27 @@ public data class ClientSelectionSubmitResult(
     val failureMessage: String? = null,
 )
 
-/** Target kind for a client-side content-filter mutation request. */
-public enum class ContentFilterMutationTarget {
-    TRACK,
-    ARTIST,
+/**
+ * Target kind for a client-side content-filter mutation request.
+ *
+ * This is an **open** value set, not an enum: future API versions may add mutation targets, so
+ * `when` over a [ContentFilterMutationTarget] cannot be exhaustive and must always include an
+ * `else` branch.
+ */
+@JvmInline
+public value class ContentFilterMutationTarget private constructor(public val id: String) {
+    override fun toString(): String = id
+
+    public companion object {
+        public val TRACK: ContentFilterMutationTarget = ContentFilterMutationTarget("TRACK")
+        public val ARTIST: ContentFilterMutationTarget = ContentFilterMutationTarget("ARTIST")
+
+        /** Values known to this build. New values may appear at runtime; always handle `else`. */
+        public val entries: List<ContentFilterMutationTarget> = listOf(TRACK, ARTIST)
+
+        /** Returns the value for [id], creating an unknown-but-valid value when not recognized. */
+        public fun of(id: String): ContentFilterMutationTarget = ContentFilterMutationTarget(id)
+    }
 }
 
 /** Client-side response for a content-filter mutation request. */

@@ -5,10 +5,27 @@ import org.lolicode.moemusic.api.MoeMusicUser
 import org.lolicode.moemusic.api.model.*
 import org.lolicode.moemusic.api.service.IdentifierResolutionOutcome
 
-/** Playback participation state of a connected MoeMusic-capable client. */
-public enum class UserParticipationState {
-    ACTIVE,
-    STANDBY,
+/**
+ * Playback participation state of a connected MoeMusic-capable client.
+ *
+ * This is an **open** value set, not an enum: future API versions may add participation states, so
+ * `when` over a [UserParticipationState] cannot be exhaustive and must always include an `else`
+ * branch.
+ */
+@JvmInline
+public value class UserParticipationState private constructor(public val id: String) {
+    override fun toString(): String = id
+
+    public companion object {
+        public val ACTIVE: UserParticipationState = UserParticipationState("ACTIVE")
+        public val STANDBY: UserParticipationState = UserParticipationState("STANDBY")
+
+        /** Values known to this build. New values may appear at runtime; always handle `else`. */
+        public val entries: List<UserParticipationState> = listOf(ACTIVE, STANDBY)
+
+        /** Returns the value for [id], creating an unknown-but-valid value when not recognized. */
+        public fun of(id: String): UserParticipationState = UserParticipationState(id)
+    }
 }
 
 /**
@@ -156,20 +173,46 @@ public data class OnPlaybackStopped(
     val manual: Boolean,
 )
 
+/**
+ * Why a local [OnClientPlaybackStarted] fired.
+ *
+ * This is an **open** value set, not an enum: future API versions may distinguish more start
+ * causes, so `when` over a [PlaybackStartCause] cannot be exhaustive and must always include an
+ * `else` branch.
+ */
+@JvmInline
+public value class PlaybackStartCause private constructor(public val id: String) {
+    override fun toString(): String = id
+
+    public companion object {
+        /** The server started, or advanced to, a new track. */
+        public val NEW_TRACK: PlaybackStartCause = PlaybackStartCause("NEW_TRACK")
+
+        /**
+         * This client applied an already-existing server playback snapshot, e.g. an initial active
+         * join or a standby-to-active catch-up, rather than the server beginning a new track.
+         */
+        public val CATCH_UP: PlaybackStartCause = PlaybackStartCause("CATCH_UP")
+
+        /** Values known to this build. New values may appear at runtime; always handle `else`. */
+        public val entries: List<PlaybackStartCause> = listOf(NEW_TRACK, CATCH_UP)
+
+        /** Returns the value for [id], creating an unknown-but-valid value when not recognized. */
+        public fun of(id: String): PlaybackStartCause = PlaybackStartCause(id)
+    }
+}
+
 /** Fired on the client when playback starts or an existing server playback materializes locally. */
 public data class OnClientPlaybackStarted(
     val track: TrackInfo,
     val playback: PlaybackResource,
     val positionMs: Long,
     /**
-     * Historical 1.x compatibility flag.
-     *
-     * `false` means the server started or advanced to a new track. `true` means this client
-     * applied an already-existing playback snapshot, such as initial active join or standby to
-     * active catch-up. The name is historical; the protocol no longer has a SyncState packet.
-     * This field may be replaced with a clearer start-cause enum in API 2.0.
+     * Why this start fired: [PlaybackStartCause.NEW_TRACK] when the server started/advanced to a new
+     * track, or [PlaybackStartCause.CATCH_UP] when this client applied an already-existing playback
+     * snapshot (initial active join or standby-to-active catch-up).
      */
-    val fromSyncState: Boolean,
+    val startCause: PlaybackStartCause,
 )
 
 /** Fired on the client when playback pauses. */

@@ -35,22 +35,13 @@ import kotlin.test.*
 
 private const val SAMPLE_SOURCE_ID = "test-source"
 
-private val SAMPLE_TRACK = TrackInfo(
-    id = "test-1",
-    title = "Test Track",
-    artists = listOf("Test Artist").toArtistInfos(),
-    durationMs = 180_000,
-    sourceId = SAMPLE_SOURCE_ID,
-)
+private val SAMPLE_TRACK = TrackInfo(id = "test-1", title = "Test Track", artists = listOf("Test Artist").toArtistInfos(), durationMs = 180_000) { sourceId = SAMPLE_SOURCE_ID }
 
 private const val RESOLVED_PLAYBACK_URL = "https://cdn.example.com/audio/test-1.mp3?sig=abc123"
-private val RESOLVED_PLAYBACK = PlaybackResource(
-    url = RESOLVED_PLAYBACK_URL,
-    headers = mapOf(
+private val RESOLVED_PLAYBACK = PlaybackResource(url = RESOLVED_PLAYBACK_URL) { headers = mapOf(
         "Referer" to "https://example.com/player",
         "User-Agent" to "MoeMusic-Test/1.0",
-    ),
-)
+    ) }
 
 // For HTTP-source tests, the id IS the URL.
 private fun TrackInfo.directPlayback(): PlaybackResource = PlaybackResource(id.takeIf { it.startsWith("http") } ?: "https://example.com/audio.mp3")
@@ -174,9 +165,9 @@ class TrackQueueTest {
     @Test
     fun `multiple user tracks preserve FIFO order`() {
         val queue = TrackQueue()
-        val t1 = SAMPLE_TRACK.copy(id = "a")
-        val t2 = SAMPLE_TRACK.copy(id = "b")
-        val t3 = SAMPLE_TRACK.copy(id = "c")
+        val t1 = SAMPLE_TRACK.copy { id = "a" }
+        val t2 = SAMPLE_TRACK.copy { id = "b" }
+        val t3 = SAMPLE_TRACK.copy { id = "c" }
         queue.enqueueUser(t1)
         queue.enqueueUser(t2)
         queue.enqueueUser(t3)
@@ -186,8 +177,8 @@ class TrackQueueTest {
     @Test
     fun `enqueueUserIfAbsent rejects duplicate source track already queued`() {
         val queue = TrackQueue()
-        val queued = SAMPLE_TRACK.copy(id = "same", sourceId = "ncm")
-        val duplicate = queued.copy(title = "Renamed")
+        val queued = SAMPLE_TRACK.copy { id = "same"; sourceId = "ncm" }
+        val duplicate = queued.copy { title = "Renamed" }
 
         assertTrue(queue.enqueueUserIfAbsent(queued))
         assertFalse(queue.enqueueUserIfAbsent(duplicate))
@@ -198,8 +189,8 @@ class TrackQueueTest {
     fun `enqueueUserIfAbsent tracks without source identity are never deduplicated`() {
         val queue = TrackQueue()
         // Both have no sourceId — matchesQueueIdentity returns false, so both are allowed
-        val a = SAMPLE_TRACK.copy(id = "", sourceId = null)
-        val b = a.copy(title = "Another Title")
+        val a = SAMPLE_TRACK.copy { id = ""; sourceId = null }
+        val b = a.copy { title = "Another Title" }
 
         assertTrue(queue.enqueueUserIfAbsent(a))
         assertTrue(queue.enqueueUserIfAbsent(b), "no source identity — dedup is not possible")
@@ -212,7 +203,7 @@ class TrackQueueTest {
         ctrl.play(SAMPLE_TRACK, SAMPLE_TRACK.directPlayback())
 
         assertFailsWith<AlreadyQueuedException> {
-            ctrl.enqueueAndPlay(SAMPLE_TRACK.copy(title = "Renamed"))
+            ctrl.enqueueAndPlay(SAMPLE_TRACK.copy { title = "Renamed" })
         }
     }
 
@@ -221,7 +212,7 @@ class TrackQueueTest {
         val queue = TrackQueue()
         val owner = UUID.randomUUID()
         val other = UUID.randomUUID()
-        val queued = SAMPLE_TRACK.copy(id = "owned-track")
+        val queued = SAMPLE_TRACK.copy { id = "owned-track" }
         queue.enqueueUser(queued, enqueuedBy = owner)
 
         assertEquals(
@@ -240,7 +231,7 @@ class TrackQueueTest {
         val queue = TrackQueue()
         val owner = UUID.randomUUID()
         val moderator = UUID.randomUUID()
-        val queued = SAMPLE_TRACK.copy(id = "moderated-track")
+        val queued = SAMPLE_TRACK.copy { id = "moderated-track" }
         queue.enqueueUser(queued, enqueuedBy = owner)
 
         assertEquals(
@@ -253,8 +244,8 @@ class TrackQueueTest {
     @Test
     fun `removeUserTrack matches the exact queued source and track identity`() {
         val queue = TrackQueue()
-        val first = SAMPLE_TRACK.copy(sourceId = "alpha", id = "shared")
-        val second = SAMPLE_TRACK.copy(sourceId = "beta", id = "shared", title = "Other Source")
+        val first = SAMPLE_TRACK.copy { sourceId = "alpha"; id = "shared" }
+        val second = SAMPLE_TRACK.copy { sourceId = "beta"; id = "shared"; title = "Other Source" }
         queue.enqueueUser(first)
         queue.enqueueUser(second)
 
@@ -279,7 +270,7 @@ class TrackQueueTest {
             override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
 
             override suspend fun getAutoplayTracks(): List<TrackInfo> = listOf(
-                SAMPLE_TRACK.copy(id = "autoplay-1", sourceId = id),
+                SAMPLE_TRACK.copy { id = "autoplay-1"; sourceId = "test-autoplay" },
             )
         }
 
@@ -336,7 +327,7 @@ class TrackQueueTest {
             override suspend fun getAutoplayTracks(): List<TrackInfo> {
                 autoplayFetchCount += 1
                 return listOf(
-                    SAMPLE_TRACK.copy(id = "broken-autoplay-$autoplayFetchCount", sourceId = id),
+                    SAMPLE_TRACK.copy { id = "broken-autoplay-$autoplayFetchCount"; sourceId = "broken-autoplay" },
                 )
             }
         }
@@ -405,11 +396,7 @@ class ServerPlaybackControllerTest {
     @Test
     fun `play broadcasts lyric payload when track has lyrics`() {
         val (ctrl, channel) = freshController()
-        val track = SAMPLE_TRACK.copy(
-            lyricLrc = "[00:01.00]Hello",
-            secondaryLyricLrc = "[00:01.00]你好",
-            lyricsFetched = true,
-        )
+        val track = SAMPLE_TRACK.copy { lyricLrc = "[00:01.00]Hello"; secondaryLyricLrc = "[00:01.00]你好"; lyricsFetched = true }
 
         ctrl.play(track, RESOLVED_PLAYBACK)
 
@@ -432,7 +419,7 @@ class ServerPlaybackControllerTest {
 
     @Test
     fun `generic proto conversion omits unavailable reason`() {
-        val track = SAMPLE_TRACK.copy(unavailableReason = LocalizedText.plain("Requires VIP"))
+        val track = SAMPLE_TRACK.copy { unavailableReason = LocalizedText.plain("Requires VIP") }
 
         val roundTrip = track.toProto().toApi()
 
@@ -489,10 +476,10 @@ class ServerPlaybackControllerTest {
     @Test
     fun `seek while playing resets auto advance to the new remaining duration`() {
         val queue = TrackQueue().apply {
-            enqueueUser(SAMPLE_TRACK.copy(id = "next-track", title = "Next Track"))
+            enqueueUser(SAMPLE_TRACK.copy { id = "next-track"; title = "Next Track" })
         }
         val (ctrl, channel) = freshController(queue)
-        val shortTrack = SAMPLE_TRACK.copy(id = "short-track", title = "Short Track", durationMs = 180L)
+        val shortTrack = SAMPLE_TRACK.copy { id = "short-track"; title = "Short Track"; durationMs = 180L }
 
         withSampleSource {
             ctrl.play(shortTrack, shortTrack.directPlayback())
@@ -508,10 +495,10 @@ class ServerPlaybackControllerTest {
     @Test
     fun `pause cancels auto advance until playback resumes`() {
         val queue = TrackQueue().apply {
-            enqueueUser(SAMPLE_TRACK.copy(id = "next-track", title = "Next Track"))
+            enqueueUser(SAMPLE_TRACK.copy { id = "next-track"; title = "Next Track" })
         }
         val (ctrl, channel) = freshController(queue)
-        val shortTrack = SAMPLE_TRACK.copy(id = "short-track", title = "Short Track", durationMs = 160L)
+        val shortTrack = SAMPLE_TRACK.copy { id = "short-track"; title = "Short Track"; durationMs = 160L }
 
         withSampleSource {
             ctrl.play(shortTrack, shortTrack.directPlayback())
@@ -581,7 +568,7 @@ class ServerPlaybackControllerTest {
     @Test
     fun `queue removal emits runtime event`() {
         val queue = TrackQueue().apply {
-            enqueueUser(SAMPLE_TRACK.copy(id = "queued-1", title = "Queued 1"), enqueuedBy = SAMPLE_PLAYER.id)
+            enqueueUser(SAMPLE_TRACK.copy { id = "queued-1"; title = "Queued 1" }, enqueuedBy = SAMPLE_PLAYER.id)
         }
         var removedEvent: OnQueueTrackRemoved? = null
         val eventBus = EventBusImpl().apply {
@@ -610,7 +597,7 @@ class ServerPlaybackControllerTest {
     @Test
     fun `skip to next track does not broadcast STOPPED between tracks`() {
         val queue = TrackQueue().apply {
-            enqueueUser(SAMPLE_TRACK.copy(id = "next-track", title = "Next Track"))
+            enqueueUser(SAMPLE_TRACK.copy { id = "next-track"; title = "Next Track" })
         }
         val (ctrl, channel) = freshController(queue)
 
@@ -637,7 +624,7 @@ class ServerPlaybackControllerTest {
     @Test
     fun `manual stop blocks autoplay start until resume`() {
         val queue = TrackQueue().apply {
-            autoplaySupplier = { SAMPLE_TRACK.copy(id = "autoplay-track", title = "Autoplay Track") }
+            autoplaySupplier = { SAMPLE_TRACK.copy { id = "autoplay-track"; title = "Autoplay Track" } }
         }
         val (ctrl, channel) = freshController(queue)
 
@@ -665,7 +652,7 @@ class ServerPlaybackControllerTest {
         val (ctrl, channel) = freshController()
         ctrl.play(SAMPLE_TRACK, SAMPLE_TRACK.directPlayback())
         ctrl.stop()
-        val queuedTrack = SAMPLE_TRACK.copy(id = "queued-after-stop", title = "Queued After Stop")
+        val queuedTrack = SAMPLE_TRACK.copy { id = "queued-after-stop"; title = "Queued After Stop" }
 
         ctrl.enqueueAndPlay(queuedTrack)
         Thread.sleep(100)
@@ -682,7 +669,7 @@ class ServerPlaybackControllerTest {
         withSampleSource {
             ctrl.play(SAMPLE_TRACK, SAMPLE_TRACK.directPlayback())
             ctrl.stop()
-            val queuedTrack = SAMPLE_TRACK.copy(id = "queued-after-stop", title = "Queued After Stop")
+            val queuedTrack = SAMPLE_TRACK.copy { id = "queued-after-stop"; title = "Queued After Stop" }
             ctrl.enqueueAndPlay(queuedTrack)
 
             ctrl.resume()
@@ -722,7 +709,7 @@ class ServerPlaybackControllerTest {
     fun `natural exhaustion still allows later autoplay start`() {
         val queue = TrackQueue()
         val (ctrl, channel) = freshController(queue)
-        val shortTrack = SAMPLE_TRACK.copy(id = "short-track", title = "Short Track", durationMs = 120L)
+        val shortTrack = SAMPLE_TRACK.copy { id = "short-track"; title = "Short Track"; durationMs = 120L }
 
         withSampleSource {
             ctrl.play(shortTrack, shortTrack.directPlayback())
@@ -732,7 +719,7 @@ class ServerPlaybackControllerTest {
                 ctrl.currentContext == null
             })
 
-            queue.autoplaySupplier = { SAMPLE_TRACK.copy(id = "autoplay-after-exhaust", title = "Autoplay After Exhaust") }
+            queue.autoplaySupplier = { SAMPLE_TRACK.copy { id = "autoplay-after-exhaust"; title = "Autoplay After Exhaust" } }
             ctrl.startNextIfStopped()
 
             assertTrue(awaitCondition(timeoutMs = 1_000) {
@@ -770,8 +757,8 @@ class ServerPlaybackControllerTest {
     @Test
     fun `user queue failure callback is invoked when resolve fails`() {
         val queue = TrackQueue().apply {
-            enqueueUser(SAMPLE_TRACK.copy(id = "bad-track", title = "Bad Track", sourceId = "broken"))
-            enqueueUser(SAMPLE_TRACK.copy(id = "good-track", title = "Good Track"))
+            enqueueUser(SAMPLE_TRACK.copy { id = "bad-track"; title = "Bad Track"; sourceId = "broken" })
+            enqueueUser(SAMPLE_TRACK.copy { id = "good-track"; title = "Good Track" })
         }
         val incidents = mutableListOf<Pair<String, LocalizedText?>>()
         val ctrl = ServerPlaybackController(
@@ -803,8 +790,8 @@ class ServerPlaybackControllerTest {
         ModConfigManager.load(Files.createTempDirectory("moemusic-playback-policy-failure-test"))
         ModConfigManager.save(MoeMusicConfig(media = MediaPolicyConfig(allowLocalFiles = false)))
         val queue = TrackQueue().apply {
-            enqueueUser(SAMPLE_TRACK.copy(id = "blocked-track", title = "Blocked Track", sourceId = "blocked"))
-            enqueueUser(SAMPLE_TRACK.copy(id = "good-track", title = "Good Track"))
+            enqueueUser(SAMPLE_TRACK.copy { id = "blocked-track"; title = "Blocked Track"; sourceId = "blocked" })
+            enqueueUser(SAMPLE_TRACK.copy { id = "good-track"; title = "Good Track" })
         }
         val incidents = mutableListOf<Pair<String, LocalizedText?>>()
         val ctrl = ServerPlaybackController(
@@ -835,7 +822,7 @@ class ServerPlaybackControllerTest {
     @Test
     fun `enqueueAndPlay rejects unavailable tracks before queueing`() {
         val (ctrl, _) = freshController()
-        val blocked = SAMPLE_TRACK.copy(unavailableReason = LocalizedText.plain("Copyright restricted"))
+        val blocked = SAMPLE_TRACK.copy { unavailableReason = LocalizedText.plain("Copyright restricted") }
 
         val error = kotlin.runCatching { ctrl.enqueueAndPlay(blocked) }.exceptionOrNull()
 
@@ -854,7 +841,7 @@ class ServerPlaybackControllerTest {
         PluginManager.musicSources += source
         try {
             val (ctrl, _) = freshController()
-            val track = SAMPLE_TRACK.copy(id = "net-1", sourceId = source.id)
+            val track = SAMPLE_TRACK.copy { id = "net-1"; sourceId = source.id }
 
             val error = kotlin.runCatching { ctrl.submitTrack(track, null, TrackAddMode.PLAY_NOW) }.exceptionOrNull()
 
@@ -875,7 +862,7 @@ class ServerPlaybackControllerTest {
         PluginManager.musicSources += source
         try {
             val (ctrl, _) = freshController()
-            val track = SAMPLE_TRACK.copy(id = "broken-1", sourceId = source.id)
+            val track = SAMPLE_TRACK.copy { id = "broken-1"; sourceId = source.id }
 
             val error = kotlin.runCatching { ctrl.submitTrack(track, null, TrackAddMode.PLAY_NOW) }.exceptionOrNull()
 
@@ -896,7 +883,7 @@ class ServerPlaybackControllerTest {
     @Test
     fun `buildPlaybackSnapshot returns snapshot when playing`() {
         val (ctrl, _) = freshController()
-        ctrl.play(SAMPLE_TRACK.copy(sourceId = "ncm"), RESOLVED_PLAYBACK)
+        ctrl.play(SAMPLE_TRACK.copy { sourceId = "ncm" }, RESOLVED_PLAYBACK)
         val snapshot = ctrl.buildPlaybackSnapshot()
         assertNotNull(snapshot)
         assertEquals("", snapshot.lyric_lrc)
@@ -906,7 +893,7 @@ class ServerPlaybackControllerTest {
     @Test
     fun `buildPlaybackSnapshot includes playing position for unsynced clients`() {
         val (ctrl, _) = freshController()
-        ctrl.play(SAMPLE_TRACK.copy(sourceId = "ncm"), RESOLVED_PLAYBACK)
+        ctrl.play(SAMPLE_TRACK.copy { sourceId = "ncm" }, RESOLVED_PLAYBACK)
         ctrl.seek(65_000L)
 
         val snapshot = ctrl.buildPlaybackSnapshot()
@@ -921,12 +908,7 @@ class ServerPlaybackControllerTest {
     fun `buildPlaybackSnapshot includes lyrics for late joiners`() {
         val (ctrl, _) = freshController()
         ctrl.play(
-            SAMPLE_TRACK.copy(
-                sourceId = "ncm",
-                lyricLrc = "[00:01.00]Hello",
-                secondaryLyricLrc = "[00:01.00]你好",
-                lyricsFetched = true,
-            ),
+            SAMPLE_TRACK.copy { sourceId = "ncm"; lyricLrc = "[00:01.00]Hello"; secondaryLyricLrc = "[00:01.00]你好"; lyricsFetched = true },
             RESOLVED_PLAYBACK,
         )
 
@@ -957,7 +939,7 @@ class ServerPlaybackControllerTest {
                 playbackRefreshCooldownNanos = 20L * 1_000_000L
                 playbackRefreshFailureBackoffNanos = 20L * 1_000_000L
             }
-            val track = SAMPLE_TRACK.copy(id = "refreshable-track", sourceId = source.id)
+            val track = SAMPLE_TRACK.copy { id = "refreshable-track"; sourceId = source.id }
             ctrl.play(track, PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=initial"))
 
             Thread.sleep(30)
@@ -994,7 +976,7 @@ class ServerPlaybackControllerTest {
                 playbackRefreshCooldownNanos = 0L
                 playbackRefreshFailureBackoffNanos = 50L * 1_000_000L
             }
-            val track = SAMPLE_TRACK.copy(id = "failing-refresh-track", sourceId = source.id)
+            val track = SAMPLE_TRACK.copy { id = "failing-refresh-track"; sourceId = source.id }
             val initialPlayback = PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=initial")
             ctrl.play(track, initialPlayback)
 
@@ -1032,7 +1014,7 @@ class ServerPlaybackControllerTest {
                 playbackRefreshCooldownNanos = 0L
                 playbackRefreshFailureBackoffNanos = 50L * 1_000_000L
             }
-            val track = SAMPLE_TRACK.copy(id = "resume-refresh-track", sourceId = source.id)
+            val track = SAMPLE_TRACK.copy { id = "resume-refresh-track"; sourceId = source.id }
             ctrl.play(track, PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=initial"))
             ctrl.pause()
 
@@ -1051,7 +1033,7 @@ class ServerPlaybackControllerTest {
     @Test
     fun `skip autoplay mode interrupts only autoplay`() = runBlocking {
         val queue = TrackQueue().apply {
-            autoplaySupplier = { SAMPLE_TRACK.copy(id = "autoplay-track", title = "Autoplay Track") }
+            autoplaySupplier = { SAMPLE_TRACK.copy { id = "autoplay-track"; title = "Autoplay Track" } }
         }
         val autoplayStarted = CountDownLatch(1)
         val releaseAutoplayStart = CountDownLatch(1)
@@ -1075,7 +1057,7 @@ class ServerPlaybackControllerTest {
             assertEquals("autoplay-track", ctrl.currentContext?.track?.id)
 
             val result = try {
-                ctrl.submitTrack(SAMPLE_TRACK.copy(id = "queued-track", title = "Queued Track"), null, TrackAddMode.SKIP_AUTOPLAY)
+                ctrl.submitTrack(SAMPLE_TRACK.copy { id = "queued-track"; title = "Queued Track" }, null, TrackAddMode.SKIP_AUTOPLAY)
             } finally {
                 releaseAutoplayStart.countDown()
             }
@@ -1095,7 +1077,7 @@ class ServerPlaybackControllerTest {
             onTrackSubmitted = { track, result -> submissions += track to result },
         )
 
-        val track = SAMPLE_TRACK.copy(id = "queued-track", title = "Queued Track")
+        val track = SAMPLE_TRACK.copy { id = "queued-track"; title = "Queued Track" }
         val result = ctrl.submitTrack(track, null, TrackAddMode.NORMAL)
 
         assertEquals(TrackAddResult.QUEUED, result)
@@ -1105,10 +1087,10 @@ class ServerPlaybackControllerTest {
     @Test
     fun `skip autoplay mode does not interrupt user playback`() = runBlocking {
         val (ctrl, _) = freshController()
-        val currentTrack = SAMPLE_TRACK.copy(id = "current-track", title = "Current Track")
+        val currentTrack = SAMPLE_TRACK.copy { id = "current-track"; title = "Current Track" }
         ctrl.play(currentTrack, currentTrack.directPlayback())
 
-        ctrl.submitTrack(SAMPLE_TRACK.copy(id = "queued-track", title = "Queued Track"), null, TrackAddMode.SKIP_AUTOPLAY)
+        ctrl.submitTrack(SAMPLE_TRACK.copy { id = "queued-track"; title = "Queued Track" }, null, TrackAddMode.SKIP_AUTOPLAY)
 
         Thread.sleep(100)
         assertEquals("current-track", ctrl.currentContext?.track?.id)
@@ -1118,15 +1100,15 @@ class ServerPlaybackControllerTest {
     @Test
     fun `play now replaces current playback immediately and preserves older queue`() = runBlocking {
         val queue = TrackQueue().apply {
-            enqueueUser(SAMPLE_TRACK.copy(id = "older-queued", title = "Older Queued"))
+            enqueueUser(SAMPLE_TRACK.copy { id = "older-queued"; title = "Older Queued" })
         }
         val (ctrl, _) = freshController(queue)
-        val currentTrack = SAMPLE_TRACK.copy(id = "current-track", title = "Current Track")
+        val currentTrack = SAMPLE_TRACK.copy { id = "current-track"; title = "Current Track" }
         ctrl.play(currentTrack, currentTrack.directPlayback())
 
         withSampleSourceSuspend {
             ctrl.submitTrack(
-                SAMPLE_TRACK.copy(id = "play-now-track", title = "Play Now Track"),
+                SAMPLE_TRACK.copy { id = "play-now-track"; title = "Play Now Track" },
                 null,
                 TrackAddMode.PLAY_NOW,
             )
@@ -1138,12 +1120,12 @@ class ServerPlaybackControllerTest {
 
     @Test
     fun `play now removes duplicate queued copy`() = runBlocking {
-        val duplicate = SAMPLE_TRACK.copy(id = "dup-track", title = "Queued Copy")
+        val duplicate = SAMPLE_TRACK.copy { id = "dup-track"; title = "Queued Copy" }
         val queue = TrackQueue().apply {
             enqueueUser(duplicate)
         }
         val (ctrl, _) = freshController(queue)
-        val currentTrack = SAMPLE_TRACK.copy(id = "current-track", title = "Current Track")
+        val currentTrack = SAMPLE_TRACK.copy { id = "current-track"; title = "Current Track" }
         ctrl.play(currentTrack, currentTrack.directPlayback())
 
         withSampleSourceSuspend {

@@ -25,6 +25,48 @@ The public ABI surface is currently [api](../api). Kotlin ABI validation is enab
 
 When changing public API shape or semantics, update KDocs and the public guides at [api.md](api.md) and [api_zh.md](api_zh.md).
 
+### Public API Evolution Rules
+
+These conventions keep the plugin API binary-compatible across minor versions. A value type is only
+an ABI hazard for whoever *constructs/copies* it: plugins construct source-output models; the host
+constructs events and service outcomes.
+
+1. **Source-output value models are interfaces, not `data class`es.** Models that plugins build
+   (`TrackInfo`, `SelectionEntry`, `SearchResult`, `PlaybackResource`, `ArtistInfo`) are a sealed
+   interface + `*Builder` + frozen factory/`copy { }` DSL, backed by an `internal` impl that stays
+   off the ABI dump. Add a new optional field as a default getter on the interface plus a `var` on
+   the builder — both additive. Never add a field to a fixed constructor and never expose these as
+   `data class`es.
+2. **Interfaces evolve additively.** With `jvmDefault` enabled, add a **default** method, a new
+   sub-interface, or a new optional via the builder. Never add an abstract method or a new parameter
+   to an existing method.
+3. **Sealed result wrappers grow by adding a subtype, never a field** (`UserResult`, `FilterVerdict`,
+   `IdentifierResolutionResult`, `SelectionResolveResult`).
+4. **Growing, plugin-read enumerations are open token types** (`@JvmInline value class` with
+   companion constants + `entries`/`of`), e.g. `TrackAddResult`, `QueueRemoveResult`,
+   `UserParticipationState`, `ContentFilterMutationTarget`, `SelectionEntryKind`,
+   `ClientAvailabilityIssue`, `PlaybackStartCause`. Consumers must always `else` over them.
+   Truly closed sets stay `enum`/`sealed` and are documented as exhaustive; enums that are
+   `@Serializable` (e.g. the `ContentFilterText*` rules) stay enums to preserve persisted data and
+   carry a "non-exhaustive across versions" note instead.
+5. **Events and service-outcome `data class`es are read-only**: plugins must not construct,
+   destructure, or `copy` them; appending fields is then binary-safe for read-only consumers.
+6. Any intentional public-API change regenerates [api.api](../api/api/api.api); a binary-breaking
+   change bumps the **major** `moemusic-api-compat`.
+
+## Protocol Evolution Rules
+### Enums
+
+The accessor default is always the enum value 0. If a value that do not exist in the current build 
+(mostly sent by a newer build), the enum will be mapped to the default value. If the default value 
+is *not* an *_UNSPECIFIED/*_UNKNOWN sentinel but a semantic value instead, this will introduce unexpected 
+behaviors. To avoid this, follow these rules:
+
+1. *New Wire Enums*: **Always** set enum value 0 as an *_UNSPECIFIED/*_UNKNOWN sentinel and add
+   checks around it, unless it's **guaranteed** to never change in the future.
+2. *Existing Wire Enums*: **Avoid** adding new enum values to them. If new target is needed, 
+   treat it as a protocol-breaking change and gate that on the sender side, by protocol/capability version.
+
 ## Package Ownership
 
 The shared implementation is organized by feature ownership:

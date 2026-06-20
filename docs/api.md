@@ -53,7 +53,7 @@ Keep your supported range explicit.
 This project's API version follows semantic versioning, and breaking changes will increment the major version. So it's recommended to declare the supported range as >= the current minor version and < the next major version, to allow patch updates without needing plugin changes.
 
 ```kotlin
-override val supportedApiVersions: String = ">=1.0.0 <2.0.0"
+override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
 ```
 
 ## Create A Plugin
@@ -79,7 +79,7 @@ object ExamplePlugin : Plugin {
     override val configId: String = "example_source"
     override val displayName: LocalizedText = LocalizedText.key("plugin.example.name")
     override val version: String = "1.0.0"
-    override val supportedApiVersions: String = ">=1.0.0 <2.0.0"
+    override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
 
     override val configSpec = pluginConfigSpec(::ExampleConfig) {
         boolean(
@@ -296,8 +296,12 @@ object ExampleSource : SearchableMusicSource, IdentifierResolvableMusicSource {
                 title = "Example Song",
                 artists = listOf(ArtistInfo(id = "artist-1", name = "Example Artist")),
                 durationMs = 180_000,
-                sourceId = id,
-            ),
+            ) {
+                // Optional fields are set in the builder block. `TrackInfo` is an interface built
+                // through this DSL (not a data class), so new optional fields can be added without
+                // breaking older plugins.
+                sourceId = ExampleSource.id
+            },
         )
     }
 

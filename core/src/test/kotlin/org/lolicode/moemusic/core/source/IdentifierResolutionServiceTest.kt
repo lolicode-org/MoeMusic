@@ -32,13 +32,7 @@ class IdentifierResolutionServiceTest {
         val beta = resolverSource("beta") { _, _ ->
             visited += "beta"
             IdentifierResolutionResult.Resolved(
-                TrackInfo(
-                    id = "b-1",
-                    title = "Beta Track",
-                    artists = listOf("Artist").toArtistInfos(),
-                    durationMs = 10,
-                    sourceId = "beta",
-                )
+                TrackInfo(id = "b-1", title = "Beta Track", artists = listOf("Artist").toArtistInfos(), durationMs = 10) { sourceId = "beta" }
             )
         }
 
@@ -60,7 +54,7 @@ class IdentifierResolutionServiceTest {
         val beta = resolverSource("beta") { _, _ ->
             visited += "beta"
             IdentifierResolutionResult.Resolved(
-                TrackInfo("b-1", "Beta Track", listOf("Artist").toArtistInfos(), 10, sourceId = "beta")
+                TrackInfo("b-1", "Beta Track", listOf("Artist").toArtistInfos(), 10) { sourceId = "beta" }
             )
         }
 
@@ -77,7 +71,7 @@ class IdentifierResolutionServiceTest {
         val alpha = resolverSource("alpha") { _, _ -> IdentifierResolutionResult.Pass }
         val beta = resolverSource("beta") { _, _ ->
             IdentifierResolutionResult.Resolved(
-                TrackInfo("b-1", "Beta Track", listOf("Artist").toArtistInfos(), 10, sourceId = "beta")
+                TrackInfo("b-1", "Beta Track", listOf("Artist").toArtistInfos(), 10) { sourceId = "beta" }
             )
         }
 
@@ -139,7 +133,7 @@ class IdentifierResolutionServiceTest {
         val fallback = resolverSource("fallback", isFallback = true) { _, _ ->
             visited += "fallback"
             IdentifierResolutionResult.Resolved(
-                TrackInfo("f-1", "Fallback Track", listOf("Artist").toArtistInfos(), 10, sourceId = "fallback")
+                TrackInfo("f-1", "Fallback Track", listOf("Artist").toArtistInfos(), 10) { sourceId = "fallback" }
             )
         }
 
@@ -160,13 +154,13 @@ class IdentifierResolutionServiceTest {
         val specific = resolverSource("specific") { _, _ ->
             visited += "specific"
             IdentifierResolutionResult.Resolved(
-                TrackInfo("s-1", "Specific Track", listOf("Artist").toArtistInfos(), 10, sourceId = "specific")
+                TrackInfo("s-1", "Specific Track", listOf("Artist").toArtistInfos(), 10) { sourceId = "specific" }
             )
         }
         val fallback = resolverSource("fallback", isFallback = true) { _, _ ->
             visited += "fallback"
             IdentifierResolutionResult.Resolved(
-                TrackInfo("f-1", "Fallback Track", listOf("Artist").toArtistInfos(), 10, sourceId = "fallback")
+                TrackInfo("f-1", "Fallback Track", listOf("Artist").toArtistInfos(), 10) { sourceId = "fallback" }
             )
         }
 

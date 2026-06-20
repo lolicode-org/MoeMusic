@@ -104,6 +104,12 @@ class UserActionServiceImpl(
                     QueueRemoveResult.FORBIDDEN,
                     LocalizedText.key("error.moemusic.queue.remove_forbidden")
                 )
+
+            else ->
+                QueueRemoveOutcome(
+                    QueueRemoveResult.UNKNOWN,
+                    LocalizedText.key("error.moemusic.internal")
+                )
         }
     }
 

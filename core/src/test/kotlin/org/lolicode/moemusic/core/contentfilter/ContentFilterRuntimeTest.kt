@@ -22,21 +22,8 @@ class ContentFilterRuntimeTest {
             )
         )
 
-        val track = TrackInfo(
-            id = "123",
-            title = "Song",
-            artists = listOf("Artist").toArtistInfos(),
-            durationMs = 180_000,
-            sourceId = "netease",
-        )
-        val selection = SelectionEntry(
-            selectionId = "123",
-            title = "Song",
-            artists = listOf("Artist").toArtistInfos(),
-            durationMs = 180_000,
-            sourceId = "netease",
-            kind = SelectionEntryKind.TRACK,
-        )
+        val track = TrackInfo(id = "123", title = "Song", artists = listOf("Artist").toArtistInfos(), durationMs = 180_000) { sourceId = "netease" }
+        val selection = SelectionEntry(selectionId = "123", title = "Song", artists = listOf("Artist").toArtistInfos(), durationMs = 180_000) { sourceId = "netease"; kind = SelectionEntryKind.TRACK }
 
         assertIs<FilterVerdict.Reject>(ContentFilterRuntime.trackFilterVerdict(track))
         assertIs<FilterVerdict.Reject>(ContentFilterRuntime.selectionFilterVerdict(selection))
@@ -53,13 +40,7 @@ class ContentFilterRuntimeTest {
             )
         )
 
-        val track = TrackInfo(
-            id = "song-1",
-            title = "Song",
-            artists = listOf(ArtistInfo(id = "artist-42", name = "Original Artist")),
-            durationMs = 200_000,
-            sourceId = "spotify",
-        )
+        val track = TrackInfo(id = "song-1", title = "Song", artists = listOf(ArtistInfo(id = "artist-42", name = "Original Artist")), durationMs = 200_000) { sourceId = "spotify" }
 
         val verdict = ContentFilterRuntime.trackFilterVerdict(track)
         val reason = assertIs<FilterVerdict.Reject>(verdict).reason
@@ -85,14 +66,8 @@ class ContentFilterRuntimeTest {
             )
         )
 
-        val blocked = TrackInfo(
-            id = "song-2",
-            title = "Big Spoiler Theme",
-            artists = listOf("Artist").toArtistInfos(),
-            durationMs = 150_000,
-            sourceId = "youtube",
-        )
-        val allowed = blocked.copy(title = "Opening Theme")
+        val blocked = TrackInfo(id = "song-2", title = "Big Spoiler Theme", artists = listOf("Artist").toArtistInfos(), durationMs = 150_000) { sourceId = "youtube" }
+        val allowed = blocked.copy { title = "Opening Theme" }
 
         assertIs<FilterVerdict.Reject>(ContentFilterRuntime.trackFilterVerdict(blocked))
         assertNull(ContentFilterRuntime.trackBlockReason(allowed))
@@ -120,13 +95,7 @@ class ContentFilterRuntimeTest {
         assertIs<FilterVerdict.Reject>(ContentFilterRuntime.textFilterVerdict(ContentFilterTextRuleScope.MISC, listOf("episode spoiler notes")))
         assertNull(
             ContentFilterRuntime.trackBlockReason(
-                TrackInfo(
-                    id = "song-3",
-                    title = "Opening Theme",
-                    artists = listOf("Artist").toArtistInfos(),
-                    durationMs = 150_000,
-                    sourceId = "youtube",
-                )
+                TrackInfo(id = "song-3", title = "Opening Theme", artists = listOf("Artist").toArtistInfos(), durationMs = 150_000) { sourceId = "youtube" }
             )
         )
     }

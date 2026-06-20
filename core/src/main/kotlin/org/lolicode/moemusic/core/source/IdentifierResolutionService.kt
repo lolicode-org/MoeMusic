@@ -7,6 +7,7 @@ import org.lolicode.moemusic.api.service.IIdentifierResolutionService
 import org.lolicode.moemusic.api.MoeMusicUser
 import org.lolicode.moemusic.api.MusicSource
 import org.lolicode.moemusic.api.event.OnIdentifierResolved
+import org.lolicode.moemusic.api.model.copy
 import org.lolicode.moemusic.api.model.isAvailable
 import org.lolicode.moemusic.api.model.unavailabilityMessage
 import org.lolicode.moemusic.core.config.ModConfigManager
@@ -58,7 +59,7 @@ class IdentifierResolutionService(
                 when (val result = source.resolveIdentifier(input, submitter)) {
                     IdentifierResolutionResult.Pass -> Unit
                     is IdentifierResolutionResult.Resolved -> {
-                        val track = result.track.copy(sourceId = result.track.sourceId ?: source.id)
+                        val track = result.track.copy { this.sourceId = result.track.sourceId ?: source.id }
                         // Inherent source unavailability (set by the source itself) is
                         // enforced here so callers see a Blocked outcome directly.
                         // Content-filter enforcement is deferred to TrackSubmissionService
@@ -89,7 +90,7 @@ class IdentifierResolutionService(
                             submitter,
                             IdentifierResolutionOutcome.Choices(
                                 entries = result.entries
-                                    .map { entry -> entry.copy(sourceId = entry.sourceId ?: source.id) },
+                                    .map { entry -> entry.copy { this.sourceId = entry.sourceId ?: source.id } },
                                 sourceId = source.id,
                             )
                         )

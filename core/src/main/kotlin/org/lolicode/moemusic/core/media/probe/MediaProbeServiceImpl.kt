@@ -15,7 +15,7 @@ class MediaProbeServiceImpl : IMediaProbeService {
     override suspend fun probeHttp(url: String, headers: Map<String, String>): UserResult<MediaProbeResult?> {
         return when (val verdict = MediaUrlPolicy.evaluate(url, MediaPolicyProfiles.sharedMediaFirewall())) {
             MediaUrlPolicyResult.Allow -> {
-                val probe = ServerTrackProber.probe(PlaybackResource(url = url, headers = headers))
+                val probe = ServerTrackProber.probe(PlaybackResource(url) { this.headers = headers })
                 if (probe == ProbeResult.Unknown) {
                     UserResult.Success(null)
                 } else {

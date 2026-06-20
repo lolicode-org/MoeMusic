@@ -26,22 +26,22 @@ public sealed interface UserResult<out T> {
     ) : UserResult<Nothing>
 }
 
-public inline fun <T, R> UserResult<T>.map(transform: (T) -> R): UserResult<R> = when (this) {
+public fun <T, R> UserResult<T>.map(transform: (T) -> R): UserResult<R> = when (this) {
     is UserResult.Success -> UserResult.Success(transform(value))
     is UserResult.Error -> this
 }
 
-public inline fun <T> UserResult<T>.getOrElse(defaultValue: (LocalizedText) -> T): T = when (this) {
+public fun <T> UserResult<T>.getOrElse(defaultValue: (LocalizedText) -> T): T = when (this) {
     is UserResult.Success -> value
     is UserResult.Error -> defaultValue(message)
 }
 
-public inline fun <T> UserResult<T>.onSuccess(block: (T) -> Unit): UserResult<T> {
+public fun <T> UserResult<T>.onSuccess(block: (T) -> Unit): UserResult<T> {
     if (this is UserResult.Success) block(value)
     return this
 }
 
-public inline fun <T> UserResult<T>.onError(block: (LocalizedText) -> Unit): UserResult<T> {
+public fun <T> UserResult<T>.onError(block: (LocalizedText) -> Unit): UserResult<T> {
     if (this is UserResult.Error) block(message)
     return this
 }

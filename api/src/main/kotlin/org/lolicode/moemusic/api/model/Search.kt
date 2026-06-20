@@ -28,6 +28,10 @@ public data class SearchQuery(
  * track, or it may be a container / intermediate item that requires one more source-side
  * resolution step before a playable track can be enqueued.
  *
+ * Construct one with the [SelectionEntry] factory / builder DSL — do **not** implement this
+ * interface; it is sealed with a single internal implementation. Add new optional fields as a
+ * default getter here plus a `var` in [SelectionEntryBuilder] to evolve without breaking ABI.
+ *
  * @property selectionId Opaque source-local handle fed back to [MusicSource.resolveSelection].
  *                       For [SelectionEntryKind.TRACK], this must be the final stable source-local
  *                       [TrackInfo.id] key, because direct-track moderation, duplicate detection,
@@ -51,28 +55,110 @@ public data class SearchQuery(
  *                             as unavailable. This field is never forwarded to the client.
  * @property kind        Whether this row is already a direct track or still needs expansion.
  */
-public data class SelectionEntry(
-    val selectionId: String,
-    val title: String,
-    val artists: List<ArtistInfo>,
-    val durationMs: Long,
-    val sourceId: String? = null,
-    val album: String? = null,
-    val unavailableReason: LocalizedText? = null,
-    val sourceFilterVerdict: FilterVerdict? = null,
-    val kind: SelectionEntryKind = SelectionEntryKind.TRACK,
-)
+public sealed interface SelectionEntry {
+    public val selectionId: String
+    public val title: String
+    public val artists: List<ArtistInfo>
+    public val durationMs: Long
+    public val sourceId: String? get() = null
+    public val album: String? get() = null
+    public val unavailableReason: LocalizedText? get() = null
+    public val sourceFilterVerdict: FilterVerdict? get() = null
+    public val kind: SelectionEntryKind get() = SelectionEntryKind.TRACK
 
-/** High-level behavior hint for a [SelectionEntry]. */
-public enum class SelectionEntryKind {
-    /** Already the minimum playable unit. */
-    TRACK,
+    /** Returns a builder seeded with this entry's values. */
+    public fun toBuilder(): SelectionEntryBuilder
+}
 
-    /** Represents a container (album / playlist / episode list / etc.). */
-    CONTAINER,
+/** Mutable builder for [SelectionEntry]. */
+public class SelectionEntryBuilder internal constructor(
+    public var selectionId: String,
+    public var title: String,
+    public var artists: List<ArtistInfo>,
+    public var durationMs: Long,
+) {
+    public var sourceId: String? = null
+    public var album: String? = null
+    public var unavailableReason: LocalizedText? = null
+    public var sourceFilterVerdict: FilterVerdict? = null
+    public var kind: SelectionEntryKind = SelectionEntryKind.TRACK
 
-    /** Source could not confidently classify the row up front. */
-    UNKNOWN,
+    public fun build(): SelectionEntry = SelectionEntryImpl(
+        selectionId = selectionId,
+        title = title,
+        artists = artists,
+        durationMs = durationMs,
+        sourceId = sourceId,
+        album = album,
+        unavailableReason = unavailableReason,
+        sourceFilterVerdict = sourceFilterVerdict,
+        kind = kind,
+    )
+}
+
+/**
+ * Build a [SelectionEntry] from its required fields plus an optional [configure] block. The
+ * signature is frozen; future optional fields are set inside [configure] via [SelectionEntryBuilder].
+ */
+public fun SelectionEntry(
+    selectionId: String,
+    title: String,
+    artists: List<ArtistInfo>,
+    durationMs: Long,
+    configure: SelectionEntryBuilder.() -> Unit = {},
+): SelectionEntry = SelectionEntryBuilder(selectionId, title, artists, durationMs).apply(configure).build()
+
+/** Returns a copy of this entry with [configure] applied to a seeded builder. */
+public fun SelectionEntry.copy(configure: SelectionEntryBuilder.() -> Unit): SelectionEntry =
+    toBuilder().apply(configure).build()
+
+internal data class SelectionEntryImpl(
+    override val selectionId: String,
+    override val title: String,
+    override val artists: List<ArtistInfo>,
+    override val durationMs: Long,
+    override val sourceId: String?,
+    override val album: String?,
+    override val unavailableReason: LocalizedText?,
+    override val sourceFilterVerdict: FilterVerdict?,
+    override val kind: SelectionEntryKind,
+) : SelectionEntry {
+    override fun toBuilder(): SelectionEntryBuilder = SelectionEntryBuilder(selectionId, title, artists, durationMs).also {
+        it.sourceId = sourceId
+        it.album = album
+        it.unavailableReason = unavailableReason
+        it.sourceFilterVerdict = sourceFilterVerdict
+        it.kind = kind
+    }
+}
+
+/**
+ * High-level behavior hint for a [SelectionEntry].
+ *
+ * This is an **open** value set, not an enum: a source may expose row kinds beyond the ones below,
+ * and future API versions may add more. `when` over a [SelectionEntryKind] therefore cannot be
+ * exhaustive and must always include an `else` branch — treat unrecognized kinds like [UNKNOWN].
+ */
+@JvmInline
+public value class SelectionEntryKind private constructor(public val id: String) {
+    override fun toString(): String = id
+
+    public companion object {
+        /** Already the minimum playable unit. */
+        public val TRACK: SelectionEntryKind = SelectionEntryKind("TRACK")
+
+        /** Represents a container (album / playlist / episode list / etc.). */
+        public val CONTAINER: SelectionEntryKind = SelectionEntryKind("CONTAINER")
+
+        /** Source could not confidently classify the row up front. */
+        public val UNKNOWN: SelectionEntryKind = SelectionEntryKind("UNKNOWN")
+
+        /** Values known to this build. New values may appear at runtime; always handle `else`. */
+        public val entries: List<SelectionEntryKind> = listOf(TRACK, CONTAINER, UNKNOWN)
+
+        /** Returns the value for [id], creating an unknown-but-valid value when not recognized. */
+        public fun of(id: String): SelectionEntryKind = SelectionEntryKind(id)
+    }
 }
 
 /** Human-readable artist string for client/chat display. */
@@ -127,16 +213,62 @@ public sealed interface SelectionResolveResult {
 /**
  * Search results from a single [MusicSource].
  *
+ * Construct one with the [SearchResult] factory / builder DSL — do **not** implement this
+ * interface; it is sealed with a single internal implementation.
+ *
  * @property entries  Ordered page of matching rows (best match first).
  * @property sourceId The [MusicSource.id] that produced these results.
  * @property total    Total number of matches available for this query before pagination.
  * @property hasMore  True when more results are available after this page.
  * @property failure  Optional localized failure for routed/user-visible search flows.
  */
-public data class SearchResult(
-    val entries: List<SelectionEntry>,
-    val sourceId: String,
-    val total: Int,
-    val hasMore: Boolean = false,
-    val failure: LocalizedText? = null,
-)
+public sealed interface SearchResult {
+    public val entries: List<SelectionEntry>
+    public val sourceId: String
+    public val total: Int
+    public val hasMore: Boolean get() = false
+    public val failure: LocalizedText? get() = null
+
+    /** Returns a builder seeded with this result's values. */
+    public fun toBuilder(): SearchResultBuilder
+}
+
+/** Mutable builder for [SearchResult]. */
+public class SearchResultBuilder internal constructor(
+    public var entries: List<SelectionEntry>,
+    public var sourceId: String,
+    public var total: Int,
+) {
+    public var hasMore: Boolean = false
+    public var failure: LocalizedText? = null
+
+    public fun build(): SearchResult = SearchResultImpl(entries, sourceId, total, hasMore, failure)
+}
+
+/**
+ * Build a [SearchResult] from its required fields plus an optional [configure] block. The signature
+ * is frozen; future optional fields are set inside [configure] via [SearchResultBuilder].
+ */
+public fun SearchResult(
+    entries: List<SelectionEntry>,
+    sourceId: String,
+    total: Int,
+    configure: SearchResultBuilder.() -> Unit = {},
+): SearchResult = SearchResultBuilder(entries, sourceId, total).apply(configure).build()
+
+/** Returns a copy of this result with [configure] applied to a seeded builder. */
+public fun SearchResult.copy(configure: SearchResultBuilder.() -> Unit): SearchResult =
+    toBuilder().apply(configure).build()
+
+internal data class SearchResultImpl(
+    override val entries: List<SelectionEntry>,
+    override val sourceId: String,
+    override val total: Int,
+    override val hasMore: Boolean,
+    override val failure: LocalizedText?,
+) : SearchResult {
+    override fun toBuilder(): SearchResultBuilder = SearchResultBuilder(entries, sourceId, total).also {
+        it.hasMore = hasMore
+        it.failure = failure
+    }
+}

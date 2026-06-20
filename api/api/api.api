@@ -160,7 +160,6 @@ public final class org/lolicode/moemusic/api/MoeMusicApi {
 	public static final field INSTANCE Lorg/lolicode/moemusic/api/MoeMusicApi;
 	public final fun getAPI_VERSION ()Ljava/lang/String;
 	public final fun getPlugins ()Ljava/util/List;
-	public final fun get_plugins ()Ljava/util/LinkedHashMap;
 	public final fun registerPlugin (Lorg/lolicode/moemusic/api/plugin/Plugin;)V
 }
 
@@ -322,30 +321,47 @@ public final class org/lolicode/moemusic/api/client/ClientActionFeedback {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class org/lolicode/moemusic/api/client/ClientAvailabilityIssue : java/lang/Enum {
-	public static final field SERVER_MISSING Lorg/lolicode/moemusic/api/client/ClientAvailabilityIssue;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lorg/lolicode/moemusic/api/client/ClientAvailabilityIssue;
-	public static fun values ()[Lorg/lolicode/moemusic/api/client/ClientAvailabilityIssue;
+public final class org/lolicode/moemusic/api/client/ClientAvailabilityIssue {
+	public static final field Companion Lorg/lolicode/moemusic/api/client/ClientAvailabilityIssue$Companion;
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lorg/lolicode/moemusic/api/client/ClientAvailabilityIssue;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class org/lolicode/moemusic/api/client/ClientAvailabilityIssue$Companion {
+	public final fun getEntries ()Ljava/util/List;
+	public final fun getHANDSHAKE_UNAVAILABLE-12W_qbw ()Ljava/lang/String;
+	public final fun getNO_RESPONSE-12W_qbw ()Ljava/lang/String;
+	public final fun getPROTOCOL_MISMATCH-12W_qbw ()Ljava/lang/String;
+	public final fun getREJECTED-12W_qbw ()Ljava/lang/String;
+	public final fun getSERVER_MOD_MISSING-12W_qbw ()Ljava/lang/String;
+	public final fun of-3twoQ58 (Ljava/lang/String;)Ljava/lang/String;
 }
 
 public final class org/lolicode/moemusic/api/client/ClientContentFilterActionResult {
-	public fun <init> (Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;)V
-	public synthetic fun <init> (Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-fVEC4cY ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/String;
 	public final fun component4 ()Z
 	public final fun component5 ()Ljava/lang/String;
 	public final fun component6 ()Ljava/lang/String;
-	public final fun copy (Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;)Lorg/lolicode/moemusic/api/client/ClientContentFilterActionResult;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/client/ClientContentFilterActionResult;Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/client/ClientContentFilterActionResult;
+	public final fun copy-4_h4m8k (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;)Lorg/lolicode/moemusic/api/client/ClientContentFilterActionResult;
+	public static synthetic fun copy-4_h4m8k$default (Lorg/lolicode/moemusic/api/client/ClientContentFilterActionResult;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/client/ClientContentFilterActionResult;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBlockedNow ()Z
 	public final fun getFailureMessage ()Ljava/lang/String;
 	public final fun getSourceId ()Ljava/lang/String;
 	public final fun getSuccessMessage ()Ljava/lang/String;
-	public final fun getTarget ()Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;
+	public final fun getTarget-fVEC4cY ()Ljava/lang/String;
 	public final fun getValueId ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -497,21 +513,34 @@ public final class org/lolicode/moemusic/api/client/ClientVolumeOverride$Percent
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class org/lolicode/moemusic/api/client/ContentFilterMutationTarget : java/lang/Enum {
-	public static final field ARTIST Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;
-	public static final field TRACK Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;
-	public static fun values ()[Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;
+public final class org/lolicode/moemusic/api/client/ContentFilterMutationTarget {
+	public static final field Companion Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget$Companion;
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class org/lolicode/moemusic/api/client/ContentFilterMutationTarget$Companion {
+	public final fun getARTIST-fVEC4cY ()Ljava/lang/String;
+	public final fun getEntries ()Ljava/util/List;
+	public final fun getTRACK-fVEC4cY ()Ljava/lang/String;
+	public final fun of-99oPmyM (Ljava/lang/String;)Ljava/lang/String;
 }
 
 public abstract interface class org/lolicode/moemusic/api/client/IClientPlaybackService {
 	public abstract fun clearTransientVolumeOverride (Ljava/lang/String;)V
 	public abstract fun currentPositionMs ()Ljava/lang/Long;
 	public abstract fun getConfiguredVolumePercent ()I
-	public abstract fun getCurrentAvailabilityIssue ()Lorg/lolicode/moemusic/api/client/ClientAvailabilityIssue;
+	public abstract fun getCurrentAvailabilityIssue-QeL6YqM ()Ljava/lang/String;
 	public abstract fun getCurrentContext ()Lorg/lolicode/moemusic/api/model/TrackContext;
-	public abstract fun getCurrentParticipationState ()Lorg/lolicode/moemusic/api/event/UserParticipationState;
+	public abstract fun getCurrentParticipationState-76aHunw ()Ljava/lang/String;
 	public abstract fun getEffectiveVolumePercent ()I
 	public abstract fun getSearchCatalog ()Lorg/lolicode/moemusic/api/client/ClientSearchCatalog;
 	public abstract fun isPlaybackEnabledForCurrentServer ()Z
@@ -533,8 +562,8 @@ public abstract interface class org/lolicode/moemusic/api/client/IClientRequestS
 	public static synthetic fun submitSelection$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Lorg/lolicode/moemusic/api/model/SelectionEntry;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun submitTrack (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun submitTrack$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public abstract fun updateContentFilter (Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun updateContentFilter$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun updateContentFilter-4_h4m8k (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun updateContentFilter-4_h4m8k$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class org/lolicode/moemusic/api/client/IClientRequestService$DefaultImpls {
@@ -542,7 +571,7 @@ public final class org/lolicode/moemusic/api/client/IClientRequestService$Defaul
 	public static synthetic fun submitIdentifier$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Ljava/lang/String;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun submitSelection$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Lorg/lolicode/moemusic/api/model/SelectionEntry;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun submitTrack$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static synthetic fun updateContentFilter$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Lorg/lolicode/moemusic/api/client/ContentFilterMutationTarget;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun updateContentFilter-4_h4m8k$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public abstract interface class org/lolicode/moemusic/api/event/EventBus {
@@ -604,17 +633,17 @@ public final class org/lolicode/moemusic/api/event/OnClientPlaybackSeeked {
 }
 
 public final class org/lolicode/moemusic/api/event/OnClientPlaybackStarted {
-	public fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/PlaybackResource;JZ)V
+	public synthetic fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/PlaybackResource;JLjava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lorg/lolicode/moemusic/api/model/TrackInfo;
 	public final fun component2 ()Lorg/lolicode/moemusic/api/model/PlaybackResource;
 	public final fun component3 ()J
-	public final fun component4 ()Z
-	public final fun copy (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/PlaybackResource;JZ)Lorg/lolicode/moemusic/api/event/OnClientPlaybackStarted;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/event/OnClientPlaybackStarted;Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/PlaybackResource;JZILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnClientPlaybackStarted;
+	public final fun component4-_GbjJvc ()Ljava/lang/String;
+	public final fun copy-K6BLv6U (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/PlaybackResource;JLjava/lang/String;)Lorg/lolicode/moemusic/api/event/OnClientPlaybackStarted;
+	public static synthetic fun copy-K6BLv6U$default (Lorg/lolicode/moemusic/api/event/OnClientPlaybackStarted;Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/PlaybackResource;JLjava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnClientPlaybackStarted;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getFromSyncState ()Z
 	public final fun getPlayback ()Lorg/lolicode/moemusic/api/model/PlaybackResource;
 	public final fun getPositionMs ()J
+	public final fun getStartCause-_GbjJvc ()Ljava/lang/String;
 	public final fun getTrack ()Lorg/lolicode/moemusic/api/model/TrackInfo;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -855,16 +884,16 @@ public final class org/lolicode/moemusic/api/event/OnServerPlayerDisconnected {
 }
 
 public final class org/lolicode/moemusic/api/event/OnTrackSubmitted {
-	public fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lorg/lolicode/moemusic/api/model/TrackAddResult;)V
+	public synthetic fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/model/TrackAddMode;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lorg/lolicode/moemusic/api/model/TrackInfo;
 	public final fun component2 ()Lorg/lolicode/moemusic/api/MoeMusicUser;
 	public final fun component3 ()Lorg/lolicode/moemusic/api/model/TrackAddMode;
-	public final fun component4 ()Lorg/lolicode/moemusic/api/model/TrackAddResult;
-	public final fun copy (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lorg/lolicode/moemusic/api/model/TrackAddResult;)Lorg/lolicode/moemusic/api/event/OnTrackSubmitted;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/event/OnTrackSubmitted;Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lorg/lolicode/moemusic/api/model/TrackAddResult;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnTrackSubmitted;
+	public final fun component4-qRX1x1o ()Ljava/lang/String;
+	public final fun copy-FiFv6mI (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/model/TrackAddMode;Ljava/lang/String;)Lorg/lolicode/moemusic/api/event/OnTrackSubmitted;
+	public static synthetic fun copy-FiFv6mI$default (Lorg/lolicode/moemusic/api/event/OnTrackSubmitted;Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/model/TrackAddMode;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnTrackSubmitted;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getMode ()Lorg/lolicode/moemusic/api/model/TrackAddMode;
-	public final fun getResult ()Lorg/lolicode/moemusic/api/model/TrackAddResult;
+	public final fun getResult-qRX1x1o ()Ljava/lang/String;
 	public final fun getSubmitter ()Lorg/lolicode/moemusic/api/MoeMusicUser;
 	public final fun getTrack ()Lorg/lolicode/moemusic/api/model/TrackInfo;
 	public fun hashCode ()I
@@ -872,87 +901,118 @@ public final class org/lolicode/moemusic/api/event/OnTrackSubmitted {
 }
 
 public final class org/lolicode/moemusic/api/event/OnUserParticipationChanged {
-	public fun <init> (Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/event/UserParticipationState;Lorg/lolicode/moemusic/api/event/UserParticipationState;)V
+	public synthetic fun <init> (Lorg/lolicode/moemusic/api/MoeMusicUser;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lorg/lolicode/moemusic/api/MoeMusicUser;
-	public final fun component2 ()Lorg/lolicode/moemusic/api/event/UserParticipationState;
-	public final fun component3 ()Lorg/lolicode/moemusic/api/event/UserParticipationState;
-	public final fun copy (Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/event/UserParticipationState;Lorg/lolicode/moemusic/api/event/UserParticipationState;)Lorg/lolicode/moemusic/api/event/OnUserParticipationChanged;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/event/OnUserParticipationChanged;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/event/UserParticipationState;Lorg/lolicode/moemusic/api/event/UserParticipationState;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnUserParticipationChanged;
+	public final fun component2-vYyQFHY ()Ljava/lang/String;
+	public final fun component3-vYyQFHY ()Ljava/lang/String;
+	public final fun copy-4FiFf3I (Lorg/lolicode/moemusic/api/MoeMusicUser;Ljava/lang/String;Ljava/lang/String;)Lorg/lolicode/moemusic/api/event/OnUserParticipationChanged;
+	public static synthetic fun copy-4FiFf3I$default (Lorg/lolicode/moemusic/api/event/OnUserParticipationChanged;Lorg/lolicode/moemusic/api/MoeMusicUser;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnUserParticipationChanged;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getNewState ()Lorg/lolicode/moemusic/api/event/UserParticipationState;
-	public final fun getPreviousState ()Lorg/lolicode/moemusic/api/event/UserParticipationState;
+	public final fun getNewState-vYyQFHY ()Ljava/lang/String;
+	public final fun getPreviousState-vYyQFHY ()Ljava/lang/String;
 	public final fun getUser ()Lorg/lolicode/moemusic/api/MoeMusicUser;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class org/lolicode/moemusic/api/event/OnUserSessionEnded {
-	public fun <init> (Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/event/UserParticipationState;)V
+	public synthetic fun <init> (Lorg/lolicode/moemusic/api/MoeMusicUser;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lorg/lolicode/moemusic/api/MoeMusicUser;
-	public final fun component2 ()Lorg/lolicode/moemusic/api/event/UserParticipationState;
-	public final fun copy (Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/event/UserParticipationState;)Lorg/lolicode/moemusic/api/event/OnUserSessionEnded;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/event/OnUserSessionEnded;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/event/UserParticipationState;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnUserSessionEnded;
+	public final fun component2-vYyQFHY ()Ljava/lang/String;
+	public final fun copy-EhI-hiI (Lorg/lolicode/moemusic/api/MoeMusicUser;Ljava/lang/String;)Lorg/lolicode/moemusic/api/event/OnUserSessionEnded;
+	public static synthetic fun copy-EhI-hiI$default (Lorg/lolicode/moemusic/api/event/OnUserSessionEnded;Lorg/lolicode/moemusic/api/MoeMusicUser;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnUserSessionEnded;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getState ()Lorg/lolicode/moemusic/api/event/UserParticipationState;
+	public final fun getState-vYyQFHY ()Ljava/lang/String;
 	public final fun getUser ()Lorg/lolicode/moemusic/api/MoeMusicUser;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class org/lolicode/moemusic/api/event/OnUserSessionStarted {
-	public fun <init> (Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/event/UserParticipationState;)V
+	public synthetic fun <init> (Lorg/lolicode/moemusic/api/MoeMusicUser;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lorg/lolicode/moemusic/api/MoeMusicUser;
-	public final fun component2 ()Lorg/lolicode/moemusic/api/event/UserParticipationState;
-	public final fun copy (Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/event/UserParticipationState;)Lorg/lolicode/moemusic/api/event/OnUserSessionStarted;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/event/OnUserSessionStarted;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/event/UserParticipationState;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnUserSessionStarted;
+	public final fun component2-vYyQFHY ()Ljava/lang/String;
+	public final fun copy-EhI-hiI (Lorg/lolicode/moemusic/api/MoeMusicUser;Ljava/lang/String;)Lorg/lolicode/moemusic/api/event/OnUserSessionStarted;
+	public static synthetic fun copy-EhI-hiI$default (Lorg/lolicode/moemusic/api/event/OnUserSessionStarted;Lorg/lolicode/moemusic/api/MoeMusicUser;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/event/OnUserSessionStarted;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getState ()Lorg/lolicode/moemusic/api/event/UserParticipationState;
+	public final fun getState-vYyQFHY ()Ljava/lang/String;
 	public final fun getUser ()Lorg/lolicode/moemusic/api/MoeMusicUser;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class org/lolicode/moemusic/api/event/UserParticipationState : java/lang/Enum {
-	public static final field ACTIVE Lorg/lolicode/moemusic/api/event/UserParticipationState;
-	public static final field STANDBY Lorg/lolicode/moemusic/api/event/UserParticipationState;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lorg/lolicode/moemusic/api/event/UserParticipationState;
-	public static fun values ()[Lorg/lolicode/moemusic/api/event/UserParticipationState;
-}
-
-public final class org/lolicode/moemusic/api/model/ArtistInfo {
-	public static final field Companion Lorg/lolicode/moemusic/api/model/ArtistInfo$Companion;
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lorg/lolicode/moemusic/api/model/ArtistInfo;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/model/ArtistInfo;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/ArtistInfo;
+public final class org/lolicode/moemusic/api/event/PlaybackStartCause {
+	public static final field Companion Lorg/lolicode/moemusic/api/event/PlaybackStartCause$Companion;
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lorg/lolicode/moemusic/api/event/PlaybackStartCause;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getDisplayName ()Ljava/lang/String;
-	public final fun getEffectiveId ()Ljava/lang/String;
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
 	public final fun getId ()Ljava/lang/String;
-	public final fun getName ()Ljava/lang/String;
 	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
 	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
 }
 
-public final synthetic class org/lolicode/moemusic/api/model/ArtistInfo$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Lorg/lolicode/moemusic/api/model/ArtistInfo$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lorg/lolicode/moemusic/api/model/ArtistInfo;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lorg/lolicode/moemusic/api/model/ArtistInfo;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+public final class org/lolicode/moemusic/api/event/PlaybackStartCause$Companion {
+	public final fun getCATCH_UP-_GbjJvc ()Ljava/lang/String;
+	public final fun getEntries ()Ljava/util/List;
+	public final fun getNEW_TRACK-_GbjJvc ()Ljava/lang/String;
+	public final fun of-lxzHB4A (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class org/lolicode/moemusic/api/event/UserParticipationState {
+	public static final field Companion Lorg/lolicode/moemusic/api/event/UserParticipationState$Companion;
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lorg/lolicode/moemusic/api/event/UserParticipationState;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class org/lolicode/moemusic/api/event/UserParticipationState$Companion {
+	public final fun getACTIVE-vYyQFHY ()Ljava/lang/String;
+	public final fun getEntries ()Ljava/util/List;
+	public final fun getSTANDBY-vYyQFHY ()Ljava/lang/String;
+	public final fun of-JCwE8hc (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public abstract interface class org/lolicode/moemusic/api/model/ArtistInfo {
+	public static final field Companion Lorg/lolicode/moemusic/api/model/ArtistInfo$Companion;
+	public fun getDisplayName ()Ljava/lang/String;
+	public fun getEffectiveId ()Ljava/lang/String;
+	public abstract fun getId ()Ljava/lang/String;
+	public abstract fun getName ()Ljava/lang/String;
+	public abstract fun toBuilder ()Lorg/lolicode/moemusic/api/model/ArtistInfoBuilder;
 }
 
 public final class org/lolicode/moemusic/api/model/ArtistInfo$Companion {
 	public final fun fromName (Ljava/lang/String;)Lorg/lolicode/moemusic/api/model/ArtistInfo;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class org/lolicode/moemusic/api/model/ArtistInfo$DefaultImpls {
+	public static fun getDisplayName (Lorg/lolicode/moemusic/api/model/ArtistInfo;)Ljava/lang/String;
+	public static fun getEffectiveId (Lorg/lolicode/moemusic/api/model/ArtistInfo;)Ljava/lang/String;
+}
+
+public final class org/lolicode/moemusic/api/model/ArtistInfoBuilder {
+	public final fun build ()Lorg/lolicode/moemusic/api/model/ArtistInfo;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun setId (Ljava/lang/String;)V
+	public final fun setName (Ljava/lang/String;)V
 }
 
 public final class org/lolicode/moemusic/api/model/ArtistInfoKt {
+	public static final fun ArtistInfo (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/ArtistInfo;
+	public static synthetic fun ArtistInfo$default (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/ArtistInfo;
+	public static final fun copy (Lorg/lolicode/moemusic/api/model/ArtistInfo;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/ArtistInfo;
 	public static final fun toArtistInfos (Ljava/lang/Iterable;)Ljava/util/List;
 }
 
@@ -1133,18 +1193,28 @@ public final class org/lolicode/moemusic/api/model/ExactTrackFilterRule$Companio
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
-public final class org/lolicode/moemusic/api/model/PlaybackResource {
-	public fun <init> (Ljava/lang/String;Ljava/util/Map;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/util/Map;
-	public final fun copy (Ljava/lang/String;Ljava/util/Map;)Lorg/lolicode/moemusic/api/model/PlaybackResource;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/model/PlaybackResource;Ljava/lang/String;Ljava/util/Map;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/PlaybackResource;
-	public fun equals (Ljava/lang/Object;)Z
+public abstract interface class org/lolicode/moemusic/api/model/PlaybackResource {
+	public fun getHeaders ()Ljava/util/Map;
+	public abstract fun getUrl ()Ljava/lang/String;
+	public abstract fun toBuilder ()Lorg/lolicode/moemusic/api/model/PlaybackResourceBuilder;
+}
+
+public final class org/lolicode/moemusic/api/model/PlaybackResource$DefaultImpls {
+	public static fun getHeaders (Lorg/lolicode/moemusic/api/model/PlaybackResource;)Ljava/util/Map;
+}
+
+public final class org/lolicode/moemusic/api/model/PlaybackResourceBuilder {
+	public final fun build ()Lorg/lolicode/moemusic/api/model/PlaybackResource;
 	public final fun getHeaders ()Ljava/util/Map;
 	public final fun getUrl ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
+	public final fun setHeaders (Ljava/util/Map;)V
+	public final fun setUrl (Ljava/lang/String;)V
+}
+
+public final class org/lolicode/moemusic/api/model/PlaybackResourceKt {
+	public static final fun PlaybackResource (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/PlaybackResource;
+	public static synthetic fun PlaybackResource$default (Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/PlaybackResource;
+	public static final fun copy (Lorg/lolicode/moemusic/api/model/PlaybackResource;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/PlaybackResource;
 }
 
 public abstract class org/lolicode/moemusic/api/model/PlaybackState {
@@ -1180,6 +1250,12 @@ public final class org/lolicode/moemusic/api/model/PlaybackState$Stopped : org/l
 }
 
 public final class org/lolicode/moemusic/api/model/SearchKt {
+	public static final fun SearchResult (Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/SearchResult;
+	public static synthetic fun SearchResult$default (Ljava/util/List;Ljava/lang/String;ILkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/SearchResult;
+	public static final fun SelectionEntry (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/SelectionEntry;
+	public static synthetic fun SelectionEntry$default (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/SelectionEntry;
+	public static final fun copy (Lorg/lolicode/moemusic/api/model/SearchResult;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/SearchResult;
+	public static final fun copy (Lorg/lolicode/moemusic/api/model/SelectionEntry;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/SelectionEntry;
 	public static final fun getArtistDisplay (Lorg/lolicode/moemusic/api/model/SelectionEntry;)Ljava/lang/String;
 	public static final fun getDirectTrackId (Lorg/lolicode/moemusic/api/model/SelectionEntry;)Ljava/lang/String;
 	public static final fun isDirectTrack (Lorg/lolicode/moemusic/api/model/SelectionEntry;)Z
@@ -1205,61 +1281,97 @@ public final class org/lolicode/moemusic/api/model/SearchQuery {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class org/lolicode/moemusic/api/model/SearchResult {
-	public fun <init> (Ljava/util/List;Ljava/lang/String;IZLorg/lolicode/moemusic/api/LocalizedText;)V
-	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;IZLorg/lolicode/moemusic/api/LocalizedText;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/util/List;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()I
-	public final fun component4 ()Z
-	public final fun component5 ()Lorg/lolicode/moemusic/api/LocalizedText;
-	public final fun copy (Ljava/util/List;Ljava/lang/String;IZLorg/lolicode/moemusic/api/LocalizedText;)Lorg/lolicode/moemusic/api/model/SearchResult;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/model/SearchResult;Ljava/util/List;Ljava/lang/String;IZLorg/lolicode/moemusic/api/LocalizedText;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/SearchResult;
-	public fun equals (Ljava/lang/Object;)Z
+public abstract interface class org/lolicode/moemusic/api/model/SearchResult {
+	public abstract fun getEntries ()Ljava/util/List;
+	public fun getFailure ()Lorg/lolicode/moemusic/api/LocalizedText;
+	public fun getHasMore ()Z
+	public abstract fun getSourceId ()Ljava/lang/String;
+	public abstract fun getTotal ()I
+	public abstract fun toBuilder ()Lorg/lolicode/moemusic/api/model/SearchResultBuilder;
+}
+
+public final class org/lolicode/moemusic/api/model/SearchResult$DefaultImpls {
+	public static fun getFailure (Lorg/lolicode/moemusic/api/model/SearchResult;)Lorg/lolicode/moemusic/api/LocalizedText;
+	public static fun getHasMore (Lorg/lolicode/moemusic/api/model/SearchResult;)Z
+}
+
+public final class org/lolicode/moemusic/api/model/SearchResultBuilder {
+	public final fun build ()Lorg/lolicode/moemusic/api/model/SearchResult;
 	public final fun getEntries ()Ljava/util/List;
 	public final fun getFailure ()Lorg/lolicode/moemusic/api/LocalizedText;
 	public final fun getHasMore ()Z
 	public final fun getSourceId ()Ljava/lang/String;
 	public final fun getTotal ()I
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
+	public final fun setEntries (Ljava/util/List;)V
+	public final fun setFailure (Lorg/lolicode/moemusic/api/LocalizedText;)V
+	public final fun setHasMore (Z)V
+	public final fun setSourceId (Ljava/lang/String;)V
+	public final fun setTotal (I)V
 }
 
-public final class org/lolicode/moemusic/api/model/SelectionEntry {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLjava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;Lorg/lolicode/moemusic/api/service/FilterVerdict;Lorg/lolicode/moemusic/api/model/SelectionEntryKind;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLjava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;Lorg/lolicode/moemusic/api/service/FilterVerdict;Lorg/lolicode/moemusic/api/model/SelectionEntryKind;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Ljava/util/List;
-	public final fun component4 ()J
-	public final fun component5 ()Ljava/lang/String;
-	public final fun component6 ()Ljava/lang/String;
-	public final fun component7 ()Lorg/lolicode/moemusic/api/LocalizedText;
-	public final fun component8 ()Lorg/lolicode/moemusic/api/service/FilterVerdict;
-	public final fun component9 ()Lorg/lolicode/moemusic/api/model/SelectionEntryKind;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLjava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;Lorg/lolicode/moemusic/api/service/FilterVerdict;Lorg/lolicode/moemusic/api/model/SelectionEntryKind;)Lorg/lolicode/moemusic/api/model/SelectionEntry;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/model/SelectionEntry;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLjava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;Lorg/lolicode/moemusic/api/service/FilterVerdict;Lorg/lolicode/moemusic/api/model/SelectionEntryKind;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/SelectionEntry;
-	public fun equals (Ljava/lang/Object;)Z
+public abstract interface class org/lolicode/moemusic/api/model/SelectionEntry {
+	public fun getAlbum ()Ljava/lang/String;
+	public abstract fun getArtists ()Ljava/util/List;
+	public abstract fun getDurationMs ()J
+	public fun getKind-6bufiGE ()Ljava/lang/String;
+	public abstract fun getSelectionId ()Ljava/lang/String;
+	public fun getSourceFilterVerdict ()Lorg/lolicode/moemusic/api/service/FilterVerdict;
+	public fun getSourceId ()Ljava/lang/String;
+	public abstract fun getTitle ()Ljava/lang/String;
+	public fun getUnavailableReason ()Lorg/lolicode/moemusic/api/LocalizedText;
+	public abstract fun toBuilder ()Lorg/lolicode/moemusic/api/model/SelectionEntryBuilder;
+}
+
+public final class org/lolicode/moemusic/api/model/SelectionEntry$DefaultImpls {
+	public static fun getAlbum (Lorg/lolicode/moemusic/api/model/SelectionEntry;)Ljava/lang/String;
+	public static fun getKind-6bufiGE (Lorg/lolicode/moemusic/api/model/SelectionEntry;)Ljava/lang/String;
+	public static fun getSourceFilterVerdict (Lorg/lolicode/moemusic/api/model/SelectionEntry;)Lorg/lolicode/moemusic/api/service/FilterVerdict;
+	public static fun getSourceId (Lorg/lolicode/moemusic/api/model/SelectionEntry;)Ljava/lang/String;
+	public static fun getUnavailableReason (Lorg/lolicode/moemusic/api/model/SelectionEntry;)Lorg/lolicode/moemusic/api/LocalizedText;
+}
+
+public final class org/lolicode/moemusic/api/model/SelectionEntryBuilder {
+	public final fun build ()Lorg/lolicode/moemusic/api/model/SelectionEntry;
 	public final fun getAlbum ()Ljava/lang/String;
 	public final fun getArtists ()Ljava/util/List;
 	public final fun getDurationMs ()J
-	public final fun getKind ()Lorg/lolicode/moemusic/api/model/SelectionEntryKind;
+	public final fun getKind-6bufiGE ()Ljava/lang/String;
 	public final fun getSelectionId ()Ljava/lang/String;
 	public final fun getSourceFilterVerdict ()Lorg/lolicode/moemusic/api/service/FilterVerdict;
 	public final fun getSourceId ()Ljava/lang/String;
 	public final fun getTitle ()Ljava/lang/String;
 	public final fun getUnavailableReason ()Lorg/lolicode/moemusic/api/LocalizedText;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
+	public final fun setAlbum (Ljava/lang/String;)V
+	public final fun setArtists (Ljava/util/List;)V
+	public final fun setDurationMs (J)V
+	public final fun setKind-1arxc9w (Ljava/lang/String;)V
+	public final fun setSelectionId (Ljava/lang/String;)V
+	public final fun setSourceFilterVerdict (Lorg/lolicode/moemusic/api/service/FilterVerdict;)V
+	public final fun setSourceId (Ljava/lang/String;)V
+	public final fun setTitle (Ljava/lang/String;)V
+	public final fun setUnavailableReason (Lorg/lolicode/moemusic/api/LocalizedText;)V
 }
 
-public final class org/lolicode/moemusic/api/model/SelectionEntryKind : java/lang/Enum {
-	public static final field CONTAINER Lorg/lolicode/moemusic/api/model/SelectionEntryKind;
-	public static final field TRACK Lorg/lolicode/moemusic/api/model/SelectionEntryKind;
-	public static final field UNKNOWN Lorg/lolicode/moemusic/api/model/SelectionEntryKind;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lorg/lolicode/moemusic/api/model/SelectionEntryKind;
-	public static fun values ()[Lorg/lolicode/moemusic/api/model/SelectionEntryKind;
+public final class org/lolicode/moemusic/api/model/SelectionEntryKind {
+	public static final field Companion Lorg/lolicode/moemusic/api/model/SelectionEntryKind$Companion;
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lorg/lolicode/moemusic/api/model/SelectionEntryKind;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class org/lolicode/moemusic/api/model/SelectionEntryKind$Companion {
+	public final fun getCONTAINER-6bufiGE ()Ljava/lang/String;
+	public final fun getEntries ()Ljava/util/List;
+	public final fun getTRACK-6bufiGE ()Ljava/lang/String;
+	public final fun getUNKNOWN-6bufiGE ()Ljava/lang/String;
+	public final fun of-hVDyo5M (Ljava/lang/String;)Ljava/lang/String;
 }
 
 public abstract interface class org/lolicode/moemusic/api/model/SelectionResolveResult {
@@ -1296,13 +1408,26 @@ public final class org/lolicode/moemusic/api/model/TrackAddMode : java/lang/Enum
 	public static fun values ()[Lorg/lolicode/moemusic/api/model/TrackAddMode;
 }
 
-public final class org/lolicode/moemusic/api/model/TrackAddResult : java/lang/Enum {
-	public static final field INTERRUPTING_AUTOPLAY Lorg/lolicode/moemusic/api/model/TrackAddResult;
-	public static final field PLAYING_NOW Lorg/lolicode/moemusic/api/model/TrackAddResult;
-	public static final field QUEUED Lorg/lolicode/moemusic/api/model/TrackAddResult;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lorg/lolicode/moemusic/api/model/TrackAddResult;
-	public static fun values ()[Lorg/lolicode/moemusic/api/model/TrackAddResult;
+public final class org/lolicode/moemusic/api/model/TrackAddResult {
+	public static final field Companion Lorg/lolicode/moemusic/api/model/TrackAddResult$Companion;
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lorg/lolicode/moemusic/api/model/TrackAddResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class org/lolicode/moemusic/api/model/TrackAddResult$Companion {
+	public final fun getEntries ()Ljava/util/List;
+	public final fun getINTERRUPTING_AUTOPLAY-qRX1x1o ()Ljava/lang/String;
+	public final fun getPLAYING_NOW-qRX1x1o ()Ljava/lang/String;
+	public final fun getQUEUED-qRX1x1o ()Ljava/lang/String;
+	public final fun of-vOyqE8I (Ljava/lang/String;)Ljava/lang/String;
 }
 
 public final class org/lolicode/moemusic/api/model/TrackContext {
@@ -1325,25 +1450,37 @@ public final class org/lolicode/moemusic/api/model/TrackContext {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class org/lolicode/moemusic/api/model/TrackInfo {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;Lorg/lolicode/moemusic/api/service/FilterVerdict;Ljava/lang/String;Ljava/lang/String;Z)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;Lorg/lolicode/moemusic/api/service/FilterVerdict;Ljava/lang/String;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component10 ()Lorg/lolicode/moemusic/api/service/FilterVerdict;
-	public final fun component11 ()Ljava/lang/String;
-	public final fun component12 ()Ljava/lang/String;
-	public final fun component13 ()Z
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Ljava/util/List;
-	public final fun component4 ()J
-	public final fun component5 ()Ljava/lang/String;
-	public final fun component6 ()Ljava/lang/String;
-	public final fun component7 ()Ljava/lang/String;
-	public final fun component8 ()Ljava/lang/String;
-	public final fun component9 ()Lorg/lolicode/moemusic/api/LocalizedText;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;Lorg/lolicode/moemusic/api/service/FilterVerdict;Ljava/lang/String;Ljava/lang/String;Z)Lorg/lolicode/moemusic/api/model/TrackInfo;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;Lorg/lolicode/moemusic/api/service/FilterVerdict;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/TrackInfo;
-	public fun equals (Ljava/lang/Object;)Z
+public abstract interface class org/lolicode/moemusic/api/model/TrackInfo {
+	public fun getAlbum ()Ljava/lang/String;
+	public abstract fun getArtists ()Ljava/util/List;
+	public fun getCoverUrl ()Ljava/lang/String;
+	public abstract fun getDurationMs ()J
+	public abstract fun getId ()Ljava/lang/String;
+	public fun getLyricLrc ()Ljava/lang/String;
+	public fun getLyricsFetched ()Z
+	public fun getSecondaryLyricLrc ()Ljava/lang/String;
+	public fun getSourceFilterVerdict ()Lorg/lolicode/moemusic/api/service/FilterVerdict;
+	public fun getSourceId ()Ljava/lang/String;
+	public fun getSubmittedByUserName ()Ljava/lang/String;
+	public abstract fun getTitle ()Ljava/lang/String;
+	public fun getUnavailableReason ()Lorg/lolicode/moemusic/api/LocalizedText;
+	public abstract fun toBuilder ()Lorg/lolicode/moemusic/api/model/TrackInfoBuilder;
+}
+
+public final class org/lolicode/moemusic/api/model/TrackInfo$DefaultImpls {
+	public static fun getAlbum (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
+	public static fun getCoverUrl (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
+	public static fun getLyricLrc (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
+	public static fun getLyricsFetched (Lorg/lolicode/moemusic/api/model/TrackInfo;)Z
+	public static fun getSecondaryLyricLrc (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
+	public static fun getSourceFilterVerdict (Lorg/lolicode/moemusic/api/model/TrackInfo;)Lorg/lolicode/moemusic/api/service/FilterVerdict;
+	public static fun getSourceId (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
+	public static fun getSubmittedByUserName (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
+	public static fun getUnavailableReason (Lorg/lolicode/moemusic/api/model/TrackInfo;)Lorg/lolicode/moemusic/api/LocalizedText;
+}
+
+public final class org/lolicode/moemusic/api/model/TrackInfoBuilder {
+	public final fun build ()Lorg/lolicode/moemusic/api/model/TrackInfo;
 	public final fun getAlbum ()Ljava/lang/String;
 	public final fun getArtists ()Ljava/util/List;
 	public final fun getCoverUrl ()Ljava/lang/String;
@@ -1357,11 +1494,25 @@ public final class org/lolicode/moemusic/api/model/TrackInfo {
 	public final fun getSubmittedByUserName ()Ljava/lang/String;
 	public final fun getTitle ()Ljava/lang/String;
 	public final fun getUnavailableReason ()Lorg/lolicode/moemusic/api/LocalizedText;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
+	public final fun setAlbum (Ljava/lang/String;)V
+	public final fun setArtists (Ljava/util/List;)V
+	public final fun setCoverUrl (Ljava/lang/String;)V
+	public final fun setDurationMs (J)V
+	public final fun setId (Ljava/lang/String;)V
+	public final fun setLyricLrc (Ljava/lang/String;)V
+	public final fun setLyricsFetched (Z)V
+	public final fun setSecondaryLyricLrc (Ljava/lang/String;)V
+	public final fun setSourceFilterVerdict (Lorg/lolicode/moemusic/api/service/FilterVerdict;)V
+	public final fun setSourceId (Ljava/lang/String;)V
+	public final fun setSubmittedByUserName (Ljava/lang/String;)V
+	public final fun setTitle (Ljava/lang/String;)V
+	public final fun setUnavailableReason (Lorg/lolicode/moemusic/api/LocalizedText;)V
 }
 
 public final class org/lolicode/moemusic/api/model/TrackInfoKt {
+	public static final fun TrackInfo (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/TrackInfo;
+	public static synthetic fun TrackInfo$default (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/TrackInfo;
+	public static final fun copy (Lorg/lolicode/moemusic/api/model/TrackInfo;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/TrackInfo;
 	public static final fun getArtistDisplay (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
 	public static final fun isAvailable (Lorg/lolicode/moemusic/api/model/TrackInfo;)Z
 	public static final fun matchesQueueIdentity (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackInfo;)Z
@@ -1640,8 +1791,8 @@ public abstract interface class org/lolicode/moemusic/api/service/IPlaybackContr
 	public abstract fun getCurrentContext ()Lorg/lolicode/moemusic/api/model/TrackContext;
 	public abstract fun pause ()V
 	public abstract fun play (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/PlaybackResource;)V
-	public abstract fun removeQueuedTrack (Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;Z)Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
-	public static synthetic fun removeQueuedTrack$default (Lorg/lolicode/moemusic/api/service/IPlaybackController;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ZILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
+	public abstract fun removeQueuedTrack-JJReU1U (Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;Z)Ljava/lang/String;
+	public static synthetic fun removeQueuedTrack-JJReU1U$default (Lorg/lolicode/moemusic/api/service/IPlaybackController;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ZILjava/lang/Object;)Ljava/lang/String;
 	public abstract fun resume ()V
 	public abstract fun seek (J)V
 	public abstract fun skip ()V
@@ -1650,7 +1801,7 @@ public abstract interface class org/lolicode/moemusic/api/service/IPlaybackContr
 }
 
 public final class org/lolicode/moemusic/api/service/IPlaybackController$DefaultImpls {
-	public static synthetic fun removeQueuedTrack$default (Lorg/lolicode/moemusic/api/service/IPlaybackController;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ZILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
+	public static synthetic fun removeQueuedTrack-JJReU1U$default (Lorg/lolicode/moemusic/api/service/IPlaybackController;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ZILjava/lang/Object;)Ljava/lang/String;
 }
 
 public abstract interface class org/lolicode/moemusic/api/service/IRateLimitService {
@@ -1778,13 +1929,13 @@ public final class org/lolicode/moemusic/api/service/IdentifierSubmitOutcome$Cho
 }
 
 public final class org/lolicode/moemusic/api/service/IdentifierSubmitOutcome$Submitted : org/lolicode/moemusic/api/service/IdentifierSubmitOutcome {
-	public fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddResult;)V
+	public synthetic fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lorg/lolicode/moemusic/api/model/TrackInfo;
-	public final fun component2 ()Lorg/lolicode/moemusic/api/model/TrackAddResult;
-	public final fun copy (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddResult;)Lorg/lolicode/moemusic/api/service/IdentifierSubmitOutcome$Submitted;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/service/IdentifierSubmitOutcome$Submitted;Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddResult;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/IdentifierSubmitOutcome$Submitted;
+	public final fun component2-qRX1x1o ()Ljava/lang/String;
+	public final fun copy-3d8flY8 (Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;)Lorg/lolicode/moemusic/api/service/IdentifierSubmitOutcome$Submitted;
+	public static synthetic fun copy-3d8flY8$default (Lorg/lolicode/moemusic/api/service/IdentifierSubmitOutcome$Submitted;Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/IdentifierSubmitOutcome$Submitted;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getResult ()Lorg/lolicode/moemusic/api/model/TrackAddResult;
+	public final fun getResult-qRX1x1o ()Ljava/lang/String;
 	public final fun getTrack ()Lorg/lolicode/moemusic/api/model/TrackInfo;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -1835,26 +1986,39 @@ public final class org/lolicode/moemusic/api/service/PlaybackActionOutcome {
 }
 
 public final class org/lolicode/moemusic/api/service/QueueRemoveOutcome {
-	public fun <init> (Lorg/lolicode/moemusic/api/service/QueueRemoveResult;Lorg/lolicode/moemusic/api/LocalizedText;)V
-	public synthetic fun <init> (Lorg/lolicode/moemusic/api/service/QueueRemoveResult;Lorg/lolicode/moemusic/api/LocalizedText;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun component1 ()Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
+	public synthetic fun <init> (Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-Li4bLAk ()Ljava/lang/String;
 	public final fun component2 ()Lorg/lolicode/moemusic/api/LocalizedText;
-	public final fun copy (Lorg/lolicode/moemusic/api/service/QueueRemoveResult;Lorg/lolicode/moemusic/api/LocalizedText;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;Lorg/lolicode/moemusic/api/service/QueueRemoveResult;Lorg/lolicode/moemusic/api/LocalizedText;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
+	public final fun copy-kxZWfKw (Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
+	public static synthetic fun copy-kxZWfKw$default (Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;Ljava/lang/String;Lorg/lolicode/moemusic/api/LocalizedText;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getFailure ()Lorg/lolicode/moemusic/api/LocalizedText;
-	public final fun getResult ()Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
+	public final fun getResult-Li4bLAk ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class org/lolicode/moemusic/api/service/QueueRemoveResult : java/lang/Enum {
-	public static final field FORBIDDEN Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
-	public static final field NOT_FOUND Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
-	public static final field REMOVED Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
-	public static fun values ()[Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
+public final class org/lolicode/moemusic/api/service/QueueRemoveResult {
+	public static final field Companion Lorg/lolicode/moemusic/api/service/QueueRemoveResult$Companion;
+	public static final synthetic fun box-impl (Ljava/lang/String;)Lorg/lolicode/moemusic/api/service/QueueRemoveResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public static fun equals-impl (Ljava/lang/String;Ljava/lang/Object;)Z
+	public static final fun equals-impl0 (Ljava/lang/String;Ljava/lang/String;)Z
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public static fun hashCode-impl (Ljava/lang/String;)I
+	public fun toString ()Ljava/lang/String;
+	public static fun toString-impl (Ljava/lang/String;)Ljava/lang/String;
+	public final synthetic fun unbox-impl ()Ljava/lang/String;
+}
+
+public final class org/lolicode/moemusic/api/service/QueueRemoveResult$Companion {
+	public final fun getEntries ()Ljava/util/List;
+	public final fun getFORBIDDEN-Li4bLAk ()Ljava/lang/String;
+	public final fun getNOT_FOUND-Li4bLAk ()Ljava/lang/String;
+	public final fun getREMOVED-Li4bLAk ()Ljava/lang/String;
+	public final fun of-Vf9qiG4 (Ljava/lang/String;)Ljava/lang/String;
 }
 
 public abstract interface class org/lolicode/moemusic/api/service/SelectionSubmitOutcome {
@@ -1874,26 +2038,26 @@ public final class org/lolicode/moemusic/api/service/SelectionSubmitOutcome$Choi
 }
 
 public final class org/lolicode/moemusic/api/service/SelectionSubmitOutcome$Submitted : org/lolicode/moemusic/api/service/SelectionSubmitOutcome {
-	public fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddResult;)V
+	public synthetic fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lorg/lolicode/moemusic/api/model/TrackInfo;
-	public final fun component2 ()Lorg/lolicode/moemusic/api/model/TrackAddResult;
-	public final fun copy (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddResult;)Lorg/lolicode/moemusic/api/service/SelectionSubmitOutcome$Submitted;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/service/SelectionSubmitOutcome$Submitted;Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddResult;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/SelectionSubmitOutcome$Submitted;
+	public final fun component2-qRX1x1o ()Ljava/lang/String;
+	public final fun copy-3d8flY8 (Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;)Lorg/lolicode/moemusic/api/service/SelectionSubmitOutcome$Submitted;
+	public static synthetic fun copy-3d8flY8$default (Lorg/lolicode/moemusic/api/service/SelectionSubmitOutcome$Submitted;Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/SelectionSubmitOutcome$Submitted;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getResult ()Lorg/lolicode/moemusic/api/model/TrackAddResult;
+	public final fun getResult-qRX1x1o ()Ljava/lang/String;
 	public final fun getTrack ()Lorg/lolicode/moemusic/api/model/TrackInfo;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class org/lolicode/moemusic/api/service/SubmitOutcome {
-	public fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddResult;)V
+	public synthetic fun <init> (Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Lorg/lolicode/moemusic/api/model/TrackInfo;
-	public final fun component2 ()Lorg/lolicode/moemusic/api/model/TrackAddResult;
-	public final fun copy (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddResult;)Lorg/lolicode/moemusic/api/service/SubmitOutcome;
-	public static synthetic fun copy$default (Lorg/lolicode/moemusic/api/service/SubmitOutcome;Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/TrackAddResult;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/SubmitOutcome;
+	public final fun component2-qRX1x1o ()Ljava/lang/String;
+	public final fun copy-3d8flY8 (Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;)Lorg/lolicode/moemusic/api/service/SubmitOutcome;
+	public static synthetic fun copy-3d8flY8$default (Lorg/lolicode/moemusic/api/service/SubmitOutcome;Lorg/lolicode/moemusic/api/model/TrackInfo;Ljava/lang/String;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/SubmitOutcome;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getResult ()Lorg/lolicode/moemusic/api/model/TrackAddResult;
+	public final fun getResult-qRX1x1o ()Ljava/lang/String;
 	public final fun getTrack ()Lorg/lolicode/moemusic/api/model/TrackInfo;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
