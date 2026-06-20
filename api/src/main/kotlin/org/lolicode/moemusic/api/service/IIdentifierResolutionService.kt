@@ -19,6 +19,9 @@ public sealed interface IdentifierResolutionOutcome {
     /**
      * A source successfully interpreted the identifier and produced a [TrackInfo].
      *
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     *
      * @param track    The resolved track. [TrackInfo.sourceId] is guaranteed non-null.
      * @param sourceId The [MusicSource.id] of the source that resolved the identifier.
      */
@@ -31,6 +34,9 @@ public sealed interface IdentifierResolutionOutcome {
      * A source recognized the identifier but it still needs one or more user selections before a
      * minimum playable track can be submitted.
      *
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     *
      * Each entry should be fed back into [ITrackSubmissionService.submitBySelection].
      */
     public data class Choices(
@@ -42,6 +48,9 @@ public sealed interface IdentifierResolutionOutcome {
      * A source recognized the identifier as belonging to it but rejected it (e.g. permission
      * denied, content filtered). The resolution process stops; [message] should be shown to the
      * player.
+     *
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
      *
      * @param message  Localized reason for the rejection.
      * @param sourceId The [MusicSource.id] of the blocking source.

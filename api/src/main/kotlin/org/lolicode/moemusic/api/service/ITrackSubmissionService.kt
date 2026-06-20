@@ -13,6 +13,9 @@ import org.lolicode.moemusic.api.plugin.ServerSessionContext
 /**
  * Outcome of a successful submission via [ITrackSubmissionService].
  *
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ *
  * Contains the [TrackInfo] accepted by the server after submitter stamping and validation, plus
  * the [TrackAddResult] indicating queue placement. Calls that perform an authoritative metadata
  * refresh return the refreshed track; trusted source-resolved calls return the source-provided
@@ -32,11 +35,19 @@ public data class SubmitOutcome(
  * step before a minimum playable track can be enqueued.
  */
 public sealed interface SelectionSubmitOutcome {
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Submitted(
         val track: TrackInfo,
         val result: TrackAddResult,
     ) : SelectionSubmitOutcome
 
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Choices(
         val entries: List<SelectionEntry>,
         val sourceId: String,

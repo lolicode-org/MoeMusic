@@ -4,7 +4,7 @@
 
 关于方法签名和具体类型的最准确信息，请参考 KDoc。本文档主要介绍这些接口的组合方式和稳定约定。英文版 [api.md](../docs/api.md) 包含更完整的代码示例。
 
-## 依赖与兼容性
+## 依赖
 
 MoeMusic 核心组件发布在 Codeberg Packages（推荐）和 GitHub Packages 上。
 
@@ -46,6 +46,7 @@ dependencies {
 }
 ```
 
+## 兼容性
 
 [MoeMusicApi.API_VERSION](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicApi.kt) 是插件接口的内部版本，用于与 [Plugin.supportedApiVersions](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt) 进行匹配。正式发布版的接口版本号会和 Maven 产物版本号保持一致；快照版的接口版本号可能更频繁变动，不保证与 Maven 版本号完全同步。
 
@@ -55,6 +56,15 @@ dependencies {
 ```kotlin
 override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
 ```
+
+我们尽力保持在同一主版本号下的ABI兼容，因此你不必在每个新版本发布时重新编译你的插件。但出于维护成本或避免引入过多复杂度考虑，在编写插件时请留意如下事项：
+
+### 只读事件与结果类型
+
+事件（如 `OnPlaybackStarted`）、服务结果（如 `SubmitOutcome`、`QueueRemoveOutcome`）、客户端模型（`ClientSearchPage` 等）以及密封结果（`UserResult`、`FilterVerdict`）均由核心产生，插件侧应**只读**使用。
+请避免在插件中构造、解构或 `.copy()` 这些类型。我们可能会在次要版本的API更新中向其中增加字段，如果您在插件中构造它们，则可能面临意外的破坏性更改。
+
+插件**可以**构造的类型（`TrackInfo`、`SearchResult`、`SelectionEntry`、`PlaybackResource`、`ArtistInfo`）采用接口 + Builder DSL 模式，可通过工厂语法安全构造（如 `TrackInfo(id, title, artists, durationMs) { ... }`）。为这些类型添加可选字段是纯增量的，不会造成破坏。
 
 ## 创建插件
 

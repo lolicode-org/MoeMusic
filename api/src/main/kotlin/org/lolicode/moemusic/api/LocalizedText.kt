@@ -14,10 +14,18 @@ package org.lolicode.moemusic.api
  * rendered by another localization system.
  */
 public sealed interface LocalizedText {
+    /**
+     * Read-only host-produced subtype. Do not construct, destructure, or copy.
+     * Appending fields is binary-safe for read-only consumers.
+     */
     public data class Plain(
         val text: String,
     ) : LocalizedText
 
+    /**
+     * Read-only host-produced subtype. Do not construct, destructure, or copy.
+     * Appending fields is binary-safe for read-only consumers.
+     */
     public data class Key(
         val key: String,
         val args: List<LocalizedTextArg> = emptyList(),
@@ -34,10 +42,18 @@ public sealed interface LocalizedText {
 }
 
 public sealed interface LocalizedTextArg {
+    /**
+     * Read-only host-produced subtype. Do not construct, destructure, or copy.
+     * Appending fields is binary-safe for read-only consumers.
+     */
     public data class Text(
         val value: LocalizedText,
     ) : LocalizedTextArg
 
+    /**
+     * Read-only host-produced subtype. Do not construct, destructure, or copy.
+     * Appending fields is binary-safe for read-only consumers.
+     */
     public data class Value(
         val value: String,
     ) : LocalizedTextArg

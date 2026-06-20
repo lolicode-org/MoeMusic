@@ -4,7 +4,7 @@ This doc is for plugin developers using the shared MoeMusic API. It describes th
 
 Use the KDoc comments in the source files as the source of truth for signatures. This document explains how the pieces fit together and what patterns are expected to stay stable. The Chinese version is available at [api_zh.md](../docs/api_zh.md).
 
-## Dependency And Compatibility
+## Dependency
 
 MoeMusic core artifacts are published to both Codeberg Packages (recommended) and GitHub Packages.
 
@@ -46,6 +46,7 @@ dependencies {
 }
 ```
 
+## Compatibility
 
 [MoeMusicApi.API_VERSION](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicApi.kt) is the plugin API compatibility version. It is checked against [Plugin.supportedApiVersions](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt). It will be the same as Maven artifact version for release builds, but snapshot builds may increment more frequently for internal compatibility tracking.
 
@@ -55,6 +56,15 @@ This project's API version follows semantic versioning, and breaking changes wil
 ```kotlin
 override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
 ```
+
+We strive to maintain ABI compatibility within the same major version, so you do not need to recompile your plugins for every new release. However, to manage maintenance costs and avoid excessive complexity, please keep the following points in mind when writing plugins:
+
+### Read-Only Event and Outcome Types
+
+Events (e.g. `OnPlaybackStarted`), service outcomes (e.g. `SubmitOutcome`, `QueueRemoveOutcome`), client models (`ClientSearchPage`, etc.), and sealed results (`UserResult`, `FilterVerdict`) are produced by the core and intended to be read-only from the plugin's perspective. Plugins should not construct, destructure, or `.copy()` these types. 
+The core may append fields in minor API versions, so if you construct them in your plugin, there might be unexpected breaking changes.
+
+Types that plugins **do** construct (`TrackInfo`, `SearchResult`, `SelectionEntry`, `PlaybackResource`, `ArtistInfo`) use an interface + builder DSL pattern and are safe to construct with the factory syntax (e.g. `TrackInfo(id, title, artists, durationMs) { ... }`). Adding optional fields to these is additive and non-breaking.
 
 ## Create A Plugin
 

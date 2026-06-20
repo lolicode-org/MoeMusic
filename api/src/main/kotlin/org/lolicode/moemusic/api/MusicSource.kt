@@ -21,14 +21,26 @@ import org.lolicode.moemusic.api.plugin.Plugin
 public sealed interface IdentifierResolutionResult {
     public data object Pass : IdentifierResolutionResult
 
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Resolved(
         val track: TrackInfo,
     ) : IdentifierResolutionResult
 
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Choices(
         val entries: List<SelectionEntry>,
     ) : IdentifierResolutionResult
 
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Blocked(
         val message: LocalizedText,
     ) : IdentifierResolutionResult

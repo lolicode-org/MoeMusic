@@ -2,7 +2,11 @@ package org.lolicode.moemusic.api.service
 
 import org.lolicode.moemusic.api.UserResult
 
-/** Result of probing an HTTP(S) media URL for lightweight metadata. */
+/**
+ * Result of probing an HTTP(S) media URL for lightweight metadata.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class MediaProbeResult(
     val durationMs: Long,
     val title: String,

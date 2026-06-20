@@ -11,11 +11,19 @@ import org.lolicode.moemusic.api.model.SelectionEntry
 
 /** Outcome of resolving and submitting a raw identifier through [IUserActionService]. */
 public sealed interface IdentifierSubmitOutcome {
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Submitted(
         val track: TrackInfo,
         val result: TrackAddResult,
     ) : IdentifierSubmitOutcome
 
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Choices(
         val entries: List<SelectionEntry>,
         val sourceId: String,
@@ -46,7 +54,11 @@ public value class QueueRemoveResult private constructor(public val id: String) 
     }
 }
 
-/** Queue removal outcome from [IUserActionService.removeQueuedTrack]. */
+/**
+ * Queue removal outcome from [IUserActionService.removeQueuedTrack].
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class QueueRemoveOutcome(
     val result: QueueRemoveResult,
     val failure: LocalizedText? = null,
@@ -61,7 +73,11 @@ public enum class PlaybackAction {
     SEEK,
 }
 
-/** Optional user-visible feedback produced by a playback action. */
+/**
+ * Optional user-visible feedback produced by a playback action.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class PlaybackActionOutcome(
     val success: LocalizedText? = null,
     val failure: LocalizedText? = null,

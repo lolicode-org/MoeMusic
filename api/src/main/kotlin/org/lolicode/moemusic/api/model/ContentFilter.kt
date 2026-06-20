@@ -3,7 +3,11 @@ package org.lolicode.moemusic.api.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** Exact source-local track block rule with an optional human note. */
+/**
+ * Exact source-local track block rule with an optional human note.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 @Serializable
 public data class ExactTrackFilterRule(
     @SerialName("source_id")
@@ -13,7 +17,11 @@ public data class ExactTrackFilterRule(
     val note: String? = null,
 )
 
-/** Exact source-local artist block rule with an optional human note. */
+/**
+ * Exact source-local artist block rule with an optional human note.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 @Serializable
 public data class ExactArtistFilterRule(
     @SerialName("source_id")
@@ -65,7 +73,11 @@ public enum class ContentFilterTextRuleScope {
     ALL,
 }
 
-/** Shared common-field text rule. */
+/**
+ * Shared common-field text rule.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 @Serializable
 public data class ContentFilterTextRule(
     val pattern: String,
@@ -77,6 +89,8 @@ public data class ContentFilterTextRule(
 
 /**
  * Shared content-filter ruleset used by both server-side enforcement and local client fallback.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
  */
 @Serializable
 public data class ContentFilterRules(

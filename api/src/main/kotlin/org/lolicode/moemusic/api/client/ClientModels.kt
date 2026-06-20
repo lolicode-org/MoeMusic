@@ -41,38 +41,62 @@ public value class ClientAvailabilityIssue private constructor(public val id: St
     }
 }
 
-/** Server-provided search source descriptor from the connection handshake. */
+/**
+ * Server-provided search source descriptor from the connection handshake.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class ClientSearchSource(
     val id: String,
     val displayName: String,
     val searchable: Boolean,
 )
 
-/** Server-provided search source catalog from the connection handshake. */
+/**
+ * Server-provided search source catalog from the connection handshake.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class ClientSearchCatalog(
     val sources: List<ClientSearchSource>,
     val defaultSourceId: String,
 )
 
-/** Generic client-side action feedback from a request/response exchange. */
+/**
+ * Generic client-side action feedback from a request/response exchange.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class ClientActionFeedback(
     val successMessage: String? = null,
     val failureMessage: String? = null,
 )
 
-/** Client-side wrapper for a routed search page returned by the server. */
+/**
+ * Client-side wrapper for a routed search page returned by the server.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class ClientSearchPage(
     val result: SearchResult,
     val failureMessage: String? = null,
 )
 
-/** Client-side wrapper for a queue snapshot returned by the server. */
+/**
+ * Client-side wrapper for a queue snapshot returned by the server.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class ClientQueueSnapshot(
     val tracks: List<TrackInfo>,
     val failureMessage: String? = null,
 )
 
-/** Client-side response for a direct track submission. */
+/**
+ * Client-side response for a direct track submission.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class ClientTrackSubmitResult(
     val trackId: String,
     val trackTitle: String,
@@ -80,7 +104,11 @@ public data class ClientTrackSubmitResult(
     val failureMessage: String? = null,
 )
 
-/** Client-side response for an identifier submission. */
+/**
+ * Client-side response for an identifier submission.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class ClientIdentifierSubmitResult(
     val trackId: String? = null,
     val trackTitle: String? = null,
@@ -89,7 +117,11 @@ public data class ClientIdentifierSubmitResult(
     val failureMessage: String? = null,
 )
 
-/** Client-side response for a selection submission. */
+/**
+ * Client-side response for a selection submission.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class ClientSelectionSubmitResult(
     val trackId: String? = null,
     val trackTitle: String? = null,
@@ -121,7 +153,11 @@ public value class ContentFilterMutationTarget private constructor(public val id
     }
 }
 
-/** Client-side response for a content-filter mutation request. */
+/**
+ * Client-side response for a content-filter mutation request.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
 public data class ClientContentFilterActionResult(
     val target: ContentFilterMutationTarget,
     val sourceId: String,

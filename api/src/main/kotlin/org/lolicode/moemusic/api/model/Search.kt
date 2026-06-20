@@ -8,6 +8,9 @@ import org.lolicode.moemusic.api.service.FilterVerdict
 /**
  * A search query submitted by a player.
  *
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ *
  * @property query       Raw query string as typed by the player.
  * @property sourceId    If non-null, restrict the search to the given [MusicSource] ID.
  *                       If null, the server routes the search to its default searchable source.
@@ -201,10 +204,18 @@ public fun SelectionEntry.unavailabilityMessage(): LocalizedText =
  * entry into a further list of child [SelectionEntry] choices.
  */
 public sealed interface SelectionResolveResult {
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Track(
         val track: TrackInfo,
     ) : SelectionResolveResult
 
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Choices(
         val entries: List<SelectionEntry>,
     ) : SelectionResolveResult

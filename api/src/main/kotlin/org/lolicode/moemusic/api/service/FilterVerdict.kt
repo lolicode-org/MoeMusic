@@ -17,6 +17,9 @@ public sealed interface FilterVerdict {
     /**
      * A filter rule matched.
      *
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     *
      * @property reason User-visible rejection reason. The full detail (e.g. matched regex
      *   pattern) is only forwarded to users with `moemusic.moderation.filter_manage`
      *   permission; other users see a generic unavailability message.

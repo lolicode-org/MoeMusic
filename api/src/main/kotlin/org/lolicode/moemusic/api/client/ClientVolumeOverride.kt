@@ -14,6 +14,9 @@ public sealed interface ClientVolumeOverride {
     /**
      * Cap the effective MoeMusic volume at [percent] in the normalized `0..100` range.
      *
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     *
      * The actual output is still bounded by the configured/base MoeMusic volume, so this behaves
      * as `min(configuredVolumePercent, percent)`.
      */
@@ -23,6 +26,9 @@ public sealed interface ClientVolumeOverride {
 
     /**
      * Set the effective MoeMusic volume to [percent] of the current configured/base volume.
+     *
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
      *
      * For example, `PercentOfConfiguredVolume(40)` turns a configured volume of `75` into an
      * effective runtime volume of `30`.

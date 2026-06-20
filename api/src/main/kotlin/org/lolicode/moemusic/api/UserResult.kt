@@ -17,10 +17,18 @@ package org.lolicode.moemusic.api
  * - exceptional abort of the current operation -> throw [UserFacingException] (or subclass)
  */
 public sealed interface UserResult<out T> {
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Success<T>(
         val value: T,
     ) : UserResult<T>
 
+    /**
+     * Read-only sealed subtype. This type grows by adding new subtypes, not new fields.
+     * Do not construct, destructure, or copy individual subtypes.
+     */
     public data class Error(
         val message: LocalizedText,
     ) : UserResult<Nothing>

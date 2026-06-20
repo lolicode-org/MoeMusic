@@ -3,6 +3,9 @@ package org.lolicode.moemusic.api.model
 /**
  * Server-side snapshot of what is currently loaded and playing.
  *
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ *
  * @property track                Metadata of the track that is loaded (or was last loaded).
  *                                 [TrackInfo.id] is the source-local stable identifier;
  *                                 the concrete, client-fetchable resource lives in [playback].
