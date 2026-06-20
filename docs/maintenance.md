@@ -230,6 +230,8 @@ Client volume is stored as an integer percent (`0..100`) in config/UI and conver
 - [setConfiguredVolumePercent(...)](../api/src/main/kotlin/org/lolicode/moemusic/api/client/IClientPlaybackService.kt#L37) persists the base value.
 - [setTransientVolumeOverride(...)](../api/src/main/kotlin/org/lolicode/moemusic/api/client/IClientPlaybackService.kt#L50) and [clearTransientVolumeOverride(...)](../api/src/main/kotlin/org/lolicode/moemusic/api/client/IClientPlaybackService.kt#L55) are runtime-only layering hooks for client plugins and must not leak into persisted config.
 
+Track loudness normalization is a separate client-local gain layer. Sources may populate `TrackInfo.integratedLufs`; the client uses that metadata for attenuation-only normalization against `client.loudness_normalization.target_lufs`. The configured MoeMusic volume remains the ceiling: normalization must never boost output above the user-owned volume / override result.
+
 The client volume-state layer is internally thread-safe. Plugins may call the public client volume APIs from non-Minecraft threads without scheduling onto the Minecraft client thread.
 
 Screen-facing client runtime models belong in [client-core](../client-core), not nested inside platform UI handlers.

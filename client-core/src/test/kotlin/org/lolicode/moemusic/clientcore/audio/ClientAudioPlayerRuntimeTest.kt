@@ -16,16 +16,28 @@ class ClientAudioPlayerRuntimeTest {
         val runtime = ClientAudioPlayerRuntime(ringBuffer, loader, output)
 
         runtime.setVolume(0.35f)
+        runtime.setNormalizationGain(0.5f)
         runtime.play(PlaybackResource("https://example.com/a.mp3"), seekMs = 1_250)
 
         assertEquals(1, output.stopCalls)
-        assertEquals(listOf(0.35f, 0.35f), output.gains)
+        assertEquals(listOf(0.35f, 0.175f, 0.175f), output.gains)
         assertEquals(listOf(1_250L), output.startPositions)
         assertEquals("https://example.com/a.mp3", loader.loadedPlayback?.url)
         assertEquals(1_250L, loader.loadedSeekMs)
         assertTrue(runtime.isPlaying)
         runtime.reportPlaybackPosition(2_000L)
         assertEquals(2_000L, runtime.currentPositionMs())
+    }
+
+    @Test
+    fun `normalization gain never boosts output above the user volume`() {
+        val output = FakeAudioOutput()
+        val runtime = ClientAudioPlayerRuntime(PcmRingBuffer(), FakeTrackLoader(), output)
+
+        runtime.setVolume(0.4f)
+        runtime.setNormalizationGain(1.2f)
+
+        assertEquals(0.4f, output.gains.last())
     }
 
     @Test

@@ -54,6 +54,9 @@ import org.lolicode.moemusic.api.service.FilterVerdict
  * @property secondaryLyricLrc Secondary line-timed lyrics aligned with [lyricLrc] when available.
  * @property lyricsFetched True when the source has already been asked for lyrics for this track,
  * regardless of whether any lyric data was actually available.
+ * @property integratedLufs Optional source-supplied integrated loudness in LUFS. Set this when
+ *                          the source can provide a stable loudness measurement for the track so
+ *                          clients may apply loudness normalization.
  */
 public sealed interface TrackInfo {
     public val id: String
@@ -69,6 +72,7 @@ public sealed interface TrackInfo {
     public val lyricLrc: String? get() = null
     public val secondaryLyricLrc: String? get() = null
     public val lyricsFetched: Boolean get() = false
+    public val integratedLufs: Double? get() = null
     // Add new optional fields here as `public val foo: T get() = default` and mirror them in
     // [TrackInfoBuilder]. Additive — keeps binary compatibility.
 
@@ -95,6 +99,7 @@ public class TrackInfoBuilder internal constructor(
     public var lyricLrc: String? = null
     public var secondaryLyricLrc: String? = null
     public var lyricsFetched: Boolean = false
+    public var integratedLufs: Double? = null
     // Add new optional fields here as `public var foo: T = default`.
 
     public fun build(): TrackInfo = TrackInfoImpl(
@@ -111,6 +116,7 @@ public class TrackInfoBuilder internal constructor(
         lyricLrc = lyricLrc,
         secondaryLyricLrc = secondaryLyricLrc,
         lyricsFetched = lyricsFetched,
+        integratedLufs = integratedLufs,
     )
 }
 
@@ -146,6 +152,7 @@ internal data class TrackInfoImpl(
     override val lyricLrc: String?,
     override val secondaryLyricLrc: String?,
     override val lyricsFetched: Boolean,
+    override val integratedLufs: Double?,
 ) : TrackInfo {
     override fun toBuilder(): TrackInfoBuilder = TrackInfoBuilder(id, title, artists, durationMs).also {
         it.coverUrl = coverUrl
@@ -157,6 +164,7 @@ internal data class TrackInfoImpl(
         it.lyricLrc = lyricLrc
         it.secondaryLyricLrc = secondaryLyricLrc
         it.lyricsFetched = lyricsFetched
+        it.integratedLufs = integratedLufs
     }
 }
 
@@ -175,6 +183,7 @@ public fun TrackInfo.mergePreservingRuntimeMetadata(refreshed: TrackInfo): Track
     return refreshed.copy {
         submittedByUserName = refreshed.submittedByUserName ?: existing.submittedByUserName
         artists = refreshed.artists.ifEmpty { existing.artists }
+        integratedLufs = refreshed.integratedLufs ?: existing.integratedLufs
     }
 }
 

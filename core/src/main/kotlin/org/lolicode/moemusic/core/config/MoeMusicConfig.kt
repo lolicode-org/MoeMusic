@@ -7,6 +7,7 @@ import org.lolicode.moemusic.api.model.ContentFilterRules
 import org.lolicode.moemusic.core.contentfilter.normalized
 import org.lolicode.moemusic.core.media.MediaHostListMode
 import java.util.Locale
+import kotlin.math.pow
 
 const val DEFAULT_SERVER_LANGUAGE: String = "en_us"
 
@@ -398,6 +399,8 @@ data class ClientConfig(
     val disabledServers: List<String> = emptyList(),
     @SerialName("content_filter")
     val contentFilter: ClientContentFilterConfig = ClientContentFilterConfig(),
+    @SerialName("loudness_normalization")
+    val loudnessNormalization: LoudnessNormalizationConfig = LoudnessNormalizationConfig(),
     @SerialName("cover_art")
     val coverArt: CoverArtConfig = CoverArtConfig(),
     /** Local playback volume percentage in the `0..100` range. */
@@ -416,9 +419,37 @@ data class ClientConfig(
             .sorted()
             .toList(),
         contentFilter = contentFilter,
+        loudnessNormalization = loudnessNormalization.normalized(),
         coverArt = coverArt.normalized(),
         nowPlayingHud = nowPlayingHud.normalized(),
     )
+}
+
+@Serializable
+data class LoudnessNormalizationConfig(
+    val enabled: Boolean = true,
+    @SerialName("target_lufs")
+    val targetLufs: Double = DEFAULT_TARGET_LUFS,
+) {
+    fun normalized(): LoudnessNormalizationConfig = copy(
+        targetLufs = normalizedTargetLufs(),
+    )
+
+    fun attenuationGainForTrack(integratedLufs: Double?): Float {
+        if (!enabled) return 1.0f
+        val trackLufs = integratedLufs?.takeIf(Double::isFinite) ?: return 1.0f
+        val attenuationDb = minOf(0.0, normalizedTargetLufs() - trackLufs)
+        return 10.0.pow(attenuationDb / 20.0).toFloat()
+    }
+
+    private fun normalizedTargetLufs(): Double =
+        targetLufs.takeIf(Double::isFinite)?.coerceIn(MIN_TARGET_LUFS, MAX_TARGET_LUFS) ?: DEFAULT_TARGET_LUFS
+
+    companion object {
+        const val DEFAULT_TARGET_LUFS: Double = -14.0
+        const val MIN_TARGET_LUFS: Double = -30.0
+        const val MAX_TARGET_LUFS: Double = 0.0
+    }
 }
 
 /**

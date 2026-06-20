@@ -24,6 +24,7 @@ message TrackInfoProto {
   /** Empty string means the track is available for queueing / playback. */
   string unavailable_reason = 8;
   string submitted_by_player_name = 9;
+  optional double integrated_lufs = 10;
 }
 
 /** Serializable form of a user-visible selection row from search / identifier resolution. */

@@ -41,6 +41,10 @@ class MoeMusicConfigTest {
                 globalInstancePlaybackLock = false,
                 disabledServers = listOf(" Server:Example.Com ", "", "singleplayer:World", "server:example.com"),
                 volume = 250,
+                loudnessNormalization = LoudnessNormalizationConfig(
+                    enabled = true,
+                    targetLufs = Double.POSITIVE_INFINITY,
+                ),
                 joinShortcutTipShown = true,
                 coverArt = CoverArtConfig(
                     maxDownloadMebibytes = 0,
@@ -89,6 +93,8 @@ class MoeMusicConfigTest {
         assertEquals(false, normalized.client.globalInstancePlaybackLock)
         assertEquals(listOf("server:example.com", "singleplayer:world"), normalized.client.disabledServers)
         assertEquals(100, normalized.client.volume)
+        assertEquals(true, normalized.client.loudnessNormalization.enabled)
+        assertEquals(-14.0, normalized.client.loudnessNormalization.targetLufs)
         assertEquals(true, normalized.client.joinShortcutTipShown)
         assertEquals(1, normalized.client.coverArt.maxDownloadMebibytes)
         assertEquals(64, normalized.client.coverArt.maxSourceDimension)
@@ -112,5 +118,15 @@ class MoeMusicConfigTest {
     fun `blank or invalid default language falls back to en_us`() {
         assertEquals("en_us", MoeMusicConfig(defaultLanguage = "  ").normalized().defaultLanguage)
         assertEquals("en_us", MoeMusicConfig(defaultLanguage = "../bad").normalized().defaultLanguage)
+    }
+
+    @Test
+    fun `loudness normalization attenuates loud tracks but never boosts quiet ones`() {
+        val config = LoudnessNormalizationConfig(enabled = true, targetLufs = -14.0)
+
+        assertEquals(1.0f, config.attenuationGainForTrack(-20.0))
+        assertEquals(1.0f, config.attenuationGainForTrack(null))
+        assertEquals(1.0f, config.copy(enabled = false).attenuationGainForTrack(-8.0))
+        assertEquals(0.5011872f, config.attenuationGainForTrack(-8.0), 0.000001f)
     }
 }

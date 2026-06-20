@@ -35,6 +35,10 @@ class ClientAudioPlayerRuntime(
     var volume: Float = 1.0f
         private set
 
+    @Volatile
+    var normalizationGain: Float = 1.0f
+        private set
+
     /**
      * Load [playback] and start playback from [seekMs].
      *
@@ -48,7 +52,7 @@ class ClientAudioPlayerRuntime(
         stop()
         currentPlayback = playback
         reportedPositionMs = seekMs.coerceAtLeast(0L)
-        output.setGain(volume)
+        applyOutputGain()
         loader.load(playback, ringBuffer, seekMs) { error ->
             logger.error("Track load failed: {}", error)
             onError(error)
@@ -128,6 +132,16 @@ class ClientAudioPlayerRuntime(
     /** Set client-local playback volume in the `0.0 .. 1.0` range. */
     fun setVolume(value: Float) {
         volume = value.coerceIn(0.0f, 1.0f)
-        output.setGain(volume)
+        applyOutputGain()
+    }
+
+    /** Apply an attenuation-only normalization multiplier in the `0.0 .. 1.0` range. */
+    fun setNormalizationGain(value: Float) {
+        normalizationGain = value.coerceIn(0.0f, 1.0f)
+        applyOutputGain()
+    }
+
+    private fun applyOutputGain() {
+        output.setGain((volume * normalizationGain).coerceIn(0.0f, 1.0f))
     }
 }

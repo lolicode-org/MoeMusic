@@ -419,12 +419,16 @@ class ServerPlaybackControllerTest {
 
     @Test
     fun `generic proto conversion omits unavailable reason`() {
-        val track = SAMPLE_TRACK.copy { unavailableReason = LocalizedText.plain("Requires VIP") }
+        val track = SAMPLE_TRACK.copy {
+            unavailableReason = LocalizedText.plain("Requires VIP")
+            integratedLufs = -13.5
+        }
 
         val roundTrip = track.toProto().toApi()
 
         assertTrue(roundTrip.isAvailable)
         assertEquals(null, roundTrip.unavailableReason)
+        assertEquals(-13.5, roundTrip.integratedLufs)
     }
 
     @Test

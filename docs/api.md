@@ -346,6 +346,7 @@ object ExampleSource : SearchableMusicSource, IdentifierResolvableMusicSource {
 Source method contracts:
 
 - `TrackInfo.id` is an opaque key owned by the source. It does not have to be a bare platform ID; use typed keys when one source exposes multiple upstream resource types.
+- `TrackInfo.integratedLufs` is optional source-supplied integrated loudness metadata. Set it only when the source has a stable LUFS measurement for that track; clients use it for attenuation-only loudness normalization.
 - `search(...)` returns user-visible `SelectionEntry` rows. Empty result is a successful empty page, not an exception.
 - Direct track rows must use `SelectionEntryKind.TRACK` and put the final stable `TrackInfo.id` key in `selectionId`.
 - Container rows can use `CONTAINER` or `UNKNOWN` and later resolve through `resolveSelection(...)`.

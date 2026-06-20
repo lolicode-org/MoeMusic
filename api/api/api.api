@@ -1456,6 +1456,7 @@ public abstract interface class org/lolicode/moemusic/api/model/TrackInfo {
 	public fun getCoverUrl ()Ljava/lang/String;
 	public abstract fun getDurationMs ()J
 	public abstract fun getId ()Ljava/lang/String;
+	public fun getIntegratedLufs ()Ljava/lang/Double;
 	public fun getLyricLrc ()Ljava/lang/String;
 	public fun getLyricsFetched ()Z
 	public fun getSecondaryLyricLrc ()Ljava/lang/String;
@@ -1470,6 +1471,7 @@ public abstract interface class org/lolicode/moemusic/api/model/TrackInfo {
 public final class org/lolicode/moemusic/api/model/TrackInfo$DefaultImpls {
 	public static fun getAlbum (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
 	public static fun getCoverUrl (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
+	public static fun getIntegratedLufs (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/Double;
 	public static fun getLyricLrc (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
 	public static fun getLyricsFetched (Lorg/lolicode/moemusic/api/model/TrackInfo;)Z
 	public static fun getSecondaryLyricLrc (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
@@ -1486,6 +1488,7 @@ public final class org/lolicode/moemusic/api/model/TrackInfoBuilder {
 	public final fun getCoverUrl ()Ljava/lang/String;
 	public final fun getDurationMs ()J
 	public final fun getId ()Ljava/lang/String;
+	public final fun getIntegratedLufs ()Ljava/lang/Double;
 	public final fun getLyricLrc ()Ljava/lang/String;
 	public final fun getLyricsFetched ()Z
 	public final fun getSecondaryLyricLrc ()Ljava/lang/String;
@@ -1499,6 +1502,7 @@ public final class org/lolicode/moemusic/api/model/TrackInfoBuilder {
 	public final fun setCoverUrl (Ljava/lang/String;)V
 	public final fun setDurationMs (J)V
 	public final fun setId (Ljava/lang/String;)V
+	public final fun setIntegratedLufs (Ljava/lang/Double;)V
 	public final fun setLyricLrc (Ljava/lang/String;)V
 	public final fun setLyricsFetched (Z)V
 	public final fun setSecondaryLyricLrc (Ljava/lang/String;)V
@@ -2018,6 +2022,7 @@ public final class org/lolicode/moemusic/api/service/QueueRemoveResult$Companion
 	public final fun getFORBIDDEN-Li4bLAk ()Ljava/lang/String;
 	public final fun getNOT_FOUND-Li4bLAk ()Ljava/lang/String;
 	public final fun getREMOVED-Li4bLAk ()Ljava/lang/String;
+	public final fun getUNKNOWN-Li4bLAk ()Ljava/lang/String;
 	public final fun of-Vf9qiG4 (Ljava/lang/String;)Ljava/lang/String;
 }
 

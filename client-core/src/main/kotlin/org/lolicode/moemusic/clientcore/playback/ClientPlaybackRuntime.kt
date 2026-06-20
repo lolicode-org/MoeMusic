@@ -26,6 +26,7 @@ interface ClientPlaybackAudioAdapter {
     fun play(playback: PlaybackResource, seekMs: Long)
     fun pause()
     fun stop()
+    fun setNormalizationGain(gain: Float) {}
     fun currentPositionMs(): Long
     fun clearSavedState() {}
 }
@@ -244,6 +245,12 @@ class ClientPlaybackRuntime(
             serverHandshakeRejected = lastServerWelcomeRejection != null,
         )
 
+    fun refreshTrackNormalization() {
+        platform.audio.setNormalizationGain(
+            currentContext?.track?.let(::normalizationGainForTrack) ?: 1.0f
+        )
+    }
+
     fun onConnectionJoined() {
         logger.info(
             "{} connection joined (scope={}); starting MoeMusic client session.",
@@ -261,6 +268,7 @@ class ClientPlaybackRuntime(
         stopSyncLoop()
         InstancePlaybackLock.release()
         platform.audio.stop()
+        platform.audio.setNormalizationGain(1.0f)
         platform.audio.clearSavedState()
         clearContext()
     }
@@ -902,6 +910,7 @@ class ClientPlaybackRuntime(
                     playback.url,
                     playback.headers.keys,
                 )
+                platform.audio.setNormalizationGain(normalizationGainForTrack(locallyAllowedTrack))
                 platform.audio.play(playback, seekMs)
                 platform.stopBlockedPlatformSoundsIfNeeded()
                 currentContext = TrackContext(
@@ -946,6 +955,7 @@ class ClientPlaybackRuntime(
                     playback.url,
                     playback.headers.keys,
                 )
+                platform.audio.setNormalizationGain(normalizationGainForTrack(locallyAllowedTrack))
                 platform.audio.play(playback, posMs)
                 platform.audio.pause()
                 currentContext = TrackContext(
@@ -1280,6 +1290,7 @@ class ClientPlaybackRuntime(
     private fun stopActivePlayback(fireEvent: Boolean = false) {
         val stoppedTrack = currentContext?.track
         platform.audio.stop()
+        platform.audio.setNormalizationGain(1.0f)
         currentContext = null
         currentLyrics = null
         currentSecondaryLyrics = null
@@ -1320,6 +1331,9 @@ class ClientPlaybackRuntime(
             )
         }
     }
+
+    private fun normalizationGainForTrack(track: TrackInfo): Float =
+        platform.clientConfig().loudnessNormalization.attenuationGainForTrack(track.integratedLufs)
 
     override fun ensureDirectRequestSessionReady() {
         if (!platform.hasConnection()) {

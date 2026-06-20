@@ -119,6 +119,7 @@ class ClientPlaybackRuntimeTest {
                     id = "track-1",
                     title = "Track One",
                     duration_ms = 180_000L,
+                    integrated_lufs = -8.0,
                 ),
                 playback = PlaybackResourceProto(
                     url = "https://example.test/audio.mp3",
@@ -140,9 +141,42 @@ class ClientPlaybackRuntimeTest {
         assertEquals(1, harness.platform.audio.plays.size)
         assertEquals("https://example.test/audio.mp3", harness.platform.audio.plays.single().playback.url)
         assertEquals(1_234L, harness.platform.audio.plays.single().seekMs)
+        assertEquals(0.5011872f, harness.platform.audio.normalizationGains.last(), 0.000001f)
         assertTrue(harness.platform.stoppedBlockedSounds)
         assertEquals(1, harness.listener.snapshotsApplied)
         assertTrue(harness.listener.playbackStateChanges >= 1)
+    }
+
+    @Test
+    fun `refreshTrackNormalization disables attenuation when client config turns normalization off`() {
+        val harness = harness()
+        harness.acceptWelcome()
+        harness.runtime.handlePlaybackSnapshotPush(
+            PlaybackSnapshotPush(
+                reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK,
+                snapshot = PlaybackSnapshot(
+                    track = TrackInfoProto(
+                        source_id = "youtube",
+                        id = "track-1",
+                        title = "Track One",
+                        duration_ms = 180_000L,
+                        integrated_lufs = -8.0,
+                    ),
+                    playback = PlaybackResourceProto(url = "https://example.test/audio.mp3"),
+                    state = PlaybackStateProto.PLAYING,
+                    position_ms = 0L,
+                    position_anchor_server_monotonic = 0L,
+                ),
+            )
+        )
+
+        harness.platform.config = harness.platform.config.copy(
+            loudnessNormalization = harness.platform.config.loudnessNormalization.copy(enabled = false)
+        )
+
+        harness.runtime.refreshTrackNormalization()
+
+        assertEquals(1.0f, harness.platform.audio.normalizationGains.last())
     }
 
     private fun harness(): RuntimeHarness =
@@ -241,6 +275,7 @@ class ClientPlaybackRuntimeTest {
         data class Play(val playback: PlaybackResource, val seekMs: Long)
 
         val plays = mutableListOf<Play>()
+        val normalizationGains = mutableListOf<Float>()
         var paused = false
         var stopped = false
 
@@ -256,6 +291,10 @@ class ClientPlaybackRuntimeTest {
 
         override fun stop() {
             stopped = true
+        }
+
+        override fun setNormalizationGain(gain: Float) {
+            normalizationGains += gain
         }
 
         override fun currentPositionMs(): Long = plays.lastOrNull()?.seekMs ?: 0L

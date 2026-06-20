@@ -952,6 +952,7 @@ fun TrackInfo.toProto(): TrackInfoProto = TrackInfoProto(
     source_id = sourceId.orEmpty(),
     album = album.orEmpty(),
     submitted_by_player_name = submittedByUserName.orEmpty(),
+    integrated_lufs = integratedLufs,
     artists = artists.map(ArtistInfo::toProto),
     // the server will block the track if it's unavailable, so toProto() will never be called for them
     // the only case is a response to a search request, which is always sent to a single client
@@ -998,6 +999,7 @@ fun TrackInfoProto.toApi(): TrackInfo {
         submittedByUserName = proto.submitted_by_player_name.ifEmpty { null }
         unavailableReason = proto.unavailable_reason.ifEmpty { null }?.let(LocalizedText::plain)
         lyricsFetched = false
+        integratedLufs = proto.integrated_lufs
     }
 }
 
