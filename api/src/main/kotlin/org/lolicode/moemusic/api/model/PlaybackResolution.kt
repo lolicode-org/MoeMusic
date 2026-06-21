@@ -16,7 +16,7 @@ public sealed interface ResolvedTrackPatch {
     public val lyricLrc: String? get() = null
     public val secondaryLyricLrc: String? get() = null
     public val lyricsFetched: Boolean? get() = null
-    public val integratedLufs: Double? get() = null
+    public val loudness: LoudnessInfo? get() = null
 
     /** Returns a builder seeded with this update's values. */
     public fun toBuilder(): ResolvedTrackPatchBuilder
@@ -34,7 +34,7 @@ public class ResolvedTrackPatchBuilder internal constructor() {
     public var lyricLrc: String? = null
     public var secondaryLyricLrc: String? = null
     public var lyricsFetched: Boolean? = null
-    public var integratedLufs: Double? = null
+    public var loudness: LoudnessInfo? = null
 
     public fun build(): ResolvedTrackPatch = ResolvedTrackPatchImpl(
         coverUrl = coverUrl,
@@ -42,7 +42,7 @@ public class ResolvedTrackPatchBuilder internal constructor() {
         lyricLrc = lyricLrc,
         secondaryLyricLrc = secondaryLyricLrc,
         lyricsFetched = lyricsFetched,
-        integratedLufs = integratedLufs,
+        loudness = loudness,
     )
 }
 
@@ -66,7 +66,7 @@ internal data class ResolvedTrackPatchImpl(
     override val lyricLrc: String?,
     override val secondaryLyricLrc: String?,
     override val lyricsFetched: Boolean?,
-    override val integratedLufs: Double?,
+    override val loudness: LoudnessInfo?,
 ) : ResolvedTrackPatch {
     override fun toBuilder(): ResolvedTrackPatchBuilder = ResolvedTrackPatchBuilder().also {
         it.coverUrl = coverUrl
@@ -74,7 +74,7 @@ internal data class ResolvedTrackPatchImpl(
         it.lyricLrc = lyricLrc
         it.secondaryLyricLrc = secondaryLyricLrc
         it.lyricsFetched = lyricsFetched
-        it.integratedLufs = integratedLufs
+        it.loudness = loudness
     }
 }
 
@@ -82,7 +82,7 @@ internal data class ResolvedTrackPatchImpl(
  * Result of resolving a queued [TrackInfo] into a playable client resource.
  *
  * Sources may optionally attach a limited [trackPatch] patch when the same upstream request that
- * produced [playback] also reveals additional stable metadata (for example integrated LUFS or
+ * produced [playback] also reveals additional stable metadata (for example loudness metadata or
  * synchronized lyrics).
  */
 public sealed interface PlaybackResolution {

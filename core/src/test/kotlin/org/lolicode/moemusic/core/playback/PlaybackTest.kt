@@ -426,7 +426,7 @@ class ServerPlaybackControllerTest {
             override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
                 PlaybackResolution(PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=resolve")) {
                     trackPatch = ResolvedTrackPatch {
-                        integratedLufs = -9.5
+                        loudness = LoudnessInfo { integratedLufs = -9.5 }
                         album = "Resolve Album"
                     }
                 }
@@ -458,7 +458,52 @@ class ServerPlaybackControllerTest {
             assertEquals(1, getTrackInfoCalls)
             assertEquals("Authoritative", ctrl.currentContext?.track?.title)
             assertEquals("Resolve Album", ctrl.currentContext?.track?.album)
-            assertEquals(-9.5, ctrl.currentContext?.track?.integratedLufs)
+            assertEquals(-9.5, ctrl.currentContext?.track?.loudness?.integratedLufs)
+        } finally {
+            PluginManager.musicSources -= source
+        }
+    }
+
+    @Test
+    fun `submitTrack merges lufs from metadata refresh with peak from resolve patch`() = runBlocking {
+        val source = object : MusicSource {
+            override val id: String = SAMPLE_SOURCE_ID
+
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=resolve")) {
+                    trackPatch = ResolvedTrackPatch {
+                        loudness = LoudnessInfo {
+                            peak = PeakInfo(0.42) { kind = PeakKind.UNKNOWN }
+                        }
+                    }
+                }
+
+            override suspend fun getTrackInfo(trackId: String, submitter: MoeMusicUser?): UserResult<TrackInfo?> =
+                UserResult.Success(
+                    TrackInfo(
+                        id = trackId,
+                        title = "Authoritative",
+                        artists = listOf("Artist").toArtistInfos(),
+                        durationMs = 180_000,
+                    ) {
+                        sourceId = id
+                        loudness = LoudnessInfo { integratedLufs = -11.5 }
+                    }
+                )
+        }
+        PluginManager.musicSources += source
+        try {
+            val (ctrl, _) = freshController()
+            val result = ctrl.submitTrack(
+                track = SAMPLE_TRACK.copy { id = "resolve-loudness-merge-track"; sourceId = source.id },
+                requesterId = SAMPLE_PLAYER.id,
+                mode = TrackAddMode.PLAY_NOW,
+            )
+
+            assertEquals(TrackAddResult.PLAYING_NOW, result)
+            assertEquals(-11.5, ctrl.currentContext?.track?.loudness?.integratedLufs)
+            assertEquals(0.42, ctrl.currentContext?.track?.loudness?.peak?.amplitudeLinear)
+            assertEquals(PeakKind.UNKNOWN, ctrl.currentContext?.track?.loudness?.peak?.kind)
         } finally {
             PluginManager.musicSources -= source
         }
@@ -510,14 +555,14 @@ class ServerPlaybackControllerTest {
     fun `generic proto conversion omits unavailable reason`() {
         val track = SAMPLE_TRACK.copy {
             unavailableReason = LocalizedText.plain("Requires VIP")
-            integratedLufs = -13.5
+            loudness = LoudnessInfo { integratedLufs = -13.5 }
         }
 
         val roundTrip = track.toProto().toApi()
 
         assertTrue(roundTrip.isAvailable)
         assertEquals(null, roundTrip.unavailableReason)
-        assertEquals(-13.5, roundTrip.integratedLufs)
+        assertEquals(-13.5, roundTrip.loudness?.integratedLufs)
     }
 
     @Test
@@ -1060,7 +1105,10 @@ class ServerPlaybackControllerTest {
                     PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=$resolveCalls")
                 ) {
                     trackPatch = ResolvedTrackPatch {
-                        integratedLufs = -12.0
+                        loudness = LoudnessInfo {
+                            integratedLufs = -12.0
+                            peak = PeakInfo(0.85) { kind = PeakKind.TRUE }
+                        }
                         lyricLrc = "[00:01.00]Hello"
                         secondaryLyricLrc = "[00:01.00]你好"
                         lyricsFetched = true
@@ -1086,10 +1134,12 @@ class ServerPlaybackControllerTest {
 
             assertEquals(1, source.resolveCalls)
             assertEquals("https://cdn.example.com/audio/${track.id}.mp3?sig=1", snapshot.playback?.url)
-            assertEquals(-12.0, snapshot.track?.integrated_lufs)
+            assertEquals(-12.0, snapshot.track?.loudness?.integrated_lufs)
+            assertEquals(0.85, snapshot.track?.loudness?.peak?.amplitude_linear)
             assertEquals("[00:01.00]Hello", snapshot.lyric_lrc)
             assertEquals("[00:01.00]你好", snapshot.secondary_lyric_lrc)
-            assertEquals(-12.0, ctrl.currentContext?.track?.integratedLufs)
+            assertEquals(-12.0, ctrl.currentContext?.track?.loudness?.integratedLufs)
+            assertEquals(0.85, ctrl.currentContext?.track?.loudness?.peak?.amplitudeLinear)
             assertEquals("[00:01.00]Hello", ctrl.currentContext?.track?.lyricLrc)
             assertTrue(ctrl.currentContext?.track?.lyricsFetched == true)
         } finally {

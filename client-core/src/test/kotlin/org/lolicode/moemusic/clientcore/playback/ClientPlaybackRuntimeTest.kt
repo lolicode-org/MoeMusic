@@ -8,6 +8,7 @@ import org.lolicode.moemusic.api.event.UserParticipationState
 import org.lolicode.moemusic.api.model.PlaybackResource
 import org.lolicode.moemusic.api.model.PlaybackState
 import org.lolicode.moemusic.core.config.ClientConfig
+import org.lolicode.moemusic.core.config.LoudnessNormalizationMode
 import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
 import org.lolicode.moemusic.core.protocol.proto.*
@@ -119,7 +120,9 @@ class ClientPlaybackRuntimeTest {
                     id = "track-1",
                     title = "Track One",
                     duration_ms = 180_000L,
-                    integrated_lufs = -8.0,
+                    loudness = LoudnessInfoProto(
+                        integrated_lufs = -8.0,
+                    ),
                 ),
                 playback = PlaybackResourceProto(
                     url = "https://example.test/audio.mp3",
@@ -160,7 +163,9 @@ class ClientPlaybackRuntimeTest {
                         id = "track-1",
                         title = "Track One",
                         duration_ms = 180_000L,
-                        integrated_lufs = -8.0,
+                        loudness = LoudnessInfoProto(
+                            integrated_lufs = -8.0,
+                        ),
                     ),
                     playback = PlaybackResourceProto(url = "https://example.test/audio.mp3"),
                     state = PlaybackStateProto.PLAYING,
@@ -171,12 +176,52 @@ class ClientPlaybackRuntimeTest {
         )
 
         harness.platform.config = harness.platform.config.copy(
-            loudnessNormalization = harness.platform.config.loudnessNormalization.copy(enabled = false)
+            loudnessNormalization = harness.platform.config.loudnessNormalization.copy(
+                mode = LoudnessNormalizationMode.OFF
+            )
         )
 
         harness.runtime.refreshTrackNormalization()
 
         assertEquals(1.0f, harness.platform.audio.normalizationGains.last())
+    }
+
+    @Test
+    fun `refreshTrackNormalization can conservatively boost with valid peak data`() {
+        val harness = harness()
+        harness.acceptWelcome()
+        harness.platform.config = harness.platform.config.copy(
+            loudnessNormalization = harness.platform.config.loudnessNormalization.copy(
+                mode = LoudnessNormalizationMode.CONSERVATIVE_BOOST,
+                targetLufs = -14.0,
+            )
+        )
+        harness.runtime.handlePlaybackSnapshotPush(
+            PlaybackSnapshotPush(
+                reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK,
+                snapshot = PlaybackSnapshot(
+                    track = TrackInfoProto(
+                        source_id = "youtube",
+                        id = "track-boost",
+                        title = "Quiet Track",
+                        duration_ms = 180_000L,
+                        loudness = LoudnessInfoProto(
+                            integrated_lufs = -20.0,
+                            peak = PeakInfoProto(
+                                amplitude_linear = 0.4,
+                                kind = PeakKindProto.PEAK_KIND_TRUE,
+                            ),
+                        ),
+                    ),
+                    playback = PlaybackResourceProto(url = "https://example.test/audio.mp3"),
+                    state = PlaybackStateProto.PLAYING,
+                    position_ms = 0L,
+                    position_anchor_server_monotonic = 0L,
+                ),
+            )
+        )
+
+        assertEquals(1.9952623f, harness.platform.audio.normalizationGains.last(), 0.000001f)
     }
 
     private fun harness(): RuntimeHarness =

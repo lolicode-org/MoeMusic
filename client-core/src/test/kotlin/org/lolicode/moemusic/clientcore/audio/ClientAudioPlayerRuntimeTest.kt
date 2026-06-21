@@ -30,14 +30,18 @@ class ClientAudioPlayerRuntimeTest {
     }
 
     @Test
-    fun `normalization gain never boosts output above the user volume`() {
+    fun `normalization gain may boost but final output stays clamped`() {
         val output = FakeAudioOutput()
         val runtime = ClientAudioPlayerRuntime(PcmRingBuffer(), FakeTrackLoader(), output)
 
         runtime.setVolume(0.4f)
         runtime.setNormalizationGain(1.2f)
 
-        assertEquals(0.4f, output.gains.last())
+        assertEquals(0.48f, output.gains.last(), 0.000001f)
+
+        runtime.setNormalizationGain(10.0f)
+
+        assertEquals(1.0f, output.gains.last(), 0.000001f)
     }
 
     @Test

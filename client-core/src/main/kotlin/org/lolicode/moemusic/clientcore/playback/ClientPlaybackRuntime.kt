@@ -1333,7 +1333,7 @@ class ClientPlaybackRuntime(
     }
 
     private fun normalizationGainForTrack(track: TrackInfo): Float =
-        platform.clientConfig().loudnessNormalization.attenuationGainForTrack(track.integratedLufs)
+        platform.clientConfig().loudnessNormalization.gainForTrack(track.loudness)
 
     override fun ensureDirectRequestSessionReady() {
         if (!platform.hasConnection()) {

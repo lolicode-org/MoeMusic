@@ -210,13 +210,13 @@ ctx.eventBus.subscribe<OnTrackSubmitted> { event ->
 核心接口方法的语义说明：
 
 - `TrackInfo.id`：由音源自己定义和解释。它是音源内部稳定使用的曲目标识，不必等同于上游平台的 ID。一个音源若同时暴露多种上游资源类型，应使用带类型的标识，避免后续查询和播放走错接口。
-- `TrackInfo.integratedLufs`：可选的音源侧 integrated loudness 元数据。只有在音源能为该曲目提供稳定的 LUFS 测量值时才应设置它；客户端会用它做“只衰减、不放大”的响度标准化。
+- `TrackInfo.loudness`：可选的音源侧响度数据。将 LUFS 放在 `loudness.integratedLufs`，若音源还能提供可信的峰值测量，则可额外填写 `loudness.peak`。
 - `search(...)`：返回用户可见的 [SearchResult](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt#L59)。无结果属于成功的空页面，不应抛出异常。
 - 直接曲目行必须使用 [SelectionEntryKind.TRACK](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt#L30)，并将最终稳定的 `TrackInfo.id` 填入 `selectionId`。
 - 专辑、歌单等中间容器行可使用 `CONTAINER` 或 `UNKNOWN`，随后通过 `resolveSelection(...)` 展开。
 - `getTrackInfo(...)`：若曲目不存在，应返回 `UserResult.Success(null)`；若为预期内的拒绝操作，应返回 `UserResult.Error`；只有当本次查找必须异常中止时，才应当抛出异常。
 - `resolve(...)`：返回 [PlaybackResolution](../api/src/main/kotlin/org/lolicode/moemusic/api/model/PlaybackResolution.kt) 的播放解析入口。同一首曲目在恢复播放、跳转进度或新玩家同步时可能会被多次解析，因此播放地址应视为可重新签发的资源。
-- 若签发播放地址的同一次请求还能拿到当前曲目的额外元数据，可通过 `PlaybackResolution.trackPatch` 回传一个针对 TrackInfo 的补丁，例如 LUFS 或歌词。
+- 若签发播放地址的同一次请求还能拿到当前曲目的额外元数据，可通过 `PlaybackResolution.trackPatch` 回传一个针对 TrackInfo 的补丁，例如响度信息或歌词。
 - `resolveIdentifier(...)`：对于非本音源支持的输入，应返回 `Pass`；对于预期内的拒绝，应返回 `Blocked`；对于确定的直接曲目，应返回 `Resolved`；对于需要进一步展开选择的容器，应返回 `Choices`。
 - 类似于通用 HTTP 解析器这类泛用解析器，应设置 `isFallbackResolver = true`，以便让针对特定平台的分享链接解析器优先尝试解析。
 

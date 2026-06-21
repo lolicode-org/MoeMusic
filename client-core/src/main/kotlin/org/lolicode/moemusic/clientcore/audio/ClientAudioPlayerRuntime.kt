@@ -135,9 +135,9 @@ class ClientAudioPlayerRuntime(
         applyOutputGain()
     }
 
-    /** Apply an attenuation-only normalization multiplier in the `0.0 .. 1.0` range. */
+    /** Apply a non-negative normalization multiplier. Final output is still clamped to `0.0 .. 1.0`. */
     fun setNormalizationGain(value: Float) {
-        normalizationGain = value.coerceIn(0.0f, 1.0f)
+        normalizationGain = value.takeIf(Float::isFinite)?.coerceAtLeast(0.0f) ?: 1.0f
         applyOutputGain()
     }
 

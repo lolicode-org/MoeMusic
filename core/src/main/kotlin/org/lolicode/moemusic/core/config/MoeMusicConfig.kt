@@ -4,9 +4,13 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.lolicode.moemusic.api.MusicSource
 import org.lolicode.moemusic.api.model.ContentFilterRules
+import org.lolicode.moemusic.api.model.LoudnessInfo
+import org.lolicode.moemusic.api.model.PeakKind
+import org.lolicode.moemusic.api.model.normalizedOrNull
 import org.lolicode.moemusic.core.contentfilter.normalized
 import org.lolicode.moemusic.core.media.MediaHostListMode
 import java.util.Locale
+import kotlin.math.log10
 import kotlin.math.pow
 
 const val DEFAULT_SERVER_LANGUAGE: String = "en_us"
@@ -427,7 +431,7 @@ data class ClientConfig(
 
 @Serializable
 data class LoudnessNormalizationConfig(
-    val enabled: Boolean = true,
+    val mode: LoudnessNormalizationMode = LoudnessNormalizationMode.ATTENUATE_ONLY,
     @SerialName("target_lufs")
     val targetLufs: Double = DEFAULT_TARGET_LUFS,
 ) {
@@ -435,11 +439,25 @@ data class LoudnessNormalizationConfig(
         targetLufs = normalizedTargetLufs(),
     )
 
-    fun attenuationGainForTrack(integratedLufs: Double?): Float {
-        if (!enabled) return 1.0f
-        val trackLufs = integratedLufs?.takeIf(Double::isFinite) ?: return 1.0f
-        val attenuationDb = minOf(0.0, normalizedTargetLufs() - trackLufs)
-        return 10.0.pow(attenuationDb / 20.0).toFloat()
+    fun gainForTrack(loudness: LoudnessInfo?): Float {
+        if (mode == LoudnessNormalizationMode.OFF) return 1.0f
+        val normalizedLoudness = loudness?.normalizedOrNull() ?: return 1.0f
+        val trackLufs = normalizedLoudness.integratedLufs ?: return 1.0f
+        val desiredDb = normalizedTargetLufs() - trackLufs
+        if (desiredDb <= 0.0) {
+            return 10.0.pow(desiredDb / 20.0).toFloat()
+        }
+        if (mode != LoudnessNormalizationMode.CONSERVATIVE_BOOST) return 1.0f
+
+        val peak = normalizedLoudness.peak ?: return 1.0f
+        val peakCeilingDbFs = when (peak.kind) {
+            PeakKind.TRUE -> TRUE_PEAK_CEILING_DBFS
+            PeakKind.SAMPLE, PeakKind.UNKNOWN -> SAMPLE_PEAK_CEILING_DBFS
+        }
+        val peakDbFs = 20.0 * log10(peak.amplitudeLinear)
+        val peakSafeBoostDb = peakCeilingDbFs - peakDbFs
+        val appliedDb = minOf(desiredDb, peakSafeBoostDb, USER_RELATIVE_MAX_BOOST_DB).coerceAtLeast(0.0)
+        return 10.0.pow(appliedDb / 20.0).toFloat()
     }
 
     private fun normalizedTargetLufs(): Double =
@@ -449,7 +467,17 @@ data class LoudnessNormalizationConfig(
         const val DEFAULT_TARGET_LUFS: Double = -14.0
         const val MIN_TARGET_LUFS: Double = -30.0
         const val MAX_TARGET_LUFS: Double = 0.0
+        const val TRUE_PEAK_CEILING_DBFS: Double = -1.0
+        const val SAMPLE_PEAK_CEILING_DBFS: Double = -2.0
+        const val USER_RELATIVE_MAX_BOOST_DB: Double = 6.0
     }
+}
+
+@Serializable
+enum class LoudnessNormalizationMode {
+    OFF,
+    ATTENUATE_ONLY,
+    CONSERVATIVE_BOOST,
 }
 
 /**

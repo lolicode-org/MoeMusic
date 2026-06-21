@@ -157,7 +157,7 @@ public interface MusicSource {
      *
      * The returned [PlaybackResolution.playback] is sent to the client and may include per-request
      * HTTP headers required for playback. When the same upstream request also reveals additional
-     * stable track metadata (for example synchronized lyrics or integrated LUFS), return a limited
+     * stable track metadata (for example synchronized lyrics or loudness metadata), return a limited
      * [PlaybackResolution.trackPatch] rather than trying to smuggle those fields through
      * [PlaybackResource].
      *

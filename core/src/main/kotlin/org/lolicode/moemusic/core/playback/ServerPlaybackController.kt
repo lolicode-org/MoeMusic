@@ -610,7 +610,7 @@ class ServerPlaybackController(
             lyricLrc = patch.lyricLrc ?: this@applyResolvedTrackPatch.lyricLrc
             secondaryLyricLrc = patch.secondaryLyricLrc ?: this@applyResolvedTrackPatch.secondaryLyricLrc
             patch.lyricsFetched?.let { lyricsFetched = it }
-            integratedLufs = patch.integratedLufs ?: this@applyResolvedTrackPatch.integratedLufs
+            loudness = this@applyResolvedTrackPatch.loudness.mergedWith(patch.loudness)
         }
 
     private fun TrackInfo.mergePreservingResolveMetadata(refreshed: TrackInfo): TrackInfo =
@@ -977,7 +977,7 @@ fun TrackInfo.toProto(): TrackInfoProto = TrackInfoProto(
     source_id = sourceId.orEmpty(),
     album = album.orEmpty(),
     submitted_by_player_name = submittedByUserName.orEmpty(),
-    integrated_lufs = integratedLufs,
+    loudness = loudness?.toProto(),
     artists = artists.map(ArtistInfo::toProto),
     // the server will block the track if it's unavailable, so toProto() will never be called for them
     // the only case is a response to a search request, which is always sent to a single client
@@ -1024,8 +1024,39 @@ fun TrackInfoProto.toApi(): TrackInfo {
         submittedByUserName = proto.submitted_by_player_name.ifEmpty { null }
         unavailableReason = proto.unavailable_reason.ifEmpty { null }?.let(LocalizedText::plain)
         lyricsFetched = false
-        integratedLufs = proto.integrated_lufs
+        loudness = proto.loudness?.toApi()
     }
+}
+
+private fun LoudnessInfo.toProto(): LoudnessInfoProto = LoudnessInfoProto(
+    integrated_lufs = integratedLufs,
+    peak = peak?.toProto(),
+)
+
+private fun PeakInfo.toProto(): PeakInfoProto = PeakInfoProto(
+    amplitude_linear = amplitudeLinear,
+    kind = kind.toProto(),
+)
+
+private fun PeakKind.toProto(): PeakKindProto = when (this) {
+    PeakKind.UNKNOWN -> PeakKindProto.PEAK_KIND_UNKNOWN
+    PeakKind.SAMPLE -> PeakKindProto.PEAK_KIND_SAMPLE
+    PeakKind.TRUE -> PeakKindProto.PEAK_KIND_TRUE
+}
+
+private fun LoudnessInfoProto.toApi(): LoudnessInfo? = LoudnessInfo {
+    integratedLufs = integrated_lufs
+    peak = this@toApi.peak?.toApi()
+}.normalizedOrNull()
+
+private fun PeakInfoProto.toApi(): PeakInfo? = PeakInfo(amplitude_linear) {
+    kind = this@toApi.kind.toApi()
+}.normalizedOrNull()
+
+private fun PeakKindProto.toApi(): PeakKind = when (this) {
+    PeakKindProto.PEAK_KIND_UNKNOWN -> PeakKind.UNKNOWN
+    PeakKindProto.PEAK_KIND_SAMPLE -> PeakKind.SAMPLE
+    PeakKindProto.PEAK_KIND_TRUE -> PeakKind.TRUE
 }
 
 /** Convert proto [SelectionEntryProto] to API [SelectionEntry]. */

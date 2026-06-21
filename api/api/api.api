@@ -1193,6 +1193,64 @@ public final class org/lolicode/moemusic/api/model/ExactTrackFilterRule$Companio
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
+public abstract interface class org/lolicode/moemusic/api/model/LoudnessInfo {
+	public fun getIntegratedLufs ()Ljava/lang/Double;
+	public fun getPeak ()Lorg/lolicode/moemusic/api/model/PeakInfo;
+	public abstract fun toBuilder ()Lorg/lolicode/moemusic/api/model/LoudnessInfoBuilder;
+}
+
+public final class org/lolicode/moemusic/api/model/LoudnessInfo$DefaultImpls {
+	public static fun getIntegratedLufs (Lorg/lolicode/moemusic/api/model/LoudnessInfo;)Ljava/lang/Double;
+	public static fun getPeak (Lorg/lolicode/moemusic/api/model/LoudnessInfo;)Lorg/lolicode/moemusic/api/model/PeakInfo;
+}
+
+public final class org/lolicode/moemusic/api/model/LoudnessInfoBuilder {
+	public final fun build ()Lorg/lolicode/moemusic/api/model/LoudnessInfo;
+	public final fun getIntegratedLufs ()Ljava/lang/Double;
+	public final fun getPeak ()Lorg/lolicode/moemusic/api/model/PeakInfo;
+	public final fun setIntegratedLufs (Ljava/lang/Double;)V
+	public final fun setPeak (Lorg/lolicode/moemusic/api/model/PeakInfo;)V
+}
+
+public final class org/lolicode/moemusic/api/model/LoudnessInfoKt {
+	public static final fun LoudnessInfo (Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/LoudnessInfo;
+	public static synthetic fun LoudnessInfo$default (Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/LoudnessInfo;
+	public static final fun PeakInfo (DLkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/PeakInfo;
+	public static synthetic fun PeakInfo$default (DLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/PeakInfo;
+	public static final fun copy (Lorg/lolicode/moemusic/api/model/LoudnessInfo;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/LoudnessInfo;
+	public static final fun copy (Lorg/lolicode/moemusic/api/model/PeakInfo;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/PeakInfo;
+	public static final fun mergedWith (Lorg/lolicode/moemusic/api/model/LoudnessInfo;Lorg/lolicode/moemusic/api/model/LoudnessInfo;)Lorg/lolicode/moemusic/api/model/LoudnessInfo;
+	public static final fun normalizedOrNull (Lorg/lolicode/moemusic/api/model/LoudnessInfo;)Lorg/lolicode/moemusic/api/model/LoudnessInfo;
+	public static final fun normalizedOrNull (Lorg/lolicode/moemusic/api/model/PeakInfo;)Lorg/lolicode/moemusic/api/model/PeakInfo;
+}
+
+public abstract interface class org/lolicode/moemusic/api/model/PeakInfo {
+	public abstract fun getAmplitudeLinear ()D
+	public fun getKind ()Lorg/lolicode/moemusic/api/model/PeakKind;
+	public abstract fun toBuilder ()Lorg/lolicode/moemusic/api/model/PeakInfoBuilder;
+}
+
+public final class org/lolicode/moemusic/api/model/PeakInfo$DefaultImpls {
+	public static fun getKind (Lorg/lolicode/moemusic/api/model/PeakInfo;)Lorg/lolicode/moemusic/api/model/PeakKind;
+}
+
+public final class org/lolicode/moemusic/api/model/PeakInfoBuilder {
+	public final fun build ()Lorg/lolicode/moemusic/api/model/PeakInfo;
+	public final fun getAmplitudeLinear ()D
+	public final fun getKind ()Lorg/lolicode/moemusic/api/model/PeakKind;
+	public final fun setAmplitudeLinear (D)V
+	public final fun setKind (Lorg/lolicode/moemusic/api/model/PeakKind;)V
+}
+
+public final class org/lolicode/moemusic/api/model/PeakKind : java/lang/Enum {
+	public static final field SAMPLE Lorg/lolicode/moemusic/api/model/PeakKind;
+	public static final field TRUE Lorg/lolicode/moemusic/api/model/PeakKind;
+	public static final field UNKNOWN Lorg/lolicode/moemusic/api/model/PeakKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lorg/lolicode/moemusic/api/model/PeakKind;
+	public static fun values ()[Lorg/lolicode/moemusic/api/model/PeakKind;
+}
+
 public abstract interface class org/lolicode/moemusic/api/model/PlaybackResolution {
 	public abstract fun getPlayback ()Lorg/lolicode/moemusic/api/model/PlaybackResource;
 	public fun getTrackPatch ()Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;
@@ -1279,7 +1337,7 @@ public final class org/lolicode/moemusic/api/model/PlaybackState$Stopped : org/l
 public abstract interface class org/lolicode/moemusic/api/model/ResolvedTrackPatch {
 	public fun getAlbum ()Ljava/lang/String;
 	public fun getCoverUrl ()Ljava/lang/String;
-	public fun getIntegratedLufs ()Ljava/lang/Double;
+	public fun getLoudness ()Lorg/lolicode/moemusic/api/model/LoudnessInfo;
 	public fun getLyricLrc ()Ljava/lang/String;
 	public fun getLyricsFetched ()Ljava/lang/Boolean;
 	public fun getSecondaryLyricLrc ()Ljava/lang/String;
@@ -1289,7 +1347,7 @@ public abstract interface class org/lolicode/moemusic/api/model/ResolvedTrackPat
 public final class org/lolicode/moemusic/api/model/ResolvedTrackPatch$DefaultImpls {
 	public static fun getAlbum (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/String;
 	public static fun getCoverUrl (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/String;
-	public static fun getIntegratedLufs (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/Double;
+	public static fun getLoudness (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Lorg/lolicode/moemusic/api/model/LoudnessInfo;
 	public static fun getLyricLrc (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/String;
 	public static fun getLyricsFetched (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/Boolean;
 	public static fun getSecondaryLyricLrc (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/String;
@@ -1299,13 +1357,13 @@ public final class org/lolicode/moemusic/api/model/ResolvedTrackPatchBuilder {
 	public final fun build ()Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;
 	public final fun getAlbum ()Ljava/lang/String;
 	public final fun getCoverUrl ()Ljava/lang/String;
-	public final fun getIntegratedLufs ()Ljava/lang/Double;
+	public final fun getLoudness ()Lorg/lolicode/moemusic/api/model/LoudnessInfo;
 	public final fun getLyricLrc ()Ljava/lang/String;
 	public final fun getLyricsFetched ()Ljava/lang/Boolean;
 	public final fun getSecondaryLyricLrc ()Ljava/lang/String;
 	public final fun setAlbum (Ljava/lang/String;)V
 	public final fun setCoverUrl (Ljava/lang/String;)V
-	public final fun setIntegratedLufs (Ljava/lang/Double;)V
+	public final fun setLoudness (Lorg/lolicode/moemusic/api/model/LoudnessInfo;)V
 	public final fun setLyricLrc (Ljava/lang/String;)V
 	public final fun setLyricsFetched (Ljava/lang/Boolean;)V
 	public final fun setSecondaryLyricLrc (Ljava/lang/String;)V
@@ -1518,7 +1576,7 @@ public abstract interface class org/lolicode/moemusic/api/model/TrackInfo {
 	public fun getCoverUrl ()Ljava/lang/String;
 	public abstract fun getDurationMs ()J
 	public abstract fun getId ()Ljava/lang/String;
-	public fun getIntegratedLufs ()Ljava/lang/Double;
+	public fun getLoudness ()Lorg/lolicode/moemusic/api/model/LoudnessInfo;
 	public fun getLyricLrc ()Ljava/lang/String;
 	public fun getLyricsFetched ()Z
 	public fun getSecondaryLyricLrc ()Ljava/lang/String;
@@ -1533,7 +1591,7 @@ public abstract interface class org/lolicode/moemusic/api/model/TrackInfo {
 public final class org/lolicode/moemusic/api/model/TrackInfo$DefaultImpls {
 	public static fun getAlbum (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
 	public static fun getCoverUrl (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
-	public static fun getIntegratedLufs (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/Double;
+	public static fun getLoudness (Lorg/lolicode/moemusic/api/model/TrackInfo;)Lorg/lolicode/moemusic/api/model/LoudnessInfo;
 	public static fun getLyricLrc (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
 	public static fun getLyricsFetched (Lorg/lolicode/moemusic/api/model/TrackInfo;)Z
 	public static fun getSecondaryLyricLrc (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
@@ -1550,7 +1608,7 @@ public final class org/lolicode/moemusic/api/model/TrackInfoBuilder {
 	public final fun getCoverUrl ()Ljava/lang/String;
 	public final fun getDurationMs ()J
 	public final fun getId ()Ljava/lang/String;
-	public final fun getIntegratedLufs ()Ljava/lang/Double;
+	public final fun getLoudness ()Lorg/lolicode/moemusic/api/model/LoudnessInfo;
 	public final fun getLyricLrc ()Ljava/lang/String;
 	public final fun getLyricsFetched ()Z
 	public final fun getSecondaryLyricLrc ()Ljava/lang/String;
@@ -1564,7 +1622,7 @@ public final class org/lolicode/moemusic/api/model/TrackInfoBuilder {
 	public final fun setCoverUrl (Ljava/lang/String;)V
 	public final fun setDurationMs (J)V
 	public final fun setId (Ljava/lang/String;)V
-	public final fun setIntegratedLufs (Ljava/lang/Double;)V
+	public final fun setLoudness (Lorg/lolicode/moemusic/api/model/LoudnessInfo;)V
 	public final fun setLyricLrc (Ljava/lang/String;)V
 	public final fun setLyricsFetched (Z)V
 	public final fun setSecondaryLyricLrc (Ljava/lang/String;)V

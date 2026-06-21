@@ -1,5 +1,8 @@
 package org.lolicode.moemusic.core.config
 
+import org.lolicode.moemusic.api.model.LoudnessInfo
+import org.lolicode.moemusic.api.model.PeakInfo
+import org.lolicode.moemusic.api.model.PeakKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -42,7 +45,7 @@ class MoeMusicConfigTest {
                 disabledServers = listOf(" Server:Example.Com ", "", "singleplayer:World", "server:example.com"),
                 volume = 250,
                 loudnessNormalization = LoudnessNormalizationConfig(
-                    enabled = true,
+                    mode = LoudnessNormalizationMode.ATTENUATE_ONLY,
                     targetLufs = Double.POSITIVE_INFINITY,
                 ),
                 joinShortcutTipShown = true,
@@ -93,7 +96,7 @@ class MoeMusicConfigTest {
         assertEquals(false, normalized.client.globalInstancePlaybackLock)
         assertEquals(listOf("server:example.com", "singleplayer:world"), normalized.client.disabledServers)
         assertEquals(100, normalized.client.volume)
-        assertEquals(true, normalized.client.loudnessNormalization.enabled)
+        assertEquals(LoudnessNormalizationMode.ATTENUATE_ONLY, normalized.client.loudnessNormalization.mode)
         assertEquals(-14.0, normalized.client.loudnessNormalization.targetLufs)
         assertEquals(true, normalized.client.joinShortcutTipShown)
         assertEquals(1, normalized.client.coverArt.maxDownloadMebibytes)
@@ -121,12 +124,44 @@ class MoeMusicConfigTest {
     }
 
     @Test
-    fun `loudness normalization attenuates loud tracks but never boosts quiet ones`() {
-        val config = LoudnessNormalizationConfig(enabled = true, targetLufs = -14.0)
+    fun `loudness normalization attenuates loud tracks and does not boost in attenuate only mode`() {
+        val config = LoudnessNormalizationConfig(
+            mode = LoudnessNormalizationMode.ATTENUATE_ONLY,
+            targetLufs = -14.0,
+        )
+        val loudTrack = LoudnessInfo { integratedLufs = -8.0 }
+        val quietTrack = LoudnessInfo { integratedLufs = -20.0 }
 
-        assertEquals(1.0f, config.attenuationGainForTrack(-20.0))
-        assertEquals(1.0f, config.attenuationGainForTrack(null))
-        assertEquals(1.0f, config.copy(enabled = false).attenuationGainForTrack(-8.0))
-        assertEquals(0.5011872f, config.attenuationGainForTrack(-8.0), 0.000001f)
+        assertEquals(1.0f, config.gainForTrack(quietTrack))
+        assertEquals(1.0f, config.gainForTrack(null))
+        assertEquals(1.0f, config.copy(mode = LoudnessNormalizationMode.OFF).gainForTrack(loudTrack))
+        assertEquals(0.5011872f, config.gainForTrack(loudTrack), 0.000001f)
+    }
+
+    @Test
+    fun `conservative boost requires valid peak data and respects caps`() {
+        val config = LoudnessNormalizationConfig(
+            mode = LoudnessNormalizationMode.CONSERVATIVE_BOOST,
+            targetLufs = -14.0,
+        )
+
+        val withTruePeak = LoudnessInfo {
+            integratedLufs = -20.0
+            peak = PeakInfo(0.5) { kind = PeakKind.TRUE }
+        }
+        val withSamplePeak = LoudnessInfo {
+            integratedLufs = -20.0
+            peak = PeakInfo(0.5) { kind = PeakKind.SAMPLE }
+        }
+        val withoutPeak = LoudnessInfo { integratedLufs = -20.0 }
+        val invalidPeak = LoudnessInfo {
+            integratedLufs = -20.0
+            peak = PeakInfo(0.0) { kind = PeakKind.TRUE }
+        }
+
+        assertEquals(1.7825019f, config.gainForTrack(withTruePeak), 0.000001f)
+        assertEquals(1.5886564f, config.gainForTrack(withSamplePeak), 0.000001f)
+        assertEquals(1.0f, config.gainForTrack(withoutPeak))
+        assertEquals(1.0f, config.gainForTrack(invalidPeak))
     }
 }

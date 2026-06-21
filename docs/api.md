@@ -323,7 +323,10 @@ object ExampleSource : SearchableMusicSource, IdentifierResolvableMusicSource {
             .getOrElse { throw SourceNetworkException(it) }
         return PlaybackResolution(PlaybackResource(url = url)) {
             trackPatch = ResolvedTrackPatch {
-                integratedLufs = -14.2
+                loudness = LoudnessInfo {
+                    integratedLufs = -14.2
+                    peak = PeakInfo(0.83) { kind = PeakKind.UNKNOWN }
+                }
             }
         }
     }
@@ -350,13 +353,13 @@ object ExampleSource : SearchableMusicSource, IdentifierResolvableMusicSource {
 Source method contracts:
 
 - `TrackInfo.id` is an opaque key owned by the source. It does not have to be a bare platform ID; use typed keys when one source exposes multiple upstream resource types.
-- `TrackInfo.integratedLufs` is optional source-supplied integrated loudness metadata. Set it only when the source has a stable LUFS measurement for that track; clients use it for attenuation-only loudness normalization.
+- `TrackInfo.loudness` is optional source-supplied loudness metadata. Put integrated LUFS in `loudness.integratedLufs`, and optionally attach `loudness.peak` when the source also has a trustworthy peak reading.
 - `search(...)` returns user-visible `SelectionEntry` rows. Empty result is a successful empty page, not an exception.
 - Direct track rows must use `SelectionEntryKind.TRACK` and put the final stable `TrackInfo.id` key in `selectionId`.
 - Container rows can use `CONTAINER` or `UNKNOWN` and later resolve through `resolveSelection(...)`.
 - `getTrackInfo(...)` returns `Success(null)` for not found, `UserResult.Error` for expected user-facing rejection, and throws only when the lookup must abort.
 - `resolve(...)` returns a [PlaybackResolution](../api/src/main/kotlin/org/lolicode/moemusic/api/model/PlaybackResolution.kt). It may be called again for the same track on resume, seek, or late-join sync, so treat playback URLs as renewable.
-- Attach resolve-time metadata such as integrated LUFS or synchronized lyrics through `PlaybackResolution.trackPatch`. That patch is intentionally limited to a small subset of writable track fields.
+- Attach resolve-time metadata such as loudness or synchronized lyrics through `PlaybackResolution.trackPatch`. That patch is intentionally limited to a small subset of writable track fields.
 - `resolveIdentifier(...)` returns `Pass` when the input does not belong to your source, `Blocked` for expected refusal, `Resolved` for a final track, or `Choices` for a further selection step.
 - Generic resolvers such as plain HTTP should set `isFallbackResolver = true` so source-specific share-link handlers run first.
 
