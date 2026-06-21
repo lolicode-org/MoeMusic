@@ -12,7 +12,7 @@ object ClientVolume {
 
     const val MIN_PERCENT: Int = 0
     const val MAX_PERCENT: Int = 100
-    const val DEFAULT_PERCENT: Int = 50
+    const val DEFAULT_PERCENT: Int = 100
 
     fun normalizePercent(percent: Int): Int = percent.coerceIn(MIN_PERCENT, MAX_PERCENT)
 
