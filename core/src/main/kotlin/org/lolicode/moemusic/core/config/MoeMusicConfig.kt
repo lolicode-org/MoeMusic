@@ -469,7 +469,7 @@ data class LoudnessNormalizationConfig(
         const val MAX_TARGET_LUFS: Double = 0.0
         const val TRUE_PEAK_CEILING_DBFS: Double = -1.0
         const val SAMPLE_PEAK_CEILING_DBFS: Double = -2.0
-        const val USER_RELATIVE_MAX_BOOST_DB: Double = 6.0
+        const val USER_RELATIVE_MAX_BOOST_DB: Double = 6.0  // 9.0 or 12.0?
     }
 }
 

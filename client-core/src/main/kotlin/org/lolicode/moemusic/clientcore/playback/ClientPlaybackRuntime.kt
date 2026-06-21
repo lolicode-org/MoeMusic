@@ -18,6 +18,7 @@ import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
 import org.lolicode.moemusic.core.protocol.proto.*
 import org.slf4j.LoggerFactory
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
@@ -246,9 +247,12 @@ class ClientPlaybackRuntime(
         )
 
     fun refreshTrackNormalization() {
-        platform.audio.setNormalizationGain(
-            currentContext?.track?.let(::normalizationGainForTrack) ?: 1.0f
-        )
+        val track = currentContext?.track
+        if (track != null) {
+            applyTrackNormalization(track, "config refresh")
+        } else {
+            clearTrackNormalization("config refresh without active track")
+        }
     }
 
     fun onConnectionJoined() {
@@ -268,7 +272,7 @@ class ClientPlaybackRuntime(
         stopSyncLoop()
         InstancePlaybackLock.release()
         platform.audio.stop()
-        platform.audio.setNormalizationGain(1.0f)
+        clearTrackNormalization("connection disconnected")
         platform.audio.clearSavedState()
         clearContext()
     }
@@ -910,7 +914,7 @@ class ClientPlaybackRuntime(
                     playback.url,
                     playback.headers.keys,
                 )
-                platform.audio.setNormalizationGain(normalizationGainForTrack(locallyAllowedTrack))
+                applyTrackNormalization(locallyAllowedTrack, "snapshot PLAYING")
                 platform.audio.play(playback, seekMs)
                 platform.stopBlockedPlatformSoundsIfNeeded()
                 currentContext = TrackContext(
@@ -955,7 +959,7 @@ class ClientPlaybackRuntime(
                     playback.url,
                     playback.headers.keys,
                 )
-                platform.audio.setNormalizationGain(normalizationGainForTrack(locallyAllowedTrack))
+                applyTrackNormalization(locallyAllowedTrack, "snapshot PAUSED")
                 platform.audio.play(playback, posMs)
                 platform.audio.pause()
                 currentContext = TrackContext(
@@ -1290,7 +1294,7 @@ class ClientPlaybackRuntime(
     private fun stopActivePlayback(fireEvent: Boolean = false) {
         val stoppedTrack = currentContext?.track
         platform.audio.stop()
-        platform.audio.setNormalizationGain(1.0f)
+        clearTrackNormalization("stop active playback")
         currentContext = null
         currentLyrics = null
         currentSecondaryLyrics = null
@@ -1333,7 +1337,42 @@ class ClientPlaybackRuntime(
     }
 
     private fun normalizationGainForTrack(track: TrackInfo): Float =
-        platform.clientConfig().loudnessNormalization.gainForTrack(track.loudness)
+        platform.clientConfig().loudnessNormalization.normalized().gainForTrack(track.loudness)
+
+    private fun applyTrackNormalization(track: TrackInfo, reason: String) {
+        val normalization = platform.clientConfig().loudnessNormalization.normalized()
+        val gain = normalization.gainForTrack(track.loudness)
+        logger.debug(
+            "{} normalization {}: source={} id={} title='{}' mode={} targetLufs={} rawLoudness={} effectiveLoudness={} appliedGain={}",
+            platform.name,
+            reason,
+            track.sourceId.orEmpty(),
+            track.id,
+            track.title,
+            normalization.mode,
+            normalization.targetLufs,
+            describeLoudness(track.loudness),
+            describeLoudness(track.loudness?.normalizedOrNull()),
+            gain,
+        )
+        platform.audio.setNormalizationGain(gain)
+    }
+
+    private fun clearTrackNormalization(reason: String) {
+        logger.debug("{} normalization {}: appliedGain=1.0", platform.name, reason)
+        platform.audio.setNormalizationGain(1.0f)
+    }
+
+    private fun describeLoudness(loudness: LoudnessInfo?): String {
+        if (loudness == null) return "none"
+        val lufs = loudness.integratedLufs
+            ?.let { String.format(Locale.ROOT, "%.4f LUFS", it) }
+            ?: "none"
+        val peak = loudness.peak?.let { peak ->
+            "amplitude=${String.format(Locale.ROOT, "%.4f", peak.amplitudeLinear)} kind=${peak.kind}"
+        } ?: "none"
+        return "lufs=$lufs peak=$peak"
+    }
 
     override fun ensureDirectRequestSessionReady() {
         if (!platform.hasConnection()) {

@@ -52,7 +52,7 @@ class ClientAudioPlayerRuntime(
         stop()
         currentPlayback = playback
         reportedPositionMs = seekMs.coerceAtLeast(0L)
-        applyOutputGain()
+        applyOutputGain("track load")
         loader.load(playback, ringBuffer, seekMs) { error ->
             logger.error("Track load failed: {}", error)
             onError(error)
@@ -132,16 +132,27 @@ class ClientAudioPlayerRuntime(
     /** Set client-local playback volume in the `0.0 .. 1.0` range. */
     fun setVolume(value: Float) {
         volume = value.coerceIn(0.0f, 1.0f)
-        applyOutputGain()
+        applyOutputGain("volume update")
     }
 
     /** Apply a non-negative normalization multiplier. Final output is still clamped to `0.0 .. 1.0`. */
     fun setNormalizationGain(value: Float) {
         normalizationGain = value.takeIf(Float::isFinite)?.coerceAtLeast(0.0f) ?: 1.0f
-        applyOutputGain()
+        applyOutputGain("normalization update")
     }
 
-    private fun applyOutputGain() {
-        output.setGain((volume * normalizationGain).coerceIn(0.0f, 1.0f))
+    private fun applyOutputGain(reason: String) {
+        val unclampedGain = volume * normalizationGain
+        val finalGain = unclampedGain.coerceIn(0.0f, 1.0f)
+        output.setGain(finalGain)
+        logger.debug(
+            "ClientAudioPlayer: {} volume={} normalizationGain={} unclampedGain={} finalGain={} playback={}",
+            reason,
+            volume,
+            normalizationGain,
+            unclampedGain,
+            finalGain,
+            currentPlayback?.url ?: "<none>",
+        )
     }
 }
