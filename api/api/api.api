@@ -1193,6 +1193,33 @@ public final class org/lolicode/moemusic/api/model/ExactTrackFilterRule$Companio
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
+public abstract interface class org/lolicode/moemusic/api/model/PlaybackResolution {
+	public abstract fun getPlayback ()Lorg/lolicode/moemusic/api/model/PlaybackResource;
+	public fun getTrackPatch ()Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;
+	public abstract fun toBuilder ()Lorg/lolicode/moemusic/api/model/PlaybackResolutionBuilder;
+}
+
+public final class org/lolicode/moemusic/api/model/PlaybackResolution$DefaultImpls {
+	public static fun getTrackPatch (Lorg/lolicode/moemusic/api/model/PlaybackResolution;)Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;
+}
+
+public final class org/lolicode/moemusic/api/model/PlaybackResolutionBuilder {
+	public final fun build ()Lorg/lolicode/moemusic/api/model/PlaybackResolution;
+	public final fun getPlayback ()Lorg/lolicode/moemusic/api/model/PlaybackResource;
+	public final fun getTrackPatch ()Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;
+	public final fun setPlayback (Lorg/lolicode/moemusic/api/model/PlaybackResource;)V
+	public final fun setTrackPatch (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)V
+}
+
+public final class org/lolicode/moemusic/api/model/PlaybackResolutionKt {
+	public static final fun PlaybackResolution (Lorg/lolicode/moemusic/api/model/PlaybackResource;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/PlaybackResolution;
+	public static synthetic fun PlaybackResolution$default (Lorg/lolicode/moemusic/api/model/PlaybackResource;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/PlaybackResolution;
+	public static final fun ResolvedTrackPatch (Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;
+	public static synthetic fun ResolvedTrackPatch$default (Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;
+	public static final fun copy (Lorg/lolicode/moemusic/api/model/PlaybackResolution;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/PlaybackResolution;
+	public static final fun copy (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;Lkotlin/jvm/functions/Function1;)Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;
+}
+
 public abstract interface class org/lolicode/moemusic/api/model/PlaybackResource {
 	public fun getHeaders ()Ljava/util/Map;
 	public abstract fun getUrl ()Ljava/lang/String;
@@ -1247,6 +1274,41 @@ public final class org/lolicode/moemusic/api/model/PlaybackState$Stopped : org/l
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class org/lolicode/moemusic/api/model/ResolvedTrackPatch {
+	public fun getAlbum ()Ljava/lang/String;
+	public fun getCoverUrl ()Ljava/lang/String;
+	public fun getIntegratedLufs ()Ljava/lang/Double;
+	public fun getLyricLrc ()Ljava/lang/String;
+	public fun getLyricsFetched ()Ljava/lang/Boolean;
+	public fun getSecondaryLyricLrc ()Ljava/lang/String;
+	public abstract fun toBuilder ()Lorg/lolicode/moemusic/api/model/ResolvedTrackPatchBuilder;
+}
+
+public final class org/lolicode/moemusic/api/model/ResolvedTrackPatch$DefaultImpls {
+	public static fun getAlbum (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/String;
+	public static fun getCoverUrl (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/String;
+	public static fun getIntegratedLufs (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/Double;
+	public static fun getLyricLrc (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/String;
+	public static fun getLyricsFetched (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/Boolean;
+	public static fun getSecondaryLyricLrc (Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;)Ljava/lang/String;
+}
+
+public final class org/lolicode/moemusic/api/model/ResolvedTrackPatchBuilder {
+	public final fun build ()Lorg/lolicode/moemusic/api/model/ResolvedTrackPatch;
+	public final fun getAlbum ()Ljava/lang/String;
+	public final fun getCoverUrl ()Ljava/lang/String;
+	public final fun getIntegratedLufs ()Ljava/lang/Double;
+	public final fun getLyricLrc ()Ljava/lang/String;
+	public final fun getLyricsFetched ()Ljava/lang/Boolean;
+	public final fun getSecondaryLyricLrc ()Ljava/lang/String;
+	public final fun setAlbum (Ljava/lang/String;)V
+	public final fun setCoverUrl (Ljava/lang/String;)V
+	public final fun setIntegratedLufs (Ljava/lang/Double;)V
+	public final fun setLyricLrc (Ljava/lang/String;)V
+	public final fun setLyricsFetched (Ljava/lang/Boolean;)V
+	public final fun setSecondaryLyricLrc (Ljava/lang/String;)V
 }
 
 public final class org/lolicode/moemusic/api/model/SearchKt {

@@ -53,8 +53,8 @@ private fun TrackInfo.directPlayback(): PlaybackResource = PlaybackResource(id.t
  */
 private val SAMPLE_SOURCE = object : MusicSource {
     override val id: String = SAMPLE_SOURCE_ID
-    override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-        track.directPlayback()
+    override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+        PlaybackResolution(track.directPlayback())
 }
 
 private val SAMPLE_PLAYER = object : MoeMusicUser() {
@@ -267,7 +267,7 @@ class TrackQueueTest {
         val source = object : MusicSource {
             override val id: String = "test-autoplay"
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
 
             override suspend fun getAutoplayTracks(): List<TrackInfo> = listOf(
                 SAMPLE_TRACK.copy { id = "autoplay-1"; sourceId = "test-autoplay" },
@@ -291,7 +291,7 @@ class TrackQueueTest {
         )
         val source = object : MusicSource {
             override val id: String = "empty-autoplay"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
 
             override suspend fun getAutoplayTracks(): List<TrackInfo> {
                 fetchCount += 1
@@ -322,7 +322,7 @@ class TrackQueueTest {
         val source = object : MusicSource {
             override val id: String = "broken-autoplay"
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = throw SourceNetworkException()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = throw SourceNetworkException()
 
             override suspend fun getAutoplayTracks(): List<TrackInfo> {
                 autoplayFetchCount += 1
@@ -415,6 +415,95 @@ class ServerPlaybackControllerTest {
         assertTrue(ctrl.currentContext?.state is PlaybackState.Playing)
         assertEquals(SAMPLE_TRACK.id, ctrl.currentContext?.track?.id)
         assertEquals(RESOLVED_PLAYBACK, ctrl.currentContext?.playback)
+    }
+
+    @Test
+    fun `submitTrack preserves resolve time metadata patch across getTrackInfo refresh`() = runBlocking {
+        var getTrackInfoCalls = 0
+        val source = object : MusicSource {
+            override val id: String = SAMPLE_SOURCE_ID
+
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=resolve")) {
+                    trackPatch = ResolvedTrackPatch {
+                        integratedLufs = -9.5
+                        album = "Resolve Album"
+                    }
+                }
+
+            override suspend fun getTrackInfo(trackId: String, submitter: MoeMusicUser?): UserResult<TrackInfo?> {
+                getTrackInfoCalls += 1
+                return UserResult.Success(
+                    TrackInfo(
+                        id = trackId,
+                        title = "Authoritative",
+                        artists = listOf("Artist").toArtistInfos(),
+                        durationMs = 180_000,
+                    ) {
+                        sourceId = id
+                    }
+                )
+            }
+        }
+        PluginManager.musicSources += source
+        try {
+            val (ctrl, _) = freshController()
+            val result = ctrl.submitTrack(
+                track = SAMPLE_TRACK.copy { id = "resolve-metadata-track"; sourceId = source.id },
+                requesterId = SAMPLE_PLAYER.id,
+                mode = TrackAddMode.PLAY_NOW,
+            )
+
+            assertEquals(TrackAddResult.PLAYING_NOW, result)
+            assertEquals(1, getTrackInfoCalls)
+            assertEquals("Authoritative", ctrl.currentContext?.track?.title)
+            assertEquals("Resolve Album", ctrl.currentContext?.track?.album)
+            assertEquals(-9.5, ctrl.currentContext?.track?.integratedLufs)
+        } finally {
+            PluginManager.musicSources -= source
+        }
+    }
+
+    @Test
+    fun `resolve lyricsFetched suppresses extra getTrackInfo refresh`() = runBlocking {
+        var getTrackInfoCalls = 0
+        val source = object : MusicSource {
+            override val id: String = SAMPLE_SOURCE_ID
+
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=resolve")) {
+                    trackPatch = ResolvedTrackPatch {
+                        lyricLrc = "[00:01.00]Hello"
+                        secondaryLyricLrc = "[00:01.00]你好"
+                        lyricsFetched = true
+                    }
+                }
+
+            override suspend fun getTrackInfo(trackId: String, submitter: MoeMusicUser?): UserResult<TrackInfo?> {
+                getTrackInfoCalls += 1
+                return UserResult.Error(LocalizedText.plain("should not be called"))
+            }
+        }
+        PluginManager.musicSources += source
+        try {
+            val (ctrl, channel) = freshController()
+            val result = ctrl.submitTrack(
+                track = SAMPLE_TRACK.copy { id = "resolve-lyrics-track"; sourceId = source.id },
+                requesterId = SAMPLE_PLAYER.id,
+                mode = TrackAddMode.PLAY_NOW,
+            )
+
+            val pkt = channel.broadcasts.single { it.id == PacketIds.PLAYBACK_SNAPSHOT_PUSH }
+            val decoded = PlaybackSnapshotPush.ADAPTER.decode(pkt.payload)
+            val snapshot = assertNotNull(decoded.snapshot)
+            assertEquals(TrackAddResult.PLAYING_NOW, result)
+            assertEquals(0, getTrackInfoCalls)
+            assertEquals("[00:01.00]Hello", snapshot.lyric_lrc)
+            assertEquals("[00:01.00]你好", snapshot.secondary_lyric_lrc)
+            assertTrue(ctrl.currentContext?.track?.lyricsFetched == true)
+        } finally {
+            PluginManager.musicSources -= source
+        }
     }
 
     @Test
@@ -774,7 +863,7 @@ class ServerPlaybackControllerTest {
         val source = object : MusicSource {
             override val id: String = "broken"
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = throw SourceNetworkException()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = throw SourceNetworkException()
         }
         PluginManager.musicSources += source
         PluginManager.musicSources += SAMPLE_SOURCE
@@ -806,8 +895,8 @@ class ServerPlaybackControllerTest {
         )
         val blockedSource = object : MusicSource {
             override val id: String = "blocked"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-                PlaybackResource("file:///tmp/${track.id}.mp3")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("file:///tmp/${track.id}.mp3"))
         }
 
         PluginManager.musicSources += blockedSource
@@ -840,7 +929,7 @@ class ServerPlaybackControllerTest {
     fun `play now surfaces typed source failures as user facing exceptions`() = runBlocking {
         val source = object : MusicSource {
             override val id: String = "ncm"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = throw SourceNetworkException()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = throw SourceNetworkException()
         }
         PluginManager.musicSources += source
         try {
@@ -861,7 +950,7 @@ class ServerPlaybackControllerTest {
     fun `play now converts unexpected source failures to internal user feedback`() = runBlocking {
         val source = object : MusicSource {
             override val id: String = "ncm"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = throw IllegalStateException("boom")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = throw IllegalStateException("boom")
         }
         PluginManager.musicSources += source
         try {
@@ -928,9 +1017,9 @@ class ServerPlaybackControllerTest {
             override val id: String = SAMPLE_SOURCE_ID
             var resolveCalls: Int = 0
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource {
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
                 resolveCalls += 1
-                return PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=$resolveCalls")
+                return PlaybackResolution(PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=$resolveCalls"))
             }
         }
         PluginManager.musicSources += source
@@ -960,12 +1049,61 @@ class ServerPlaybackControllerTest {
     }
 
     @Test
+    fun `buildPlaybackSnapshot refresh updates current track metadata from resolve`() {
+        val source = object : MusicSource {
+            override val id: String = SAMPLE_SOURCE_ID
+            var resolveCalls: Int = 0
+
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
+                resolveCalls += 1
+                return PlaybackResolution(
+                    PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=$resolveCalls")
+                ) {
+                    trackPatch = ResolvedTrackPatch {
+                        integratedLufs = -12.0
+                        lyricLrc = "[00:01.00]Hello"
+                        secondaryLyricLrc = "[00:01.00]你好"
+                        lyricsFetched = true
+                    }
+                }
+            }
+        }
+        PluginManager.musicSources += source
+        try {
+            val ctrl = ServerPlaybackController(
+                channel = CapturingChannel(),
+                queue = TrackQueue(),
+                eventBus = EventBusImpl(),
+            ).apply {
+                playbackRefreshCooldownNanos = 20L * 1_000_000L
+                playbackRefreshFailureBackoffNanos = 20L * 1_000_000L
+            }
+            val track = SAMPLE_TRACK.copy { id = "refresh-metadata-track"; sourceId = source.id }
+            ctrl.play(track, PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=initial"))
+
+            Thread.sleep(30)
+            val snapshot = assertNotNull(ctrl.buildPlaybackSnapshot())
+
+            assertEquals(1, source.resolveCalls)
+            assertEquals("https://cdn.example.com/audio/${track.id}.mp3?sig=1", snapshot.playback?.url)
+            assertEquals(-12.0, snapshot.track?.integrated_lufs)
+            assertEquals("[00:01.00]Hello", snapshot.lyric_lrc)
+            assertEquals("[00:01.00]你好", snapshot.secondary_lyric_lrc)
+            assertEquals(-12.0, ctrl.currentContext?.track?.integratedLufs)
+            assertEquals("[00:01.00]Hello", ctrl.currentContext?.track?.lyricLrc)
+            assertTrue(ctrl.currentContext?.track?.lyricsFetched == true)
+        } finally {
+            PluginManager.musicSources -= source
+        }
+    }
+
+    @Test
     fun `buildPlaybackSnapshot backs off repeated refresh failures and keeps existing playback`() {
         val source = object : MusicSource {
             override val id: String = SAMPLE_SOURCE_ID
             var resolveCalls: Int = 0
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource {
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
                 resolveCalls += 1
                 throw SourceNetworkException()
             }
@@ -1002,9 +1140,9 @@ class ServerPlaybackControllerTest {
             override val id: String = SAMPLE_SOURCE_ID
             var resolveCalls: Int = 0
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource {
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
                 resolveCalls += 1
-                return PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=$resolveCalls")
+                return PlaybackResolution(PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=$resolveCalls"))
             }
         }
         PluginManager.musicSources += source

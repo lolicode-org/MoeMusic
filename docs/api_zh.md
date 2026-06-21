@@ -215,7 +215,8 @@ ctx.eventBus.subscribe<OnTrackSubmitted> { event ->
 - 直接曲目行必须使用 [SelectionEntryKind.TRACK](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt#L30)，并将最终稳定的 `TrackInfo.id` 填入 `selectionId`。
 - 专辑、歌单等中间容器行可使用 `CONTAINER` 或 `UNKNOWN`，随后通过 `resolveSelection(...)` 展开。
 - `getTrackInfo(...)`：若曲目不存在，应返回 `UserResult.Success(null)`；若为预期内的拒绝操作，应返回 `UserResult.Error`；只有当本次查找必须异常中止时，才应当抛出异常。
-- `resolve(...)`：根据 `TrackInfo.id` 定位或签发当前可播放的 [PlaybackResource](../api/src/main/kotlin/org/lolicode/moemusic/api/model/PlaybackResource.kt)。同一首曲目在恢复播放、跳转进度或新玩家同步时可能会被多次解析，因此播放地址应视为可重新签发的资源。
+- `resolve(...)`：返回 [PlaybackResolution](../api/src/main/kotlin/org/lolicode/moemusic/api/model/PlaybackResolution.kt) 的播放解析入口。同一首曲目在恢复播放、跳转进度或新玩家同步时可能会被多次解析，因此播放地址应视为可重新签发的资源。
+- 若签发播放地址的同一次请求还能拿到当前曲目的额外元数据，可通过 `PlaybackResolution.trackPatch` 回传一个针对 TrackInfo 的补丁，例如 LUFS 或歌词。
 - `resolveIdentifier(...)`：对于非本音源支持的输入，应返回 `Pass`；对于预期内的拒绝，应返回 `Blocked`；对于确定的直接曲目，应返回 `Resolved`；对于需要进一步展开选择的容器，应返回 `Choices`。
 - 类似于通用 HTTP 解析器这类泛用解析器，应设置 `isFallbackResolver = true`，以便让针对特定平台的分享链接解析器优先尝试解析。
 

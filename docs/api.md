@@ -318,10 +318,14 @@ object ExampleSource : SearchableMusicSource, IdentifierResolvableMusicSource {
     override suspend fun resolve(
         track: TrackInfo,
         submitter: MoeMusicUser?,
-    ): PlaybackResource {
+    ): PlaybackResolution {
         val url = runCatching { signPlaybackUrl(track.id) }
             .getOrElse { throw SourceNetworkException(it) }
-        return PlaybackResource(url = url)
+        return PlaybackResolution(PlaybackResource(url = url)) {
+            trackPatch = ResolvedTrackPatch {
+                integratedLufs = -14.2
+            }
+        }
     }
 
     override suspend fun resolveIdentifier(
@@ -351,7 +355,8 @@ Source method contracts:
 - Direct track rows must use `SelectionEntryKind.TRACK` and put the final stable `TrackInfo.id` key in `selectionId`.
 - Container rows can use `CONTAINER` or `UNKNOWN` and later resolve through `resolveSelection(...)`.
 - `getTrackInfo(...)` returns `Success(null)` for not found, `UserResult.Error` for expected user-facing rejection, and throws only when the lookup must abort.
-- `resolve(...)` uses `TrackInfo.id` to locate or sign the current `PlaybackResource`. It may be called again for the same track on resume, seek, or late-join sync, so treat playback URLs as renewable.
+- `resolve(...)` returns a [PlaybackResolution](../api/src/main/kotlin/org/lolicode/moemusic/api/model/PlaybackResolution.kt). It may be called again for the same track on resume, seek, or late-join sync, so treat playback URLs as renewable.
+- Attach resolve-time metadata such as integrated LUFS or synchronized lyrics through `PlaybackResolution.trackPatch`. That patch is intentionally limited to a small subset of writable track fields.
 - `resolveIdentifier(...)` returns `Pass` when the input does not belong to your source, `Blocked` for expected refusal, `Resolved` for a final track, or `Choices` for a further selection step.
 - Generic resolvers such as plain HTTP should set `isFallbackResolver = true` so source-specific share-link handlers run first.
 

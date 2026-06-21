@@ -7,6 +7,7 @@ import org.lolicode.moemusic.api.IdentifierResolutionResult
 import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.api.MoeMusicUser
 import org.lolicode.moemusic.api.event.OnIdentifierResolved
+import org.lolicode.moemusic.api.model.PlaybackResolution
 import org.lolicode.moemusic.api.model.PlaybackResource
 import org.lolicode.moemusic.api.model.SelectionEntry
 import org.lolicode.moemusic.api.model.TrackInfo
@@ -230,6 +231,6 @@ class IdentifierResolutionServiceTest {
         override val isFallbackResolver: Boolean = isFallback
         override suspend fun resolveIdentifier(identifier: String, submitter: MoeMusicUser?): IdentifierResolutionResult =
             resolver(identifier, submitter)
-        override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+        override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
     }
 }

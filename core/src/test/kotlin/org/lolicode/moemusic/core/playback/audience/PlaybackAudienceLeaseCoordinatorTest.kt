@@ -2,6 +2,7 @@ package org.lolicode.moemusic.core.playback.audience
 
 import org.lolicode.moemusic.api.MoeMusicUser
 import org.lolicode.moemusic.api.MusicSource
+import org.lolicode.moemusic.api.model.PlaybackResolution
 import org.lolicode.moemusic.api.model.PlaybackState
 import org.lolicode.moemusic.api.model.PlaybackResource
 import org.lolicode.moemusic.api.model.copy
@@ -42,8 +43,8 @@ class PlaybackAudienceLeaseCoordinatorTest {
     private val sampleSource = object : MusicSource {
         override val id: String = "lease-source"
 
-        override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-            PlaybackResource("https://example.com/${track.id}.mp3")
+        override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+            PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
     }
 
     private fun controller(queue: TrackQueue = TrackQueue()): ServerPlaybackController =

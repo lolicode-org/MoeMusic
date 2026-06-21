@@ -555,7 +555,7 @@ class ServerPlaybackController(
             return UserResult.Error(LocalizedText.key("error.moemusic.internal"))
         }
 
-        val resolvedPlayback = try {
+        val resolution = try {
             source.resolve(track)
         } catch (e: Exception) {
             logger.error(
@@ -568,6 +568,7 @@ class ServerPlaybackController(
             return UserResult.Error(UserFacingErrors.classify(e))
         }
 
+        val resolvedPlayback = resolution.playback
         if (resolvedPlayback.url.isBlank()) {
             logger.error(
                 "Refusing to play '{}' because source '{}' returned a blank playback URL.",
@@ -577,11 +578,13 @@ class ServerPlaybackController(
             return UserResult.Error(LocalizedText.key("error.moemusic.internal"))
         }
 
-        val metadataTrack = if (refreshMetadata && !track.lyricsFetched && track.id.isNotBlank()) {
-            when (val metadata = source.getTrackInfo(track.id)) {
-                is UserResult.Success -> metadata.value?.let(track::mergePreservingRuntimeMetadata) ?: track.copy {
-                    lyricsFetched = true
-                }
+        val resolvedTrack = resolution.trackPatch?.let { patch -> track.applyResolvedTrackPatch(patch) } ?: track
+        val metadataTrack = if (refreshMetadata && !resolvedTrack.lyricsFetched && resolvedTrack.id.isNotBlank()) {
+            when (val metadata = source.getTrackInfo(resolvedTrack.id)) {
+                is UserResult.Success ->
+                    metadata.value?.let { refreshed -> resolvedTrack.mergePreservingResolveMetadata(refreshed) } ?: resolvedTrack.copy {
+                        lyricsFetched = true
+                    }
 
                 is UserResult.Error -> {
                     logger.warn(
@@ -590,15 +593,36 @@ class ServerPlaybackController(
                         sourceId,
                         metadata.message.debugString(),
                     )
-                    track.copy { lyricsFetched = true }
+                    resolvedTrack.copy { lyricsFetched = true }
                 }
             }
         } else {
-            track
+            resolvedTrack
         }
 
         return UserResult.Success(ResolvedPlayback(metadataTrack, resolvedPlayback))
     }
+
+    private fun TrackInfo.applyResolvedTrackPatch(patch: ResolvedTrackPatch): TrackInfo =
+        copy {
+            coverUrl = patch.coverUrl ?: this@applyResolvedTrackPatch.coverUrl
+            album = patch.album ?: this@applyResolvedTrackPatch.album
+            lyricLrc = patch.lyricLrc ?: this@applyResolvedTrackPatch.lyricLrc
+            secondaryLyricLrc = patch.secondaryLyricLrc ?: this@applyResolvedTrackPatch.secondaryLyricLrc
+            patch.lyricsFetched?.let { lyricsFetched = it }
+            integratedLufs = patch.integratedLufs ?: this@applyResolvedTrackPatch.integratedLufs
+        }
+
+    private fun TrackInfo.mergePreservingResolveMetadata(refreshed: TrackInfo): TrackInfo =
+        mergePreservingRuntimeMetadata(refreshed).copy {
+            sourceId = refreshed.sourceId ?: this@mergePreservingResolveMetadata.sourceId
+            coverUrl = refreshed.coverUrl ?: this@mergePreservingResolveMetadata.coverUrl
+            album = refreshed.album ?: this@mergePreservingResolveMetadata.album
+            lyricLrc = refreshed.lyricLrc ?: this@mergePreservingResolveMetadata.lyricLrc
+            secondaryLyricLrc =
+                refreshed.secondaryLyricLrc ?: this@mergePreservingResolveMetadata.secondaryLyricLrc
+            lyricsFetched = refreshed.lyricsFetched || this@mergePreservingResolveMetadata.lyricsFetched
+        }
 
     private suspend fun playNow(track: TrackInfo): TrackAddResult {
         queue.removeMatchingUserTrack(track)
@@ -795,10 +819,11 @@ class ServerPlaybackController(
 
             return when (refreshed) {
                 is UserResult.Success -> {
+                    val refreshedTrack = sanitizeTrackForClient(refreshed.value.track)
                     val playback = refreshed.value.playback
                     when (MediaUrlPolicy.evaluate(playback.url, serverOutboundPolicy())) {
                         MediaUrlPolicyResult.Allow -> {
-                            val updated = current.copy(playback = playback)
+                            val updated = current.copy(track = refreshedTrack, playback = playback)
                             currentContext = updated
                             markCurrentPlaybackFresh()
                             logger.debug("Refreshed playback resource for '{}' due to {}.", current.track.title, reason)

@@ -3,6 +3,7 @@ package org.lolicode.moemusic.api
 import org.lolicode.moemusic.api.model.SearchQuery
 import org.lolicode.moemusic.api.model.SearchResult
 import org.lolicode.moemusic.api.model.PlaybackResource
+import org.lolicode.moemusic.api.model.PlaybackResolution
 import org.lolicode.moemusic.api.model.SelectionResolveResult
 import org.lolicode.moemusic.api.model.TrackInfo
 import org.lolicode.moemusic.api.model.SelectionEntry
@@ -146,15 +147,20 @@ public interface MusicSource {
 
 
     /**
-     * Resolves [track] to a direct, playable client resource.
+     * Resolves [track] to a direct, playable client resource plus an optional resolve-time metadata
+     * patch for the active track.
      *
      * Called when core needs a direct, client-playable resource for the current track. This is
      * always done immediately before the initial playback start, and may also happen again later
      * for reopen paths such as resume, seek, or late-join sync when the server wants a fresher
      * playback URL or header set.
      *
-     * The returned [PlaybackResource] is sent to the client and may include per-request HTTP
-     * headers required for playback.
+     * The returned [PlaybackResolution.playback] is sent to the client and may include per-request
+     * HTTP headers required for playback. When the same upstream request also reveals additional
+     * stable track metadata (for example synchronized lyrics or integrated LUFS), return a limited
+     * [PlaybackResolution.trackPatch] rather than trying to smuggle those fields through
+     * [PlaybackResource].
+     *
      * The source should use [TrackInfo.id] to locate and sign the audio stream. This value is an
      * opaque source-local key: for HTTP sources it is the direct URL itself; for API-backed
      * sources it may be a bare native id or a typed key such as `"song:123"` / `"episode:456"`.
@@ -168,7 +174,7 @@ public interface MusicSource {
      *                  resolution (e.g. autoplay). Sources may use this to generate
      *                  per-user signed URLs or enforce playback quotas.
      */
-    public suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser? = null): PlaybackResource
+    public suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser? = null): PlaybackResolution
 
     /**
      * Fetches metadata for a single track by its source-local [trackId] (the [TrackInfo.id] value).

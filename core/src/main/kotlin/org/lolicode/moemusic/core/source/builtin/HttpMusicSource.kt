@@ -4,6 +4,7 @@ import org.lolicode.moemusic.api.IdentifierResolutionResult
 import org.lolicode.moemusic.api.IdentifierResolvableMusicSource
 import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.api.MoeMusicUser
+import org.lolicode.moemusic.api.model.PlaybackResolution
 import org.lolicode.moemusic.api.model.PlaybackResource
 import org.lolicode.moemusic.api.model.TrackInfo
 import org.lolicode.moemusic.api.model.toArtistInfos
@@ -52,13 +53,13 @@ object HttpMusicSource : IdentifierResolvableMusicSource {
         )
     }
 
-    override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource {
+    override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
         val url = requireNotNull(track.id.takeIf { it.isNotBlank() }) {
             "HttpMusicSource: track id is blank for track '${track.title}'"
         }
         require(url.startsWith("http://") || url.startsWith("https://")) {
             "HttpMusicSource only supports http:// and https:// URLs, got: $url"
         }
-        return PlaybackResource(url)
+        return PlaybackResolution(PlaybackResource(url))
     }
 }

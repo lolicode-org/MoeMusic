@@ -601,13 +601,13 @@ class PluginManagerTest {
 
         val sourceA = object : MusicSource {
             override val id = "duplicate-source-${System.nanoTime()}"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource {
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
                 error("unused")
             }
         }
         val sourceB = object : MusicSource {
             override val id = sourceA.id
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource {
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
                 error("unused")
             }
         }

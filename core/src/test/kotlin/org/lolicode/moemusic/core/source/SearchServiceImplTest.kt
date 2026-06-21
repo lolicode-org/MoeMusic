@@ -43,7 +43,7 @@ class SearchServiceImplTest {
                 ))
             }
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val outcome = SearchServiceImpl(listOf(source)).searchWithOutcome(
@@ -66,7 +66,7 @@ class SearchServiceImplTest {
         ModConfigManager.save(MoeMusicConfig())
         val nonSearchable = object : MusicSource {
             override val id: String = "http"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
         val searchable = object : MusicSource, SearchableMusicSource {
             override val id: String = "beta"
@@ -81,7 +81,7 @@ class SearchServiceImplTest {
                     )
                 )
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val service = SearchServiceImpl(listOf(nonSearchable, searchable))
@@ -112,7 +112,7 @@ class SearchServiceImplTest {
                         total = 1,
                     )
                 )
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
         val beta = object : MusicSource, SearchableMusicSource {
             override val id: String = "beta"
@@ -124,7 +124,7 @@ class SearchServiceImplTest {
                         total = 1,
                     )
                 )
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val service = SearchServiceImpl(listOf(alpha, beta))
@@ -139,7 +139,7 @@ class SearchServiceImplTest {
         ModConfigManager.save(MoeMusicConfig(defaultSourceId = "http"))
         val nonSearchable = object : MusicSource {
             override val id: String = "http"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
         val searchable = object : MusicSource, SearchableMusicSource {
             override val id: String = "beta"
@@ -151,7 +151,7 @@ class SearchServiceImplTest {
                         total = 1,
                     )
                 )
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val service = SearchServiceImpl(listOf(nonSearchable, searchable))
@@ -167,7 +167,7 @@ class SearchServiceImplTest {
             override suspend fun search(query: SearchQuery, submitter: MoeMusicUser?): UserResult<SearchResult> {
                 throw SourceTimeoutException()
             }
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val outcome = SearchServiceImpl(listOf(source)).searchWithOutcome(
@@ -186,7 +186,7 @@ class SearchServiceImplTest {
             override suspend fun search(query: SearchQuery, submitter: MoeMusicUser?): UserResult<SearchResult> {
                 throw IllegalStateException("boom")
             }
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val outcome = SearchServiceImpl(listOf(source)).searchWithOutcome(
@@ -216,7 +216,7 @@ class SearchServiceImplTest {
                 )
             }
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val outcome = SearchServiceImpl(listOf(source)).searchWithOutcome(
@@ -254,7 +254,7 @@ class SearchServiceImplTest {
                 return UserResult.Success(SearchResult(entries = emptyList(), sourceId = id, total = 0))
             }
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val error = assertFailsWith<FilterBlockException> {
@@ -290,7 +290,7 @@ class SearchServiceImplTest {
                     )
                 )
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val outcome = SearchServiceImpl(listOf(source)).searchWithOutcome(
@@ -323,7 +323,7 @@ class SearchServiceImplTest {
                     )
                 )
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource = TODO()
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution = TODO()
         }
 
         val outcome = SearchServiceImpl(listOf(source)).searchWithOutcome(

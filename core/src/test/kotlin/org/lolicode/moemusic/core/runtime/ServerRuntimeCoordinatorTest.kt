@@ -51,8 +51,8 @@ class ServerRuntimeCoordinatorTest {
         val source = object : MusicSource {
             override val id = "test-reload-order-source"
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-                PlaybackResource("https://example.test/${track.id}")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.test/${track.id}"))
 
             override suspend fun getAutoplayTracks(): List<TrackInfo> {
                 val playlistId = activePlaylistId.get()

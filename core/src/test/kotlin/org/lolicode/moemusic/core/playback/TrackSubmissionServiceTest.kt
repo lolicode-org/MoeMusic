@@ -36,8 +36,8 @@ class TrackSubmissionServiceTest {
                     )
                 )
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-                PlaybackResource("https://example.com/${track.id}.mp3")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
         }
 
         withMusicSource(source) {
@@ -63,8 +63,8 @@ class TrackSubmissionServiceTest {
                     )
                 )
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-                PlaybackResource("https://example.com/${track.id}.mp3")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
         }
 
         withMusicSource(source) {
@@ -83,8 +83,8 @@ class TrackSubmissionServiceTest {
         ModConfigManager.save(MoeMusicConfig(media = MediaPolicyConfig(maxPlayerTrackDurationSeconds = 60)))
         val source = object : MusicSource {
             override val id: String = "source"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-                PlaybackResource("https://example.com/${track.id}.mp3")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
         }
 
         withMusicSource(source) {
@@ -105,8 +105,8 @@ class TrackSubmissionServiceTest {
         ModConfigManager.save(MoeMusicConfig(media = MediaPolicyConfig(maxPlayerTrackDurationSeconds = 60)))
         val source = object : MusicSource {
             override val id: String = "source"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-                PlaybackResource("https://example.com/${track.id}.mp3")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
         }
 
         withMusicSource(source) {
@@ -146,8 +146,8 @@ class TrackSubmissionServiceTest {
                 )
             }
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-                PlaybackResource("https://example.com/${track.id}.mp3")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
         }
 
         withMusicSource(source) {
@@ -173,8 +173,8 @@ class TrackSubmissionServiceTest {
                 return UserResult.Error(LocalizedText.plain("should not be called"))
             }
 
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-                PlaybackResource("https://example.com/${track.id}.mp3")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
         }
 
         withMusicSource(source) {
@@ -197,8 +197,8 @@ class TrackSubmissionServiceTest {
 
         val source = object : MusicSource {
             override val id: String = "source"
-            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResource =
-                PlaybackResource("https://example.com/${track.id}.mp3")
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
         }
 
         withMusicSource(source) {
