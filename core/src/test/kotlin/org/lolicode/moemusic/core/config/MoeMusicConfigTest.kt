@@ -97,7 +97,7 @@ class MoeMusicConfigTest {
         assertEquals(listOf("server:example.com", "singleplayer:world"), normalized.client.disabledServers)
         assertEquals(100, normalized.client.volume)
         assertEquals(LoudnessNormalizationMode.ATTENUATE_ONLY, normalized.client.loudnessNormalization.mode)
-        assertEquals(-14.0, normalized.client.loudnessNormalization.targetLufs)
+        assertEquals(-16.0, normalized.client.loudnessNormalization.targetLufs)
         assertEquals(true, normalized.client.joinShortcutTipShown)
         assertEquals(1, normalized.client.coverArt.maxDownloadMebibytes)
         assertEquals(64, normalized.client.coverArt.maxSourceDimension)

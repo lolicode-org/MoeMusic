@@ -498,7 +498,7 @@ data class LoudnessNormalizationConfig(
         targetLufs.takeIf(Double::isFinite)?.coerceIn(MIN_TARGET_LUFS, MAX_TARGET_LUFS) ?: DEFAULT_TARGET_LUFS
 
     companion object {
-        const val DEFAULT_TARGET_LUFS: Double = -14.0
+        const val DEFAULT_TARGET_LUFS: Double = -16.0
         const val MIN_TARGET_LUFS: Double = -30.0
         const val MAX_TARGET_LUFS: Double = 0.0
         const val TRUE_PEAK_CEILING_DBFS: Double = -1.0

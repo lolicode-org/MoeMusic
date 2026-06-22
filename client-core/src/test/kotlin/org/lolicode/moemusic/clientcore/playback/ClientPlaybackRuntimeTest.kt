@@ -144,7 +144,7 @@ class ClientPlaybackRuntimeTest {
         assertEquals(1, harness.platform.audio.plays.size)
         assertEquals("https://example.test/audio.mp3", harness.platform.audio.plays.single().playback.url)
         assertEquals(1_234L, harness.platform.audio.plays.single().seekMs)
-        assertEquals(0.5011872f, harness.platform.audio.normalizationGains.last(), 0.000001f)
+        assertEquals(0.39810717f, harness.platform.audio.normalizationGains.last(), 0.000001f)
         assertTrue(harness.platform.stoppedBlockedSounds)
         assertEquals(1, harness.listener.snapshotsApplied)
         assertTrue(harness.listener.playbackStateChanges >= 1)
