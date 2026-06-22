@@ -439,17 +439,46 @@ data class LoudnessNormalizationConfig(
         targetLufs = normalizedTargetLufs(),
     )
 
-    fun gainForTrack(loudness: LoudnessInfo?): Float {
-        if (mode == LoudnessNormalizationMode.OFF) return 1.0f
-        val normalizedLoudness = loudness?.normalizedOrNull() ?: return 1.0f
-        val trackLufs = normalizedLoudness.integratedLufs ?: return 1.0f
+    fun gainForTrack(loudness: LoudnessInfo?): Float =
+        decisionForTrack(loudness).gain
+
+    fun decisionForTrack(loudness: LoudnessInfo?): LoudnessNormalizationDecision {
+        val normalizedLoudness = loudness?.normalizedOrNull()
+        val sourceLufs = normalizedLoudness?.integratedLufs
+        if (mode == LoudnessNormalizationMode.OFF) {
+            return LoudnessNormalizationDecision(
+                gain = 1.0f,
+                effectiveLoudness = normalizedLoudness,
+                usedIntegratedLufs = sourceLufs,
+                usedFallbackIntegratedLufs = false,
+            )
+        }
+        val trackLufs = sourceLufs ?: ASSUMED_UNKNOWN_TRACK_LUFS
+        val usedFallback = sourceLufs == null
         val desiredDb = normalizedTargetLufs() - trackLufs
         if (desiredDb <= 0.0) {
-            return 10.0.pow(desiredDb / 20.0).toFloat()
+            return LoudnessNormalizationDecision(
+                gain = 10.0.pow(desiredDb / 20.0).toFloat(),
+                effectiveLoudness = normalizedLoudness,
+                usedIntegratedLufs = trackLufs,
+                usedFallbackIntegratedLufs = usedFallback,
+            )
         }
-        if (mode != LoudnessNormalizationMode.CONSERVATIVE_BOOST) return 1.0f
+        if (mode != LoudnessNormalizationMode.CONSERVATIVE_BOOST) {
+            return LoudnessNormalizationDecision(
+                gain = 1.0f,
+                effectiveLoudness = normalizedLoudness,
+                usedIntegratedLufs = trackLufs,
+                usedFallbackIntegratedLufs = usedFallback,
+            )
+        }
 
-        val peak = normalizedLoudness.peak ?: return 1.0f
+        val peak = normalizedLoudness?.peak ?: return LoudnessNormalizationDecision(
+            gain = 1.0f,
+            effectiveLoudness = normalizedLoudness,
+            usedIntegratedLufs = trackLufs,
+            usedFallbackIntegratedLufs = usedFallback,
+        )
         val peakCeilingDbFs = when (peak.kind) {
             PeakKind.TRUE -> TRUE_PEAK_CEILING_DBFS
             PeakKind.SAMPLE, PeakKind.UNKNOWN -> SAMPLE_PEAK_CEILING_DBFS
@@ -457,7 +486,12 @@ data class LoudnessNormalizationConfig(
         val peakDbFs = 20.0 * log10(peak.amplitudeLinear)
         val peakSafeBoostDb = peakCeilingDbFs - peakDbFs
         val appliedDb = minOf(desiredDb, peakSafeBoostDb, USER_RELATIVE_MAX_BOOST_DB).coerceAtLeast(0.0)
-        return 10.0.pow(appliedDb / 20.0).toFloat()
+        return LoudnessNormalizationDecision(
+            gain = 10.0.pow(appliedDb / 20.0).toFloat(),
+            effectiveLoudness = normalizedLoudness,
+            usedIntegratedLufs = trackLufs,
+            usedFallbackIntegratedLufs = usedFallback,
+        )
     }
 
     private fun normalizedTargetLufs(): Double =
@@ -469,9 +503,17 @@ data class LoudnessNormalizationConfig(
         const val MAX_TARGET_LUFS: Double = 0.0
         const val TRUE_PEAK_CEILING_DBFS: Double = -1.0
         const val SAMPLE_PEAK_CEILING_DBFS: Double = -2.0
-        const val USER_RELATIVE_MAX_BOOST_DB: Double = 6.0  // 9.0 or 12.0?
+        const val USER_RELATIVE_MAX_BOOST_DB: Double = 9.0  // 6.0 is safer but more restrictive
+        const val ASSUMED_UNKNOWN_TRACK_LUFS: Double = -7.0
     }
 }
+
+data class LoudnessNormalizationDecision(
+    val gain: Float,
+    val effectiveLoudness: LoudnessInfo?,
+    val usedIntegratedLufs: Double?,
+    val usedFallbackIntegratedLufs: Boolean,
+)
 
 @Serializable
 enum class LoudnessNormalizationMode {

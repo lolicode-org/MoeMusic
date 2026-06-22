@@ -131,9 +131,11 @@ class MoeMusicConfigTest {
         )
         val loudTrack = LoudnessInfo { integratedLufs = -8.0 }
         val quietTrack = LoudnessInfo { integratedLufs = -20.0 }
+        val invalidLufsTrack = LoudnessInfo { integratedLufs = Double.NaN }
 
         assertEquals(1.0f, config.gainForTrack(quietTrack))
-        assertEquals(1.0f, config.gainForTrack(null))
+        assertEquals(0.4466836f, config.gainForTrack(null), 0.000001f)
+        assertEquals(0.4466836f, config.gainForTrack(invalidLufsTrack), 0.000001f)
         assertEquals(1.0f, config.copy(mode = LoudnessNormalizationMode.OFF).gainForTrack(loudTrack))
         assertEquals(0.5011872f, config.gainForTrack(loudTrack), 0.000001f)
     }
@@ -158,10 +160,37 @@ class MoeMusicConfigTest {
             integratedLufs = -20.0
             peak = PeakInfo(0.0) { kind = PeakKind.TRUE }
         }
+        val missingLufsWithPeak = LoudnessInfo {
+            peak = PeakInfo(0.5) { kind = PeakKind.TRUE }
+        }
+        val boostedTargetWithoutPeak = LoudnessNormalizationConfig(
+            mode = LoudnessNormalizationMode.CONSERVATIVE_BOOST,
+            targetLufs = -6.0,
+        )
 
         assertEquals(1.7825019f, config.gainForTrack(withTruePeak), 0.000001f)
         assertEquals(1.5886564f, config.gainForTrack(withSamplePeak), 0.000001f)
         assertEquals(1.0f, config.gainForTrack(withoutPeak))
         assertEquals(1.0f, config.gainForTrack(invalidPeak))
+        assertEquals(0.4466836f, config.gainForTrack(missingLufsWithPeak), 0.000001f)
+        assertEquals(1.0f, boostedTargetWithoutPeak.gainForTrack(null))
+    }
+
+    @Test
+    fun `normalization decision marks assumed loudness fallback explicitly`() {
+        val config = LoudnessNormalizationConfig(
+            mode = LoudnessNormalizationMode.ATTENUATE_ONLY,
+            targetLufs = -14.0,
+        )
+
+        val fallbackDecision = config.decisionForTrack(null)
+        assertEquals(0.4466836f, fallbackDecision.gain, 0.000001f)
+        assertEquals(LoudnessNormalizationConfig.ASSUMED_UNKNOWN_TRACK_LUFS, fallbackDecision.usedIntegratedLufs)
+        assertEquals(true, fallbackDecision.usedFallbackIntegratedLufs)
+        assertEquals(null, fallbackDecision.effectiveLoudness)
+
+        val explicitDecision = config.decisionForTrack(LoudnessInfo { integratedLufs = -8.0 })
+        assertEquals(-8.0, explicitDecision.usedIntegratedLufs)
+        assertEquals(false, explicitDecision.usedFallbackIntegratedLufs)
     }
 }

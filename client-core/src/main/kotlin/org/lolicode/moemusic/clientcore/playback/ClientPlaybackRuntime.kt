@@ -1336,14 +1336,11 @@ class ClientPlaybackRuntime(
         }
     }
 
-    private fun normalizationGainForTrack(track: TrackInfo): Float =
-        platform.clientConfig().loudnessNormalization.normalized().gainForTrack(track.loudness)
-
     private fun applyTrackNormalization(track: TrackInfo, reason: String) {
         val normalization = platform.clientConfig().loudnessNormalization.normalized()
-        val gain = normalization.gainForTrack(track.loudness)
+        val decision = normalization.decisionForTrack(track.loudness)
         logger.debug(
-            "{} normalization {}: source={} id={} title='{}' mode={} targetLufs={} rawLoudness={} effectiveLoudness={} appliedGain={}",
+            "{} normalization {}: source={} id={} title='{}' mode={} targetLufs={} rawLoudness={} effectiveLoudness={} usedIntegratedLufs={} fallbackAssumedLoudness={} appliedGain={}",
             platform.name,
             reason,
             track.sourceId.orEmpty(),
@@ -1352,10 +1349,12 @@ class ClientPlaybackRuntime(
             normalization.mode,
             normalization.targetLufs,
             describeLoudness(track.loudness),
-            describeLoudness(track.loudness?.normalizedOrNull()),
-            gain,
+            describeLoudness(decision.effectiveLoudness),
+            describeIntegratedLufs(decision.usedIntegratedLufs),
+            decision.usedFallbackIntegratedLufs,
+            decision.gain,
         )
-        platform.audio.setNormalizationGain(gain)
+        platform.audio.setNormalizationGain(decision.gain)
     }
 
     private fun clearTrackNormalization(reason: String) {
@@ -1373,6 +1372,9 @@ class ClientPlaybackRuntime(
         } ?: "none"
         return "lufs=$lufs peak=$peak"
     }
+
+    private fun describeIntegratedLufs(value: Double?): String =
+        value?.let { String.format(Locale.ROOT, "%.4f LUFS", it) } ?: "none"
 
     override fun ensureDirectRequestSessionReady() {
         if (!platform.hasConnection()) {

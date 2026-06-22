@@ -210,7 +210,7 @@ ctx.eventBus.subscribe<OnTrackSubmitted> { event ->
 核心接口方法的语义说明：
 
 - `TrackInfo.id`：由音源自己定义和解释。它是音源内部稳定使用的曲目标识，不必等同于上游平台的 ID。一个音源若同时暴露多种上游资源类型，应使用带类型的标识，避免后续查询和播放走错接口。
-- `TrackInfo.loudness`：可选的音源侧响度数据。将 LUFS 放在 `loudness.integratedLufs`，若音源还能提供可信的峰值测量，则可额外填写 `loudness.peak`。
+- `TrackInfo.loudness`：可选的音源侧响度数据。将 LUFS 放在 `loudness.integratedLufs`，若音源还能提供可信的峰值测量，则可额外填写 `loudness.peak`。客户端会对缺失或无效的 LUFS 采用保守处理，因此能提供真实 LUFS 的音源应尽量提供。
 - `search(...)`：返回用户可见的 [SearchResult](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt#L59)。无结果属于成功的空页面，不应抛出异常。
 - 直接曲目行必须使用 [SelectionEntryKind.TRACK](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt#L30)，并将最终稳定的 `TrackInfo.id` 填入 `selectionId`。
 - 专辑、歌单等中间容器行可使用 `CONTAINER` 或 `UNKNOWN`，随后通过 `resolveSelection(...)` 展开。
