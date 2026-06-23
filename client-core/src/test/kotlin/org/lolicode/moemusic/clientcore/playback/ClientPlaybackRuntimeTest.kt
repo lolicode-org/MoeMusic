@@ -109,6 +109,48 @@ class ClientPlaybackRuntimeTest {
     }
 
     @Test
+    fun `ui bootstrap response updates cached queue snapshot and capabilities`() {
+        val harness = harness()
+        harness.acceptWelcome()
+
+        val requestId = assertNotNull(harness.runtime.sendUiBootstrapRequest())
+        val request = harness.platform.decodeLast(PacketIds.UI_BOOTSTRAP_REQUEST, UiBootstrapRequest.ADAPTER::decode)
+        assertEquals(requestId, request.request_id)
+
+        val first = UiBootstrapResponse(
+            request_id = request.request_id,
+            tracks = listOf(
+                TrackInfoProto(
+                    source_id = "youtube",
+                    id = "track-1",
+                    title = "Track One",
+                    duration_ms = 180_000L,
+                )
+            ),
+            capabilities = UiCapabilitySnapshot(
+                can_submit_duplicate = false,
+            ),
+        )
+        harness.runtime.handleUiBootstrapResponse(first)
+
+        assertSame(first, harness.runtime.lastUiBootstrapResponse)
+        assertEquals("track-1", harness.runtime.lastUiBootstrapResponse?.tracks?.single()?.id)
+        assertEquals(false, harness.runtime.uiCapabilitySnapshot?.can_submit_duplicate)
+        assertSame(first, harness.listener.uiBootstrapResponses.single())
+
+        val second = UiBootstrapResponse(
+            request_id = request.request_id + 1,
+            capabilities = UiCapabilitySnapshot(
+                can_submit_duplicate = true,
+            ),
+        )
+        harness.runtime.handleUiBootstrapResponse(second)
+
+        assertSame(second, harness.runtime.lastUiBootstrapResponse)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.can_submit_duplicate)
+    }
+
+    @Test
     fun `playback snapshot loads current context and starts audio`() {
         val harness = harness()
         harness.acceptWelcome()
@@ -254,6 +296,7 @@ class ClientPlaybackRuntimeTest {
         val searchCatalogs = mutableListOf<SearchSourceCatalog?>()
         val acceptedCatalogs = mutableListOf<SearchSourceCatalog>()
         val searchResponses = mutableListOf<SearchResponse>()
+        val uiBootstrapResponses = mutableListOf<UiBootstrapResponse>()
         var snapshotsApplied = 0
         var playbackStateChanges = 0
 
@@ -267,6 +310,10 @@ class ClientPlaybackRuntimeTest {
 
         override fun onSearchResponse(response: SearchResponse) {
             searchResponses += response
+        }
+
+        override fun onUiBootstrapResponse(response: UiBootstrapResponse) {
+            uiBootstrapResponses += response
         }
 
         override fun onPlaybackSnapshotApplied() {

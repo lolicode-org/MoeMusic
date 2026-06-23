@@ -46,6 +46,9 @@ object PacketIds {
     /** Client requests the current user queue. */
     val QUEUE_REQUEST = PacketId(NS, "queue_request")
 
+    /** Builtin GUI requests its initial queue snapshot plus UI capability snapshot. */
+    val UI_BOOTSTRAP_REQUEST = PacketId(NS, "ui_bootstrap_request")
+
     /** Client requests removal of a track from the queue by (source_id, track_id). */
     val QUEUE_REMOVE_REQUEST = PacketId(NS, "queue_remove_request")
 
@@ -77,6 +80,9 @@ object PacketIds {
     /** Server's response to a QueueRequest. */
     val QUEUE_RESPONSE = PacketId(NS, "queue_response")
 
+    /** Server's response to a UiBootstrapRequest. */
+    val UI_BOOTSTRAP_RESPONSE = PacketId(NS, "ui_bootstrap_response")
+
     /** Server's response to a QueueRemoveRequest. */
     val QUEUE_REMOVE_RESPONSE = PacketId(NS, "queue_remove_response")
 
@@ -89,9 +95,9 @@ object PacketIds {
     /** All registered IDs, in definition order — convenient for bulk registration. */
     val ALL: List<PacketId> = listOf(
         CLIENT_HANDSHAKE, CLIENT_STATE_CHANGE, SYNC_REQUEST, TRACK_SUBMIT, IDENTIFIER_SUBMIT, SELECTION_SUBMIT, SEARCH_REQUEST,
-        QUEUE_REQUEST, QUEUE_REMOVE_REQUEST, PLAYBACK_CONTROL_REQUEST, CONTENT_FILTER_ACTION_REQUEST,
+        QUEUE_REQUEST, UI_BOOTSTRAP_REQUEST, QUEUE_REMOVE_REQUEST, PLAYBACK_CONTROL_REQUEST, CONTENT_FILTER_ACTION_REQUEST,
         TRACK_SUBMIT_RESPONSE, IDENTIFIER_SUBMIT_RESPONSE, SELECTION_SUBMIT_RESPONSE, SYNC_RESPONSE, SERVER_WELCOME, PLAYBACK_SNAPSHOT_PUSH, STATE_UPDATE,
         SEARCH_RESPONSE,
-        QUEUE_RESPONSE, QUEUE_REMOVE_RESPONSE, PLAYBACK_CONTROL_RESPONSE, CONTENT_FILTER_ACTION_RESPONSE,
+        QUEUE_RESPONSE, UI_BOOTSTRAP_RESPONSE, QUEUE_REMOVE_RESPONSE, PLAYBACK_CONTROL_RESPONSE, CONTENT_FILTER_ACTION_RESPONSE,
     )
 }

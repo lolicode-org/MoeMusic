@@ -84,6 +84,12 @@ message SearchSourceInfo {
   bool searchable = 3;
 }
 
+/** Small capability snapshot used by the builtin client GUI. */
+message UiCapabilitySnapshot {
+  /** True when duplicate submissions should stay available in the builtin GUI. */
+  bool can_submit_duplicate = 1;
+}
+
 enum ClientStateProto {
   CLIENT_STATE_ACTIVE = 0;
   CLIENT_STATE_STANDBY = 1;
@@ -199,6 +205,11 @@ message SearchRequest {
 
 /** Client requests the current user queue. */
 message QueueRequest {
+  int64 request_id = 1;
+}
+
+/** Builtin GUI requests its initial queue snapshot plus capability snapshot. */
+message UiBootstrapRequest {
   int64 request_id = 1;
 }
 
@@ -382,6 +393,16 @@ message QueueResponse {
   repeated TrackInfoProto tracks = 2;
   /** Non-empty when an error occurred. Empty means success. */
   string failure = 3;
+}
+
+/** Builtin GUI bootstrap response with initial queue data plus UI capabilities. */
+message UiBootstrapResponse {
+  /** Echoed from the originating UiBootstrapRequest. */
+  int64 request_id = 1;
+  repeated TrackInfoProto tracks = 2;
+  /** Non-empty when queue loading failed. Empty means success. */
+  string failure = 3;
+  UiCapabilitySnapshot capabilities = 4;
 }
 
 /** Server's response to a QueueRemoveRequest. */

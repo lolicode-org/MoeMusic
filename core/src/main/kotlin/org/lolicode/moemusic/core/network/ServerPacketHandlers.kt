@@ -47,6 +47,11 @@ class ServerPacketHandlers(
     private val sessions: ServerPacketSessionBridge,
 ) {
 
+    private data class QueueSnapshotPayload(
+        val tracks: List<TrackInfoProto>,
+        val failure: String?,
+    )
+
     private val logger = LoggerFactory.getLogger(ServerPacketHandlers::class.java)
     private val timeSyncHandler = TimeSyncHandler()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -176,6 +181,38 @@ class ServerPacketHandlers(
             val response = timeSyncHandler.handleSyncRequest(msg)
             channel.sendToClient(sender, PacketIds.SYNC_RESPONSE, response.encode())
             logger.debug("SyncRequest from {} → responded (clientSend={})", sender.displayName, msg.client_send_monotonic)
+        }
+
+        // UI_BOOTSTRAP_REQUEST — send the builtin GUI its initial queue snapshot plus UI capabilities
+        registry.register(
+            PacketIds.UI_BOOTSTRAP_REQUEST,
+            { UiBootstrapRequest.ADAPTER.decode(it) },
+        ) { msg, sender ->
+            if (sender == null) return@register
+            val response = try {
+                val queueSnapshot = buildQueueSnapshotFor(sender)
+                UiBootstrapResponse(
+                    tracks = queueSnapshot.tracks,
+                    failure = queueSnapshot.failure.orEmpty(),
+                    capabilities = buildUiCapabilitiesFor(sender),
+                    request_id = msg.request_id,
+                )
+            } catch (e: Exception) {
+                logHandledFailure("UiBootstrapRequest", sender, e)
+                UiBootstrapResponse(
+                    failure = render(sender, UserFacingErrors.classify(e)),
+                    capabilities = buildUiCapabilitiesFor(sender),
+                    request_id = msg.request_id,
+                )
+            }
+            channel.sendToClient(sender, PacketIds.UI_BOOTSTRAP_RESPONSE, response.encode())
+            logger.debug(
+                "UiBootstrapResponse → {}: {} tracks failure='{}' canSubmitDuplicate={}",
+                sender.displayName,
+                response.tracks.size,
+                response.failure,
+                response.capabilities?.can_submit_duplicate == true,
+            )
         }
 
         // TRACK_SUBMIT — enqueue by (source_id, track_id); permission checks then authoritative lookup
@@ -457,25 +494,11 @@ class ServerPacketHandlers(
             { QueueRequest.ADAPTER.decode(it) },
         ) { msg, sender ->
             if (sender == null) return@register
-            if (!hasPermission(sender, PermissionNodes.QUEUE_VIEW)) {
-                channel.sendToClient(
-                    sender,
-                    PacketIds.QUEUE_RESPONSE,
-                    QueueResponse(
-                        failure = render(sender, PermissionNodes.QUEUE_VIEW.deniedMessage),
-                        request_id = msg.request_id,
-                    ).encode()
-                )
-                return@register
-            }
             val response = try {
-                val snapshot = ServerRuntimeCoordinator.queue.userQueueSnapshot()
-                val canBypass = senderHasFilterBypass(sender)
-                val canSeeDetail = senderHasFilterManage(sender)
+                val queueSnapshot = buildQueueSnapshotFor(sender)
                 QueueResponse(
-                    tracks = snapshot.map { track ->
-                        ProtocolViewMapper.trackToClientProto(track, canBypass, canSeeDetail) { render(sender, it) }
-                    },
+                    tracks = queueSnapshot.tracks,
+                    failure = queueSnapshot.failure.orEmpty(),
                     request_id = msg.request_id,
                 )
             } catch (e: Exception) {
@@ -696,6 +719,29 @@ class ServerPacketHandlers(
 
     private fun hasPermission(sender: MoeMusicUser, permission: PermissionNodes.Node): Boolean {
         return sender.hasPermission(permission.id, permission.defaultLevel())
+    }
+
+    private fun buildUiCapabilitiesFor(sender: MoeMusicUser): UiCapabilitySnapshot =
+        UiCapabilitySnapshot(
+            can_submit_duplicate = hasPermission(sender, PermissionNodes.SUBMIT_DUPLICATE),
+        )
+
+    private fun buildQueueSnapshotFor(sender: MoeMusicUser): QueueSnapshotPayload {
+        if (!hasPermission(sender, PermissionNodes.QUEUE_VIEW)) {
+            return QueueSnapshotPayload(
+                tracks = emptyList(),
+                failure = render(sender, PermissionNodes.QUEUE_VIEW.deniedMessage),
+            )
+        }
+        val snapshot = ServerRuntimeCoordinator.queue.userQueueSnapshot()
+        val canBypass = senderHasFilterBypass(sender)
+        val canSeeDetail = senderHasFilterManage(sender)
+        return QueueSnapshotPayload(
+            tracks = snapshot.map { track ->
+                ProtocolViewMapper.trackToClientProto(track, canBypass, canSeeDetail) { render(sender, it) }
+            },
+            failure = null,
+        )
     }
 
     private fun render(sender: MoeMusicUser, text: LocalizedText): String =

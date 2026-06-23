@@ -56,6 +56,7 @@ interface ClientPlaybackPlatform {
 interface ClientPlaybackRuntimeListener {
     fun onSearchSourcesChanged(catalog: SearchSourceCatalog?) {}
     fun onSearchResponse(response: SearchResponse) {}
+    fun onUiBootstrapResponse(response: UiBootstrapResponse) {}
     fun onTrackSubmitResponse(response: TrackSubmitResponse) {}
     fun onIdentifierSubmitResponse(response: IdentifierSubmitResponse) {}
     fun onSelectionSubmitResponse(response: SelectionSubmitResponse) {}
@@ -110,6 +111,7 @@ class ClientPlaybackRuntime(
     private val requestIdCounter = AtomicLong(1L)
     private val pendingSearchResponses = PendingRequestRegistry<SearchResponse>()
     private val pendingQueueResponses = PendingRequestRegistry<QueueResponse>()
+    private val pendingUiBootstrapResponses = PendingRequestRegistry<UiBootstrapResponse>()
     private val pendingTrackSubmitResponses = PendingRequestRegistry<TrackSubmitResponse>()
     private val pendingIdentifierSubmitResponses = PendingRequestRegistry<IdentifierSubmitResponse>()
     private val pendingSelectionSubmitResponses = PendingRequestRegistry<SelectionSubmitResponse>()
@@ -137,6 +139,9 @@ class ClientPlaybackRuntime(
 
     @Volatile
     private var latestQueueResponseRequestId: Long = 0L
+
+    @Volatile
+    private var latestUiBootstrapResponseRequestId: Long = 0L
 
     @Volatile
     private var latestTrackSubmitResponseRequestId: Long = 0L
@@ -193,6 +198,14 @@ class ClientPlaybackRuntime(
 
     @Volatile
     var lastQueueResponse: QueueResponse? = null
+        private set
+
+    @Volatile
+    var lastUiBootstrapResponse: UiBootstrapResponse? = null
+        private set
+
+    @Volatile
+    var uiCapabilitySnapshot: UiCapabilitySnapshot? = null
         private set
 
     @Volatile
@@ -304,6 +317,7 @@ class ClientPlaybackRuntime(
             PacketIds.SYNC_RESPONSE -> handleSyncResponse(SyncResponse.ADAPTER.decode(payload))
             PacketIds.SERVER_WELCOME -> handleServerWelcome(ServerWelcome.ADAPTER.decode(payload))
             PacketIds.SEARCH_RESPONSE -> handleSearchResponse(SearchResponse.ADAPTER.decode(payload))
+            PacketIds.UI_BOOTSTRAP_RESPONSE -> handleUiBootstrapResponse(UiBootstrapResponse.ADAPTER.decode(payload))
             PacketIds.TRACK_SUBMIT_RESPONSE -> handleTrackSubmitResponse(TrackSubmitResponse.ADAPTER.decode(payload))
             PacketIds.IDENTIFIER_SUBMIT_RESPONSE -> handleIdentifierSubmitResponse(IdentifierSubmitResponse.ADAPTER.decode(payload))
             PacketIds.SELECTION_SUBMIT_RESPONSE -> handleSelectionSubmitResponse(SelectionSubmitResponse.ADAPTER.decode(payload))
@@ -558,6 +572,24 @@ class ClientPlaybackRuntime(
         listener.onTrackSubmitResponse(msg)
     }
 
+    fun handleUiBootstrapResponse(msg: UiBootstrapResponse) {
+        if (!canHandleDirectResponses("UiBootstrapResponse")) return
+        logger.debug(
+            "{} UiBootstrapResponse: {} tracks failure='{}' canSubmitDuplicate={}",
+            platform.name,
+            msg.tracks.size,
+            msg.failure,
+            msg.capabilities?.can_submit_duplicate == true,
+        )
+        pendingUiBootstrapResponses.complete(msg.request_id, msg)
+        if (msg.request_id == 0L || msg.request_id >= latestUiBootstrapResponseRequestId) {
+            latestUiBootstrapResponseRequestId = msg.request_id
+            lastUiBootstrapResponse = msg
+            uiCapabilitySnapshot = msg.capabilities
+        }
+        listener.onUiBootstrapResponse(msg)
+    }
+
     fun handleIdentifierSubmitResponse(msg: IdentifierSubmitResponse) {
         if (!canHandleDirectResponses("IdentifierSubmitResponse")) return
         if (msg.failure.isNotEmpty()) {
@@ -661,6 +693,12 @@ class ClientPlaybackRuntime(
         return requestId
     }
 
+    fun sendUiBootstrapRequest(): Long? {
+        val requestId = nextCorrelatedRequestId() ?: return null
+        platform.sendToServer(PacketIds.UI_BOOTSTRAP_REQUEST, UiBootstrapRequest(request_id = requestId).encode())
+        return requestId
+    }
+
     fun sendQueueRemoveRequest(track: TrackInfo): Long? {
         val sourceId = track.sourceId ?: return null
         if (sourceId.isBlank() || track.id.isBlank()) return null
@@ -755,6 +793,7 @@ class ClientPlaybackRuntime(
         instanceLockWaitNotified = false
         latestSearchResponseRequestId = 0L
         latestQueueResponseRequestId = 0L
+        latestUiBootstrapResponseRequestId = 0L
         latestTrackSubmitResponseRequestId = 0L
         latestQueueRemoveResponseRequestId = 0L
         latestPlaybackControlResponseRequestId = 0L
@@ -767,6 +806,7 @@ class ClientPlaybackRuntime(
         currentSecondaryLyrics = null
         lastSearchResponse = null
         lastQueueResponse = null
+        lastUiBootstrapResponse = null
         lastTrackSubmitResponse = null
         lastQueueRemoveResponse = null
         lastPlaybackControlResponse = null
@@ -774,6 +814,7 @@ class ClientPlaybackRuntime(
         lastLocalPlaybackBlockedMessage = null
         lastInstanceLockMessage = null
         sourceCatalog = null
+        uiCapabilitySnapshot = null
         handshakeRequestedAtNanos = 0L
         serverHandshakeReceived = false
         serverSessionAccepted = false
@@ -1406,6 +1447,7 @@ class ClientPlaybackRuntime(
     private fun failPendingRequests(cause: Throwable) {
         pendingSearchResponses.failAll(cause)
         pendingQueueResponses.failAll(cause)
+        pendingUiBootstrapResponses.failAll(cause)
         pendingTrackSubmitResponses.failAll(cause)
         pendingIdentifierSubmitResponses.failAll(cause)
         pendingSelectionSubmitResponses.failAll(cause)
@@ -1433,6 +1475,11 @@ class ClientPlaybackRuntime(
     override fun beginQueueRequest(): Deferred<QueueResponse>? =
         beginCorrelatedRequest(pendingQueueResponses, PacketIds.QUEUE_REQUEST) { requestId ->
             QueueRequest(request_id = requestId).encode()
+        }
+
+    internal fun beginUiBootstrapRequest(): Deferred<UiBootstrapResponse>? =
+        beginCorrelatedRequest(pendingUiBootstrapResponses, PacketIds.UI_BOOTSTRAP_REQUEST) { requestId ->
+            UiBootstrapRequest(request_id = requestId).encode()
         }
 
     override fun beginQueueRemoveRequest(sourceId: String, trackId: String): Deferred<QueueRemoveResponse>? {

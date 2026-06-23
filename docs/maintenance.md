@@ -254,6 +254,8 @@ Networking uses one physical channel with a typed packet registry keyed by packe
 
 The client must send [PacketIds.CLIENT_HANDSHAKE](../core/src/main/kotlin/org/lolicode/moemusic/core/protocol/PacketIds.kt#L17) on join even when local playback is disabled or the instance playback lock is unavailable. This lets the server learn the client's locale and reply to GUI/search/queue requests.
 
+The builtin GUI uses a dedicated `UI_BOOTSTRAP_REQUEST` for its open-time queue snapshot and small capability snapshot. Keep `QUEUE_REQUEST` as the queue-only refresh path for explicit refreshes and post-action queue reloads rather than widening unrelated action-result packets with extra GUI state.
+
 [PacketIds.CLIENT_HANDSHAKE](../core/src/main/kotlin/org/lolicode/moemusic/core/protocol/PacketIds.kt#L17) carries the initial client state. Mid-connection participation changes use [PacketIds.CLIENT_STATE_CHANGE](../core/src/main/kotlin/org/lolicode/moemusic/core/protocol/PacketIds.kt#L20).
 
 Server-side single-recipient sends should fail closed. Only allowlisted direct-response/handshake packets may target standby or pre-registered sessions; playback/state packets require active user-registry membership.
