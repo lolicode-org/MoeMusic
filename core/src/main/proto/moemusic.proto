@@ -86,8 +86,15 @@ message SearchSourceInfo {
 
 /** Small capability snapshot used by the builtin client GUI. */
 message UiCapabilitySnapshot {
-  /** True when duplicate submissions should stay available in the builtin GUI. */
-  bool can_submit_duplicate = 1;
+  bool has_search_permission = 1;
+  bool has_queue_view_permission = 2;
+  bool has_submit_permission = 3;
+  bool has_submit_skip_autoplay_permission = 4;
+  bool has_queue_control_permission = 5;
+  bool has_vote_permission = 6;
+  bool has_playback_control_permission = 7;
+  bool has_content_filter_manage_permission = 8;
+  bool has_submit_duplicate_permission = 9;
 }
 
 enum ClientStateProto {

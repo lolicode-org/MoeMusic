@@ -575,11 +575,11 @@ class ClientPlaybackRuntime(
     fun handleUiBootstrapResponse(msg: UiBootstrapResponse) {
         if (!canHandleDirectResponses("UiBootstrapResponse")) return
         logger.debug(
-            "{} UiBootstrapResponse: {} tracks failure='{}' canSubmitDuplicate={}",
+            "{} UiBootstrapResponse: {} tracks failure='{}' capabilities={}",
             platform.name,
             msg.tracks.size,
             msg.failure,
-            msg.capabilities?.can_submit_duplicate == true,
+            msg.capabilities?.toString(),
         )
         pendingUiBootstrapResponses.complete(msg.request_id, msg)
         if (msg.request_id == 0L || msg.request_id >= latestUiBootstrapResponseRequestId) {

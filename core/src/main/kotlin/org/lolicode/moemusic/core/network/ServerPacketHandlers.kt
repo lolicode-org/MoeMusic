@@ -207,11 +207,11 @@ class ServerPacketHandlers(
             }
             channel.sendToClient(sender, PacketIds.UI_BOOTSTRAP_RESPONSE, response.encode())
             logger.debug(
-                "UiBootstrapResponse → {}: {} tracks failure='{}' canSubmitDuplicate={}",
+                "UiBootstrapResponse → {}: {} tracks failure='{}' hasSubmitDuplicatePermission={}",
                 sender.displayName,
                 response.tracks.size,
                 response.failure,
-                response.capabilities?.can_submit_duplicate == true,
+                response.capabilities?.has_submit_duplicate_permission == true,
             )
         }
 
@@ -723,7 +723,15 @@ class ServerPacketHandlers(
 
     private fun buildUiCapabilitiesFor(sender: MoeMusicUser): UiCapabilitySnapshot =
         UiCapabilitySnapshot(
-            can_submit_duplicate = hasPermission(sender, PermissionNodes.SUBMIT_DUPLICATE),
+            has_search_permission = hasPermission(sender, PermissionNodes.SEARCH),
+            has_queue_view_permission = hasPermission(sender, PermissionNodes.QUEUE_VIEW),
+            has_submit_permission = hasPermission(sender, PermissionNodes.SUBMIT),
+            has_submit_skip_autoplay_permission = hasPermission(sender, PermissionNodes.SUBMIT_SKIP_AUTOPLAY),
+            has_queue_control_permission = hasPermission(sender, PermissionNodes.QUEUE_CONTROL),
+            has_vote_permission = hasPermission(sender, PermissionNodes.VOTE),
+            has_playback_control_permission = hasPermission(sender, PermissionNodes.PLAYBACK_CONTROL),
+            has_content_filter_manage_permission = hasPermission(sender, PermissionNodes.CONTENT_FILTER_MANAGE),
+            has_submit_duplicate_permission = hasPermission(sender, PermissionNodes.SUBMIT_DUPLICATE),
         )
 
     private fun buildQueueSnapshotFor(sender: MoeMusicUser): QueueSnapshotPayload {

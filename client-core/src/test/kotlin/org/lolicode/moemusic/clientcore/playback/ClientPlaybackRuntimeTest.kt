@@ -128,26 +128,54 @@ class ClientPlaybackRuntimeTest {
                 )
             ),
             capabilities = UiCapabilitySnapshot(
-                can_submit_duplicate = false,
+                has_search_permission = true,
+                has_queue_view_permission = true,
+                has_submit_permission = true,
+                has_submit_skip_autoplay_permission = false,
+                has_queue_control_permission = false,
+                has_vote_permission = true,
+                has_playback_control_permission = false,
+                has_content_filter_manage_permission = false,
+                has_submit_duplicate_permission = false,
             ),
         )
         harness.runtime.handleUiBootstrapResponse(first)
 
         assertSame(first, harness.runtime.lastUiBootstrapResponse)
         assertEquals("track-1", harness.runtime.lastUiBootstrapResponse?.tracks?.single()?.id)
-        assertEquals(false, harness.runtime.uiCapabilitySnapshot?.can_submit_duplicate)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.has_search_permission)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.has_queue_view_permission)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.has_submit_permission)
+        assertEquals(false, harness.runtime.uiCapabilitySnapshot?.has_submit_skip_autoplay_permission)
+        assertEquals(false, harness.runtime.uiCapabilitySnapshot?.has_queue_control_permission)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.has_vote_permission)
+        assertEquals(false, harness.runtime.uiCapabilitySnapshot?.has_playback_control_permission)
+        assertEquals(false, harness.runtime.uiCapabilitySnapshot?.has_content_filter_manage_permission)
+        assertEquals(false, harness.runtime.uiCapabilitySnapshot?.has_submit_duplicate_permission)
         assertSame(first, harness.listener.uiBootstrapResponses.single())
 
         val second = UiBootstrapResponse(
             request_id = request.request_id + 1,
             capabilities = UiCapabilitySnapshot(
-                can_submit_duplicate = true,
+                has_search_permission = true,
+                has_queue_view_permission = true,
+                has_submit_permission = true,
+                has_submit_skip_autoplay_permission = true,
+                has_queue_control_permission = true,
+                has_vote_permission = true,
+                has_playback_control_permission = true,
+                has_content_filter_manage_permission = true,
+                has_submit_duplicate_permission = true,
             ),
         )
         harness.runtime.handleUiBootstrapResponse(second)
 
         assertSame(second, harness.runtime.lastUiBootstrapResponse)
-        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.can_submit_duplicate)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.has_submit_skip_autoplay_permission)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.has_queue_control_permission)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.has_playback_control_permission)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.has_content_filter_manage_permission)
+        assertEquals(true, harness.runtime.uiCapabilitySnapshot?.has_submit_duplicate_permission)
     }
 
     @Test
