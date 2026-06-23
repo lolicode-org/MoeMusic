@@ -81,6 +81,7 @@
   "config.moemusic.permissions.content_filter_bypass": "绕过内容过滤",
   "config.moemusic.permissions.duration_policy_bypass": "绕过时长限制",
   "config.moemusic.permissions.rate_limit_bypass": "绕过频率限制",
+  "config.moemusic.permissions.submit_duplicate": "点播重复曲目",
 
   "config.moemusic.now_playing_hud.enabled": "启用 HUD",
   "config.moemusic.now_playing_hud.enabled.tooltip": "当有曲目正在播放时，在游戏内显示歌曲信息、封面、歌词等。",
@@ -233,6 +234,7 @@
   "error.moemusic.permission.content_filter_bypass": "你没有权限绕过内容过滤。",
   "error.moemusic.permission.duration_policy_bypass": "你没有权限绕过曲目时长限制。",
   "error.moemusic.permission.rate_limit_bypass": "你没有权限绕过请求频率限制。",
+  "error.moemusic.permission.submit_duplicate": "你没有权限点播重复的曲目。",
   "label.moemusic.yes": "§a✔",
   "label.moemusic.no": "§c✘",
   "error.moemusic.queue.invalid_index": "这个播放列表索引超出范围。",

@@ -20,10 +20,7 @@ MoeMusic 是一个专为多人同步播放音乐而设计的 Kotlin 库，支持
 
 MoeMusic 发布在 Codeberg Packages 和 GitHub Packages 上。 
 
-有关如何在 Gradle 中声明仓库和引入依赖的具体配置，请参阅 API 开发文档的对应章节：
-- **中文版**：[docs/api_zh.md](docs/api_zh.md#依赖与兼容性)
-- **英文版**：[docs/api.md](docs/api.md#dependency-and-compatibility)
-
+有关如何在 Gradle 中声明仓库和引入依赖的具体配置，请参阅 API 开发文档的对应章节。
 ### 文档链接
 - **开发接口指南**：[docs/api_zh.md](docs/api_zh.md) | [docs/api.md](docs/api.md)
 - **架构设计与维护说明**：[docs/maintenance.md](docs/maintenance.md)

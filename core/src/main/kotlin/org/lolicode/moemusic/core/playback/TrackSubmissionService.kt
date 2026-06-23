@@ -25,6 +25,7 @@ import org.lolicode.moemusic.core.event.CoreEvents
 import org.lolicode.moemusic.core.contentfilter.ContentFilterRuntime
 import org.lolicode.moemusic.core.permission.PermissionNodes.CONTENT_FILTER_BYPASS
 import org.lolicode.moemusic.core.permission.PermissionNodes.DURATION_POLICY_BYPASS
+import org.lolicode.moemusic.core.permission.PermissionNodes.SUBMIT_DUPLICATE
 import org.lolicode.moemusic.core.plugin.PluginManager
 import org.lolicode.moemusic.core.source.builtin.HttpMusicSource
 import org.slf4j.LoggerFactory
@@ -168,7 +169,7 @@ class TrackSubmissionService(
             throw TrackUnavailableException(stamped.unavailabilityMessage())
         }
 
-        val result = controller.submitTrack(stamped, submitter?.id, mode)
+        val result = controller.submitTrack(stamped, submitter?.id, mode, allowDuplicate = hasDuplicateBypass(submitter))
         logger.info(
             "Track submitted: submitter={} source={} id={} title='{}' mode={} result={}",
             submitter?.displayName ?: "<server>",
@@ -222,4 +223,15 @@ class TrackSubmissionService(
 
     private fun hasDurationPolicyBypass(submitter: MoeMusicUser): Boolean =
         submitter.hasPermission(DURATION_POLICY_BYPASS.id, DURATION_POLICY_BYPASS.defaultLevel())
+
+    /**
+     * Returns true when [submitter] holds the duplicate-submission bypass privilege.
+     *
+     * Null submitter (server-internal submission) never bypasses: internal submissions
+     * are not player-initiated and the duplicate guard is still meaningful for them.
+     */
+    private fun hasDuplicateBypass(submitter: MoeMusicUser?): Boolean {
+        if (submitter == null) return false
+        return submitter.hasPermission(SUBMIT_DUPLICATE.id, SUBMIT_DUPLICATE.defaultLevel())
+    }
 }

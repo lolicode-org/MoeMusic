@@ -81,6 +81,7 @@
   "config.moemusic.permissions.content_filter_bypass": "Bypass Content Filter",
   "config.moemusic.permissions.duration_policy_bypass": "Bypass Duration Limit",
   "config.moemusic.permissions.rate_limit_bypass": "Bypass Rate Limit",
+  "config.moemusic.permissions.submit_duplicate": "Submit Duplicate Tracks",
 
   "config.moemusic.now_playing_hud.enabled": "Enable HUD",
   "config.moemusic.now_playing_hud.enabled.tooltip": "Show song info, cover art, lyrics, and related playback details in-game while a track is playing.",
@@ -233,6 +234,7 @@
   "error.moemusic.permission.content_filter_bypass": "You do not have permission to bypass the content filter.",
   "error.moemusic.permission.duration_policy_bypass": "You do not have permission to bypass track duration limits.",
   "error.moemusic.permission.rate_limit_bypass": "You do not have permission to bypass request rate limits.",
+  "error.moemusic.permission.submit_duplicate": "You do not have permission to add duplicate tracks.",
   "label.moemusic.yes": "§a✔",
   "label.moemusic.no": "§c✘",
   "error.moemusic.queue.invalid_index": "That playlist index is out of range.",

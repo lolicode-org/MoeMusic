@@ -18,11 +18,9 @@ MoeMusic is a Kotlin library designed for synchronized multi-user music playback
 
 ### Dependency Configuration
 
-MoeMusic core components are published to Codeberg Packages and GitHub Packages. 
+MoeMusic core components are published to Codeberg Packages and GitHub Packages.
 
-Detailed installation and build setup instructions (including repository declarations for Gradle) are located in the API Documentation:
-- **English**: [docs/api.md](docs/api.md#dependency-and-compatibility)
-- **Chinese**: [docs/api_zh.md](docs/api_zh.md#依赖与兼容性)
+Detailed installation and build setup instructions (including repository declarations for Gradle) are located in the API Documentation.
 
 ### Documentation Links
 - **Public API Guide**: [docs/api.md](docs/api.md) | [docs/api_zh.md](docs/api_zh.md)

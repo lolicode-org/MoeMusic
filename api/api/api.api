@@ -1655,6 +1655,7 @@ public final class org/lolicode/moemusic/api/permission/MoeMusicPermission : jav
 	public static final field RATE_LIMIT_BYPASS Lorg/lolicode/moemusic/api/permission/MoeMusicPermission;
 	public static final field SEARCH Lorg/lolicode/moemusic/api/permission/MoeMusicPermission;
 	public static final field SUBMIT Lorg/lolicode/moemusic/api/permission/MoeMusicPermission;
+	public static final field SUBMIT_DUPLICATE Lorg/lolicode/moemusic/api/permission/MoeMusicPermission;
 	public static final field SUBMIT_SKIP_AUTOPLAY Lorg/lolicode/moemusic/api/permission/MoeMusicPermission;
 	public static final field VOTE Lorg/lolicode/moemusic/api/permission/MoeMusicPermission;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;

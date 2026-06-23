@@ -105,6 +105,9 @@ data class PermissionDefaultsConfig(
 
     @SerialName("rate_limit_bypass")
     val rateLimitBypass: Int = 2,
+
+    @SerialName("submit_duplicate")
+    val submitDuplicate: Int = 1,
 ) {
     fun normalized(): PermissionDefaultsConfig = copy(
         submit = submit.coerceIn(MIN_LEVEL, MAX_LEVEL),
@@ -122,6 +125,7 @@ data class PermissionDefaultsConfig(
         contentFilterBypass = contentFilterBypass.coerceIn(MIN_LEVEL, MAX_LEVEL),
         durationPolicyBypass = durationPolicyBypass.coerceIn(MIN_LEVEL, MAX_LEVEL),
         rateLimitBypass = rateLimitBypass.coerceIn(MIN_LEVEL, MAX_LEVEL),
+        submitDuplicate = submitDuplicate.coerceIn(MIN_LEVEL, MAX_LEVEL),
     )
 
     private companion object {

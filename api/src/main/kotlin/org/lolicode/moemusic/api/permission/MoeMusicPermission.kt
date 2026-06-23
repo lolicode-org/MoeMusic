@@ -46,4 +46,7 @@ public enum class MoeMusicPermission(
 
     /** Bypass the shared pre-I/O per-player request budget. */
     RATE_LIMIT_BYPASS("moemusic.privilege.bypass.rate_limit"),
+
+    /** Bypass the duplicate-track guard, allowing a track already in the queue or playing to be queued again. */
+    SUBMIT_DUPLICATE("moemusic.privilege.bypass.duplicate"),
 }

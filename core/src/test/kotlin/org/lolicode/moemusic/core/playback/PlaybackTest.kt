@@ -1331,4 +1331,40 @@ class ServerPlaybackControllerTest {
             assertTrue(ctrl.queue.userQueueSnapshot().isEmpty())
         }
     }
+
+    @Test
+    fun `enqueueAndPlay without bypass rejects duplicate of current track`() {
+        val (ctrl, _) = freshController()
+        ctrl.play(SAMPLE_TRACK, SAMPLE_TRACK.directPlayback())
+
+        assertFailsWith<AlreadyQueuedException> {
+            ctrl.enqueueAndPlay(SAMPLE_TRACK.copy { title = "Renamed" }, requesterId = null, allowDuplicate = false)
+        }
+    }
+
+    @Test
+    fun `enqueueAndPlay with allowDuplicate bypasses current-track check`() {
+        val (ctrl, _) = freshController()
+        ctrl.play(SAMPLE_TRACK, SAMPLE_TRACK.directPlayback())
+
+        // Should not throw even though the track is currently playing
+        ctrl.enqueueAndPlay(SAMPLE_TRACK.copy { title = "Renamed" }, requesterId = null, allowDuplicate = true)
+
+        assertEquals(1, ctrl.queue.userQueueSize(), "Duplicate should be force-enqueued when bypass is active")
+    }
+
+    @Test
+    fun `enqueueAndPlay with allowDuplicate bypasses already-queued check`() {
+        val queue = TrackQueue().apply { enqueueUser(SAMPLE_TRACK) }
+        val (ctrl, _) = freshController(queue)
+
+        // No current track — should fail the queue dedup without bypass
+        assertFailsWith<AlreadyQueuedException> {
+            ctrl.enqueueAndPlay(SAMPLE_TRACK.copy { title = "Renamed" }, requesterId = null, allowDuplicate = false)
+        }
+
+        // With bypass the second copy is accepted
+        ctrl.enqueueAndPlay(SAMPLE_TRACK.copy { title = "Renamed" }, requesterId = null, allowDuplicate = true)
+        assertEquals(2, ctrl.queue.userQueueSize(), "Both copies should be in queue when bypass is active")
+    }
 }

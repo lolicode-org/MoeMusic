@@ -122,6 +122,17 @@ object PermissionNodes {
         deniedMessage = LocalizedText.key("error.moemusic.permission.rate_limit_bypass"),
     )
 
+    /**
+     * Allows the holder to submit a track that is already in the queue or currently playing.
+     *
+     * Without this permission, duplicate submissions are rejected with [org.lolicode.moemusic.api.AlreadyQueuedException].
+     */
+    val SUBMIT_DUPLICATE: Node = Node(
+        id = "moemusic.privilege.bypass.duplicate",
+        defaultLevelProvider = { submitDuplicate },
+        deniedMessage = LocalizedText.key("error.moemusic.permission.submit_duplicate"),
+    )
+
     fun node(permission: MoeMusicPermission): Node = when (permission) {
         MoeMusicPermission.SUBMIT -> SUBMIT
         MoeMusicPermission.SUBMIT_SKIP_AUTOPLAY -> SUBMIT_SKIP_AUTOPLAY
@@ -134,5 +145,6 @@ object PermissionNodes {
         MoeMusicPermission.CONTENT_FILTER_BYPASS -> CONTENT_FILTER_BYPASS
         MoeMusicPermission.DURATION_POLICY_BYPASS -> DURATION_POLICY_BYPASS
         MoeMusicPermission.RATE_LIMIT_BYPASS -> RATE_LIMIT_BYPASS
+        MoeMusicPermission.SUBMIT_DUPLICATE -> SUBMIT_DUPLICATE
     }
 }

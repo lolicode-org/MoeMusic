@@ -116,28 +116,32 @@ class ServerPlaybackController(
         enqueueAndPlay(track, requesterId = null)
     }
 
-    fun enqueueAndPlay(track: TrackInfo, requesterId: UUID?) {
+    fun enqueueAndPlay(track: TrackInfo, requesterId: UUID?, allowDuplicate: Boolean = false) {
         ensureTrackAvailable(track)
-        if (isCurrentTrack(track)) {
-            throw AlreadyQueuedException()
-        }
-        if (!queue.enqueueUserIfAbsent(track, requesterId)) {
-            throw AlreadyQueuedException()
+        if (!allowDuplicate) {
+            if (isCurrentTrack(track)) {
+                throw AlreadyQueuedException()
+            }
+            if (!queue.enqueueUserIfAbsent(track, requesterId)) {
+                throw AlreadyQueuedException()
+            }
+        } else {
+            queue.enqueueUser(track, requesterId)
         }
         startNextIfStopped()
     }
 
-    suspend fun submitTrack(track: TrackInfo, requesterId: UUID?, mode: TrackAddMode): TrackAddResult {
+    suspend fun submitTrack(track: TrackInfo, requesterId: UUID?, mode: TrackAddMode, allowDuplicate: Boolean = false): TrackAddResult {
         ensureTrackAvailable(track)
 
         val result = when (mode) {
             TrackAddMode.NORMAL -> {
-                enqueueAndPlay(track, requesterId)
+                enqueueAndPlay(track, requesterId, allowDuplicate)
                 TrackAddResult.QUEUED
             }
 
             TrackAddMode.SKIP_AUTOPLAY -> {
-                enqueueAndPlay(track, requesterId)
+                enqueueAndPlay(track, requesterId, allowDuplicate)
                 if (currentTrackSource == TrackQueue.NextTrack.Source.AUTOPLAY) {
                     skip()
                     TrackAddResult.INTERRUPTING_AUTOPLAY
