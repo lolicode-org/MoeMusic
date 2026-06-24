@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 
 interface ClientPlaybackAudioAdapter {
-    fun play(playback: PlaybackResource, seekMs: Long)
+    fun play(playback: PlaybackResource, seekMs: Long, onError: (String) -> Unit = {})
     fun pause()
     fun stop()
     fun setNormalizationGain(gain: Float) {}
@@ -47,6 +47,10 @@ interface ClientPlaybackPlatform {
     fun render(text: LocalizedText): String
     fun showPersistentWarning(title: LocalizedText, message: String) {}
     fun showLocalPlaybackBlocked(title: LocalizedText, message: String) {}
+    fun showLocalPlaybackFailed(title: LocalizedText, message: String) {
+        showLocalPlaybackBlocked(title, message)
+    }
+    fun onLocalPlaybackFailureFinal(track: TrackInfo, message: String) {}
     fun showInstanceLockStandby(message: String) {}
     fun stopBlockedPlatformSoundsIfNeeded() {}
 
@@ -65,6 +69,9 @@ interface ClientPlaybackRuntimeListener {
     fun onPlaybackControlResponse(response: PlaybackControlResponse) {}
     fun onContentFilterActionResponse(response: ContentFilterActionResponse) {}
     fun onLocalPlaybackBlocked(message: String) {}
+    fun onLocalPlaybackRetrying(message: String) {}
+    fun onLocalPlaybackRecovered(track: TrackInfo) {}
+    fun onLocalPlaybackFailed(message: String) {}
     fun onInstancePlaybackStandby(message: String?) {}
     fun onPlaybackStateChanged() {}
     fun onServerWelcomeAccepted(catalog: SearchSourceCatalog) {}
@@ -77,12 +84,29 @@ class ClientPlaybackRuntime(
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
     private val syncIntervalMs: Long = DEFAULT_SYNC_INTERVAL_MS,
     private val standbyLockPollIntervalMs: Long = DEFAULT_STANDBY_LOCK_POLL_INTERVAL_MS,
+    private val localPlaybackRetryDelaysMs: List<Long> = DEFAULT_LOCAL_PLAYBACK_RETRY_DELAYS_MS,
 ) : ClientRequestTransport {
 
     private data class DesiredParticipation(
         val state: ClientStateProto,
         val waitForLock: Boolean,
     )
+
+    private data class LocalPlaybackIdentity(
+        val sourceId: String?,
+        val trackId: String,
+        val playbackUrl: String,
+    ) {
+        fun matches(ctx: TrackContext): Boolean =
+            sourceId == ctx.track.sourceId &&
+                    trackId == ctx.track.id &&
+                    playbackUrl == ctx.playback.url
+
+        companion object {
+            fun of(track: TrackInfo, playback: PlaybackResource): LocalPlaybackIdentity =
+                LocalPlaybackIdentity(track.sourceId, track.id, playback.url)
+        }
+    }
 
     private class PendingRequestRegistry<T> {
         private val pending = ConcurrentHashMap<Long, CompletableDeferred<T>>()
@@ -129,6 +153,11 @@ class ClientPlaybackRuntime(
 
     private var syncJob: Job? = null
     private var standbyPollJob: Job? = null
+    private var localPlaybackRetryJob: Job? = null
+
+    private val localPlaybackFailureLock = Any()
+    private var localPlaybackFailureIdentity: LocalPlaybackIdentity? = null
+    private var localPlaybackFailureAttempts: Int = 0
 
     @Volatile
     private var participationRequested: Boolean = false
@@ -237,6 +266,10 @@ class ClientPlaybackRuntime(
         private set
 
     @Volatile
+    var lastLocalPlaybackFailureMessage: String? = null
+        private set
+
+    @Volatile
     var lastInstanceLockMessage: String? = null
         private set
 
@@ -286,7 +319,7 @@ class ClientPlaybackRuntime(
     fun recheckLocalContentFilter() {
         val ctx = currentContext ?: return
         if (applyLocalContentFilter(ctx.track) == null) {
-            stopActivePlayback(fireEvent = true)
+            stopActivePlayback(fireEvent = true, preserveLocalPlaybackNotice = true)
         }
     }
 
@@ -432,23 +465,26 @@ class ClientPlaybackRuntime(
                         playback.headers.keys,
                     )
                 }
-                platform.audio.play(playback, seekMs)
-                platform.stopBlockedPlatformSoundsIfNeeded()
                 val newStart = if (msg.position_anchor_server_monotonic != 0L) {
                     msg.position_anchor_server_monotonic - msg.position_ms.coerceAtLeast(0L) * 1_000_000L
                 } else {
                     ctx.serverStartMonotonic
                 }
-                currentContext = ctx.copy(
+                val updatedContext = ctx.copy(
                     playback = playback,
                     state = PlaybackState.Playing(seekMs),
                     serverStartMonotonic = newStart,
                     serverResumeMonotonic = serverNow,
                 )
-                if (wasPaused) {
-                    CoreEvents.bus.fire(OnClientPlaybackResumed(ctx.track, seekMs))
-                } else {
-                    CoreEvents.bus.fire(OnClientPlaybackSeeked(ctx.track, seekMs))
+                currentContext = updatedContext
+                startPlatformPlayback(updatedContext, seekMs, pauseAfterStart = false, preserveFailureState = false)
+                if (LocalPlaybackIdentity.of(ctx.track, playback).matches(currentContext ?: return)) {
+                    platform.stopBlockedPlatformSoundsIfNeeded()
+                    if (wasPaused) {
+                        CoreEvents.bus.fire(OnClientPlaybackResumed(ctx.track, seekMs))
+                    } else {
+                        CoreEvents.bus.fire(OnClientPlaybackSeeked(ctx.track, seekMs))
+                    }
                 }
             }
 
@@ -823,6 +859,7 @@ class ClientPlaybackRuntime(
         serverClockOffset = 0L
         timeSyncEstablished = false
         stopStandbyPolling()
+        cancelLocalPlaybackRetry()
         currentContext = null
         currentLyrics = null
         currentSecondaryLyrics = null
@@ -834,6 +871,7 @@ class ClientPlaybackRuntime(
         lastPlaybackControlResponse = null
         lastContentFilterActionResponse = null
         lastLocalPlaybackBlockedMessage = null
+        lastLocalPlaybackFailureMessage = null
         lastInstanceLockMessage = null
         sourceCatalog = null
         uiCapabilitySnapshot = null
@@ -941,11 +979,11 @@ class ClientPlaybackRuntime(
             return
         }
         if (!applyClientMediaPolicy(track, playback.url)) {
-            stopActivePlayback()
+            stopActivePlayback(preserveLocalPlaybackNotice = true)
             return
         }
         val locallyAllowedTrack = applyLocalContentFilter(track) ?: run {
-            stopActivePlayback()
+            stopActivePlayback(preserveLocalPlaybackNotice = true)
             return
         }
         currentLyrics = parseLyrics(locallyAllowedTrack.lyricLrc)
@@ -978,9 +1016,7 @@ class ClientPlaybackRuntime(
                     playback.headers.keys,
                 )
                 applyTrackNormalization(locallyAllowedTrack, "snapshot PLAYING")
-                platform.audio.play(playback, seekMs)
-                platform.stopBlockedPlatformSoundsIfNeeded()
-                currentContext = TrackContext(
+                val newContext = TrackContext(
                     track = locallyAllowedTrack,
                     playback = playback,
                     state = PlaybackState.Playing(seekMs),
@@ -991,14 +1027,19 @@ class ClientPlaybackRuntime(
                     },
                     serverResumeMonotonic = serverNow,
                 )
-                CoreEvents.bus.fire(
-                    OnClientPlaybackStarted(
-                        track = locallyAllowedTrack,
-                        playback = playback,
-                        positionMs = seekMs,
-                        startCause = if (fromSyncState) PlaybackStartCause.CATCH_UP else PlaybackStartCause.NEW_TRACK,
+                currentContext = newContext
+                startPlatformPlayback(newContext, seekMs, pauseAfterStart = false, preserveFailureState = false)
+                if (LocalPlaybackIdentity.of(locallyAllowedTrack, playback).matches(currentContext ?: return)) {
+                    platform.stopBlockedPlatformSoundsIfNeeded()
+                    CoreEvents.bus.fire(
+                        OnClientPlaybackStarted(
+                            track = locallyAllowedTrack,
+                            playback = playback,
+                            positionMs = seekMs,
+                            startCause = if (fromSyncState) PlaybackStartCause.CATCH_UP else PlaybackStartCause.NEW_TRACK,
+                        )
                     )
-                )
+                }
             }
 
             PlaybackStateProto.PAUSED -> {
@@ -1023,23 +1064,25 @@ class ClientPlaybackRuntime(
                     playback.headers.keys,
                 )
                 applyTrackNormalization(locallyAllowedTrack, "snapshot PAUSED")
-                platform.audio.play(playback, posMs)
-                platform.audio.pause()
-                currentContext = TrackContext(
+                val newContext = TrackContext(
                     track = locallyAllowedTrack,
                     playback = playback,
                     state = PlaybackState.Paused(posMs),
                     serverStartMonotonic = serverNow - posMs * 1_000_000L,
                     serverResumeMonotonic = serverNow,
                 )
-                CoreEvents.bus.fire(
-                    OnClientPlaybackStarted(
-                        track = locallyAllowedTrack,
-                        playback = playback,
-                        positionMs = posMs,
-                        startCause = if (fromSyncState) PlaybackStartCause.CATCH_UP else PlaybackStartCause.NEW_TRACK,
+                currentContext = newContext
+                startPlatformPlayback(newContext, posMs, pauseAfterStart = true, preserveFailureState = false)
+                if (LocalPlaybackIdentity.of(locallyAllowedTrack, playback).matches(currentContext ?: return)) {
+                    CoreEvents.bus.fire(
+                        OnClientPlaybackStarted(
+                            track = locallyAllowedTrack,
+                            playback = playback,
+                            positionMs = posMs,
+                            startCause = if (fromSyncState) PlaybackStartCause.CATCH_UP else PlaybackStartCause.NEW_TRACK,
+                        )
                     )
-                )
+                }
             }
 
             PlaybackStateProto.STOPPED -> {
@@ -1209,6 +1252,7 @@ class ClientPlaybackRuntime(
                     )
                 )
                 lastLocalPlaybackBlockedMessage = message
+                lastLocalPlaybackFailureMessage = null
                 logger.info("{} track '{}' blocked by local media policy: {}", platform.name, track.title, verdict.reason.debugString())
                 listener.onLocalPlaybackBlocked(message)
                 platform.showLocalPlaybackBlocked(
@@ -1230,6 +1274,7 @@ class ClientPlaybackRuntime(
             )
         )
         lastLocalPlaybackBlockedMessage = message
+        lastLocalPlaybackFailureMessage = null
         logger.info("{} track '{}' blocked by local content filter: {}", platform.name, track.title, reason.debugString())
         listener.onLocalPlaybackBlocked(message)
         platform.showLocalPlaybackBlocked(
@@ -1335,6 +1380,191 @@ class ClientPlaybackRuntime(
         standbyPollJob = null
     }
 
+    private fun startPlatformPlayback(
+        ctx: TrackContext,
+        positionMs: Long,
+        pauseAfterStart: Boolean,
+        preserveFailureState: Boolean,
+    ) {
+        val identity = LocalPlaybackIdentity.of(ctx.track, ctx.playback)
+        synchronized(localPlaybackFailureLock) {
+            if (!preserveFailureState || (localPlaybackFailureIdentity != null && localPlaybackFailureIdentity != identity)) {
+                clearLocalPlaybackFailureStateLocked()
+            }
+        }
+        if (!preserveFailureState) {
+            lastLocalPlaybackBlockedMessage = null
+            lastLocalPlaybackFailureMessage = null
+        }
+        platform.audio.play(ctx.playback, positionMs) { error ->
+            handleLocalPlaybackFailure(identity, error)
+        }
+        if (pauseAfterStart && identity.matches(currentContext ?: return)) {
+            platform.audio.pause()
+        }
+    }
+
+    private fun handleLocalPlaybackFailure(identity: LocalPlaybackIdentity, rawMessage: String) {
+        platform.executeOnClientThread {
+            val ctx = currentContext ?: return@executeOnClientThread
+            if (!identity.matches(ctx)) return@executeOnClientThread
+            val message = rawMessage.ifBlank {
+                platform.render(LocalizedText.key("error.moemusic.internal"))
+            }
+            val attempt = synchronized(localPlaybackFailureLock) {
+                if (localPlaybackFailureIdentity != identity) {
+                    localPlaybackFailureIdentity = identity
+                    localPlaybackFailureAttempts = 0
+                }
+                if (shouldRetryLocalPlaybackFailure(message) &&
+                    localPlaybackFailureAttempts < localPlaybackRetryDelaysMs.size
+                ) {
+                    localPlaybackFailureAttempts += 1
+                    localPlaybackFailureAttempts
+                } else {
+                    0
+                }
+            }
+
+            if (attempt > 0) {
+                scheduleLocalPlaybackRetry(identity, ctx, message, attempt)
+                return@executeOnClientThread
+            }
+
+            finishLocalPlaybackFailure(identity, ctx, message)
+        }
+    }
+
+    private fun scheduleLocalPlaybackRetry(
+        identity: LocalPlaybackIdentity,
+        ctx: TrackContext,
+        error: String,
+        attempt: Int,
+    ) {
+        val trackTitle = ctx.track.title.ifBlank { ctx.track.id }
+        val message = platform.render(
+            LocalizedText.key(
+                "screen.moemusic.playback.local_retrying",
+                trackTitle,
+                attempt,
+                localPlaybackRetryDelaysMs.size,
+            )
+        )
+        lastLocalPlaybackFailureMessage = message
+        lastLocalPlaybackBlockedMessage = null
+        logger.warn(
+            "{} local playback failed for '{}' (attempt {}/{}); retrying: {}",
+            platform.name,
+            trackTitle,
+            attempt,
+            localPlaybackRetryDelaysMs.size,
+            error,
+        )
+        listener.onLocalPlaybackRetrying(message)
+
+        localPlaybackRetryJob?.cancel()
+        localPlaybackRetryJob = scope.launch {
+            delay(localPlaybackRetryDelaysMs[attempt - 1].milliseconds)
+            platform.executeOnClientThread {
+                retryLocalPlayback(identity)
+            }
+        }
+    }
+
+    private fun retryLocalPlayback(identity: LocalPlaybackIdentity) {
+        val ctx = currentContext ?: return
+        if (!identity.matches(ctx)) return
+        val positionMs = estimatedPlaybackPositionMs(ctx)
+        logger.debug(
+            "{} retrying local playback: source={} id={} title='{}' positionMs={}",
+            platform.name,
+            ctx.track.sourceId.orEmpty(),
+            ctx.track.id,
+            ctx.track.title,
+            positionMs,
+        )
+        startPlatformPlayback(
+            ctx = ctx,
+            positionMs = positionMs,
+            pauseAfterStart = ctx.state is PlaybackState.Paused,
+            preserveFailureState = true,
+        )
+        if (ctx.state is PlaybackState.Playing && identity.matches(currentContext ?: return)) {
+            platform.stopBlockedPlatformSoundsIfNeeded()
+        }
+        if (identity.matches(currentContext ?: return)) {
+            lastLocalPlaybackFailureMessage = null
+            listener.onLocalPlaybackRecovered(ctx.track)
+        }
+    }
+
+    private fun finishLocalPlaybackFailure(identity: LocalPlaybackIdentity, ctx: TrackContext, error: String) {
+        if (!identity.matches(currentContext ?: return)) return
+        val trackTitle = ctx.track.title.ifBlank { ctx.track.id }
+        val message = platform.render(
+            LocalizedText.key(
+                "screen.moemusic.playback.local_failed",
+                trackTitle,
+                error,
+            )
+        )
+        lastLocalPlaybackFailureMessage = message
+        lastLocalPlaybackBlockedMessage = null
+        logger.warn("{} local playback failed permanently for '{}': {}", platform.name, trackTitle, error)
+        listener.onLocalPlaybackFailed(message)
+        releasePlaybackLock(clearMessage = true)
+        stopActivePlayback(fireEvent = true, notifyStateChange = false, preserveLocalPlaybackNotice = true)
+        platform.showLocalPlaybackFailed(
+            LocalizedText.key("screen.moemusic.playback.failure.toast.title"),
+            message,
+        )
+        platform.onLocalPlaybackFailureFinal(ctx.track, message)
+    }
+
+    private fun shouldRetryLocalPlaybackFailure(message: String): Boolean {
+        val lower = message.lowercase(Locale.ROOT)
+        val permanentTokens = listOf(
+            "no audio source",
+            "no matches",
+            "unsupported",
+            "unknown file format",
+            "not found at",
+            " 401",
+            " 403",
+            " 404",
+            " 410",
+            "401 ",
+            "403 ",
+            "404 ",
+            "410 ",
+            "forbidden",
+        )
+        return permanentTokens.none { it in lower }
+    }
+
+    private fun estimatedPlaybackPositionMs(ctx: TrackContext): Long =
+        when (val state = ctx.state) {
+            is PlaybackState.Playing ->
+                normalizeClientPosition((currentServerMonotonicNow() - ctx.serverStartMonotonic) / 1_000_000L, ctx.track.durationMs)
+
+            is PlaybackState.Paused -> state.positionMs
+            PlaybackState.Stopped -> 0L
+            else -> 0L
+        }
+
+    private fun cancelLocalPlaybackRetry() {
+        synchronized(localPlaybackFailureLock) {
+            clearLocalPlaybackFailureStateLocked()
+        }
+    }
+
+    private fun clearLocalPlaybackFailureStateLocked() {
+        localPlaybackRetryJob?.cancel()
+        localPlaybackRetryJob = null
+        localPlaybackFailureIdentity = null
+        localPlaybackFailureAttempts = 0
+    }
+
     private fun startSyncLoop() {
         if (syncJob?.isActive == true) return
         syncJob = scope.launch {
@@ -1354,8 +1584,17 @@ class ClientPlaybackRuntime(
         syncJob = null
     }
 
-    private fun stopActivePlayback(fireEvent: Boolean = false) {
+    private fun stopActivePlayback(
+        fireEvent: Boolean = false,
+        notifyStateChange: Boolean = true,
+        preserveLocalPlaybackNotice: Boolean = false,
+    ) {
         val stoppedTrack = currentContext?.track
+        cancelLocalPlaybackRetry()
+        if (!preserveLocalPlaybackNotice) {
+            lastLocalPlaybackBlockedMessage = null
+            lastLocalPlaybackFailureMessage = null
+        }
         platform.audio.stop()
         clearTrackNormalization("stop active playback")
         currentContext = null
@@ -1364,7 +1603,9 @@ class ClientPlaybackRuntime(
         if (fireEvent && stoppedTrack != null) {
             CoreEvents.bus.fire(OnClientPlaybackStopped(stoppedTrack))
         }
-        listener.onPlaybackStateChanged()
+        if (notifyStateChange) {
+            listener.onPlaybackStateChanged()
+        }
     }
 
     private fun logInvalidPlaybackControl(action: PlaybackControlAction, positionMs: Long) {
@@ -1638,5 +1879,6 @@ class ClientPlaybackRuntime(
         private const val HANDSHAKE_GRACE_NANOS = 3_000_000_000L
         private const val DEFAULT_SYNC_INTERVAL_MS = 30_000L
         private const val DEFAULT_STANDBY_LOCK_POLL_INTERVAL_MS = 3_000L
+        private val DEFAULT_LOCAL_PLAYBACK_RETRY_DELAYS_MS = listOf(750L, 1_500L)
     }
 }

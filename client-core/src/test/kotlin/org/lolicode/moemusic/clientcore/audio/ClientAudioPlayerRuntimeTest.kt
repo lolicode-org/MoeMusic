@@ -59,28 +59,48 @@ class ClientAudioPlayerRuntimeTest {
     }
 
     @Test
+    fun `load failure clears playback state and reports error`() {
+        val loader = FakeTrackLoader()
+        val output = FakeAudioOutput()
+        val runtime = ClientAudioPlayerRuntime(PcmRingBuffer(), loader, output)
+        val errors = mutableListOf<String>()
+
+        runtime.play(PlaybackResource("https://example.com/a.mp3"), onError = errors::add)
+        loader.failLast("temporary network error")
+
+        assertEquals(listOf("temporary network error"), errors)
+        assertFalse(runtime.isPlaying)
+        assertEquals(0L, runtime.currentPositionMs())
+        assertEquals(2, output.stopCalls)
+    }
+
+    @Test
     fun `reload restore replays saved playback from last reported position`() {
         val loader = FakeTrackLoader()
         val output = FakeAudioOutput()
         val runtime = ClientAudioPlayerRuntime(PcmRingBuffer(), loader, output)
         val playback = PlaybackResource("https://example.com/a.mp3")
+        val errors = mutableListOf<String>()
 
-        runtime.play(playback)
+        runtime.play(playback, onError = errors::add)
         runtime.reportPlaybackPosition(4_321L)
         runtime.saveStateForReload()
         runtime.stop()
         runtime.restoreAfterReload()
+        loader.failLast("restore failed")
 
         assertEquals(2, loader.loads.size)
         assertEquals(4_321L, loader.loads.last().seekMs)
         assertEquals(listOf(0L, 4_321L), output.startPositions)
-        assertTrue(runtime.isPlaying)
+        assertEquals(listOf("restore failed"), errors)
+        assertFalse(runtime.isPlaying)
     }
 
     private class FakeTrackLoader : ClientTrackLoader {
         data class Load(val playback: PlaybackResource, val seekMs: Long)
 
         val loads = mutableListOf<Load>()
+        private val errorCallbacks = mutableListOf<(String) -> Unit>()
         var stopCalls: Int = 0
 
         val loadedPlayback: PlaybackResource?
@@ -96,10 +116,15 @@ class ClientAudioPlayerRuntimeTest {
             onError: (String) -> Unit,
         ) {
             loads += Load(playback, seekMs)
+            errorCallbacks += onError
         }
 
         override fun stop(ringBuffer: PcmRingBuffer?) {
             stopCalls++
+        }
+
+        fun failLast(message: String) {
+            errorCallbacks.last()(message)
         }
     }
 

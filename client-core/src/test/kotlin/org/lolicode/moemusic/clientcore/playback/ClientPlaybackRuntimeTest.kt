@@ -14,6 +14,7 @@ import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
 import org.lolicode.moemusic.core.protocol.proto.*
 import kotlin.test.*
+import kotlin.time.Duration.Companion.milliseconds
 import org.lolicode.moemusic.core.protocol.proto.SearchSourceInfo as SearchSourceInfoProto
 
 class ClientPlaybackRuntimeTest {
@@ -223,6 +224,82 @@ class ClientPlaybackRuntimeTest {
     }
 
     @Test
+    fun `local playback load failure retries current track`() = runBlocking {
+        val harness = harness(localPlaybackRetryDelaysMs = listOf(1L))
+        harness.acceptWelcome()
+        harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
+
+        harness.platform.audio.failLast("temporary network timeout")
+        delay(25L.milliseconds)
+
+        assertNotNull(harness.runtime.currentContext)
+        assertEquals("track-1", harness.runtime.currentContext?.track?.id)
+        assertEquals(2, harness.platform.audio.plays.size)
+        assertEquals(1, harness.listener.localPlaybackRetryingMessages.size)
+        assertTrue(harness.listener.localPlaybackFailedMessages.isEmpty())
+        assertTrue(harness.platform.localPlaybackFailureFinals.isEmpty())
+    }
+
+    @Test
+    fun `local playback load failure ignores stale callback after track changes`() {
+        val harness = harness(localPlaybackRetryDelaysMs = emptyList())
+        harness.acceptWelcome()
+        harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
+        harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-2", title = "Track Two"))
+
+        harness.platform.audio.failAt(0, "temporary network timeout")
+
+        assertEquals("track-2", harness.runtime.currentContext?.track?.id)
+        assertEquals(2, harness.platform.audio.plays.size)
+        assertTrue(harness.listener.localPlaybackFailedMessages.isEmpty())
+        assertTrue(harness.platform.localPlaybackFailureFinals.isEmpty())
+    }
+
+    @Test
+    fun `permanent local playback load failure stops local context without retry`() {
+        val harness = harness(localPlaybackRetryDelaysMs = listOf(1L))
+        harness.acceptWelcome()
+        harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
+
+        harness.platform.audio.failLast("No audio source found at: https://example.test/audio.mp3")
+
+        assertNull(harness.runtime.currentContext)
+        assertTrue(harness.platform.audio.stopped)
+        assertTrue(harness.listener.localPlaybackRetryingMessages.isEmpty())
+        assertEquals(1, harness.listener.localPlaybackFailedMessages.size)
+        assertEquals(1, harness.platform.localPlaybackFailureFinals.size)
+        assertEquals(1, harness.platform.localPlaybackFailedWarnings.size)
+    }
+
+    @Test
+    fun `final local playback failure message is cleared by next playable track`() {
+        val harness = harness(localPlaybackRetryDelaysMs = emptyList())
+        harness.acceptWelcome()
+        harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
+
+        harness.platform.audio.failLast("temporary network timeout")
+
+        assertNotNull(harness.runtime.lastLocalPlaybackFailureMessage)
+
+        harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-2", title = "Track Two"))
+
+        assertNull(harness.runtime.lastLocalPlaybackFailureMessage)
+        assertEquals("track-2", harness.runtime.currentContext?.track?.id)
+    }
+
+    @Test
+    fun `platform final failure hook can request skip through existing playback control packet`() {
+        val harness = harness(localPlaybackRetryDelaysMs = emptyList(), autoSkipOnFinalFailure = true)
+        harness.acceptWelcome()
+        harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
+
+        harness.platform.audio.failLast("temporary network timeout")
+
+        val request = harness.platform.decodeLast(PacketIds.PLAYBACK_CONTROL_REQUEST, PlaybackControlRequest.ADAPTER::decode)
+        assertEquals(PlaybackControlAction.SKIP, request.action)
+    }
+
+    @Test
     fun `refreshTrackNormalization disables attenuation when client config turns normalization off`() {
         val harness = harness()
         harness.acceptWelcome()
@@ -399,10 +476,16 @@ class ClientPlaybackRuntimeTest {
         assertFalse(harness.platform.audio.stopped)
     }
 
-    private fun harness(): RuntimeHarness =
-        RuntimeHarness().also(closeables::add)
+    private fun harness(
+        localPlaybackRetryDelaysMs: List<Long> = listOf(750L, 1_500L),
+        autoSkipOnFinalFailure: Boolean = false,
+    ): RuntimeHarness =
+        RuntimeHarness(localPlaybackRetryDelaysMs, autoSkipOnFinalFailure).also(closeables::add)
 
-    private class RuntimeHarness : AutoCloseable {
+    private class RuntimeHarness(
+        localPlaybackRetryDelaysMs: List<Long>,
+        autoSkipOnFinalFailure: Boolean,
+    ) : AutoCloseable {
         val platform = FakePlatform()
         val listener = RecordingListener()
         private val scope = CoroutineScope(Dispatchers.Unconfined + SupervisorJob())
@@ -412,7 +495,16 @@ class ClientPlaybackRuntimeTest {
             scope = scope,
             syncIntervalMs = 60_000L,
             standbyLockPollIntervalMs = 60_000L,
+            localPlaybackRetryDelaysMs = localPlaybackRetryDelaysMs,
         )
+
+        init {
+            if (autoSkipOnFinalFailure) {
+                platform.finalFailureHandler = { _, _ ->
+                    runtime.sendPlaybackControl(PlaybackControlAction.SKIP)
+                }
+            }
+        }
 
         fun acceptWelcome() {
             runtime.onConnectionJoined()
@@ -430,6 +522,8 @@ class ClientPlaybackRuntimeTest {
         val acceptedCatalogs = mutableListOf<SearchSourceCatalog>()
         val searchResponses = mutableListOf<SearchResponse>()
         val uiBootstrapResponses = mutableListOf<UiBootstrapResponse>()
+        val localPlaybackRetryingMessages = mutableListOf<String>()
+        val localPlaybackFailedMessages = mutableListOf<String>()
         var snapshotsApplied = 0
         var playbackStateChanges = 0
 
@@ -453,6 +547,14 @@ class ClientPlaybackRuntimeTest {
             snapshotsApplied += 1
         }
 
+        override fun onLocalPlaybackRetrying(message: String) {
+            localPlaybackRetryingMessages += message
+        }
+
+        override fun onLocalPlaybackFailed(message: String) {
+            localPlaybackFailedMessages += message
+        }
+
         override fun onPlaybackStateChanged() {
             playbackStateChanges += 1
         }
@@ -466,6 +568,9 @@ class ClientPlaybackRuntimeTest {
         override var clientProtocolVersion: Int = 1
         override val audio = FakeAudio()
         val sentPackets = mutableListOf<SentPacket>()
+        val localPlaybackFailedWarnings = mutableListOf<String>()
+        val localPlaybackFailureFinals = mutableListOf<Pair<TrackInfo, String>>()
+        var finalFailureHandler: (TrackInfo, String) -> Unit = { _, _ -> }
         var connected = true
         var stoppedBlockedSounds = false
         var config = ClientConfig(globalInstancePlaybackLock = false)
@@ -492,20 +597,33 @@ class ClientPlaybackRuntimeTest {
             stoppedBlockedSounds = true
         }
 
+        override fun showLocalPlaybackFailed(title: LocalizedText, message: String) {
+            localPlaybackFailedWarnings += message
+        }
+
+        override fun onLocalPlaybackFailureFinal(track: TrackInfo, message: String) {
+            localPlaybackFailureFinals += track to message
+            finalFailureHandler(track, message)
+        }
+
         fun <T> decodeLast(packetId: PacketId, decoder: (ByteArray) -> T): T =
             decoder(sentPackets.last { it.packetId == packetId }.payload)
     }
 
     private class FakeAudio : ClientPlaybackAudioAdapter {
-        data class Play(val playback: PlaybackResource, val seekMs: Long)
+        data class Play(
+            val playback: PlaybackResource,
+            val seekMs: Long,
+            val onError: (String) -> Unit,
+        )
 
         val plays = mutableListOf<Play>()
         val normalizationGains = mutableListOf<Float>()
         var paused = false
         var stopped = false
 
-        override fun play(playback: PlaybackResource, seekMs: Long) {
-            plays += Play(playback, seekMs)
+        override fun play(playback: PlaybackResource, seekMs: Long, onError: (String) -> Unit) {
+            plays += Play(playback, seekMs, onError)
             paused = false
             stopped = false
         }
@@ -523,6 +641,14 @@ class ClientPlaybackRuntimeTest {
         }
 
         override fun currentPositionMs(): Long = plays.lastOrNull()?.seekMs ?: 0L
+
+        fun failLast(message: String) {
+            plays.last().onError(message)
+        }
+
+        fun failAt(index: Int, message: String) {
+            plays[index].onError(message)
+        }
     }
 
     private companion object {
@@ -536,6 +662,26 @@ class ClientPlaybackRuntimeTest {
                 SearchSourceInfoProto(id = "local", display_name = "Local", searchable = false),
             ),
             default_source_id = "youtube",
+        )
+
+        fun playbackPush(
+            trackId: String,
+            title: String,
+            url: String = "https://example.test/audio.mp3",
+        ): PlaybackSnapshotPush = PlaybackSnapshotPush(
+            reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK,
+            snapshot = PlaybackSnapshot(
+                track = TrackInfoProto(
+                    source_id = "youtube",
+                    id = trackId,
+                    title = title,
+                    duration_ms = 180_000L,
+                ),
+                playback = PlaybackResourceProto(url = url),
+                state = PlaybackStateProto.PLAYING,
+                position_ms = 0L,
+                position_anchor_server_monotonic = 0L,
+            ),
         )
     }
 }
