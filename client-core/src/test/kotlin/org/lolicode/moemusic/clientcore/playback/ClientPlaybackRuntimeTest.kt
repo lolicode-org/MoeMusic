@@ -5,10 +5,11 @@ import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.api.client.ClientRequestException
 import org.lolicode.moemusic.api.debugString
 import org.lolicode.moemusic.api.event.UserParticipationState
-import org.lolicode.moemusic.api.model.PlaybackResource
-import org.lolicode.moemusic.api.model.PlaybackState
+import org.lolicode.moemusic.api.model.*
 import org.lolicode.moemusic.core.config.ClientConfig
 import org.lolicode.moemusic.core.config.LoudnessNormalizationMode
+import org.lolicode.moemusic.core.config.MoeMusicConfig
+import org.lolicode.moemusic.core.contentfilter.ContentFilterRuntime
 import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
 import org.lolicode.moemusic.core.protocol.proto.*
@@ -24,6 +25,7 @@ class ClientPlaybackRuntimeTest {
         closeables.forEach(RuntimeHarness::close)
         closeables.clear()
         InstancePlaybackLock.release()
+        ContentFilterRuntime.applyConfig(MoeMusicConfig())
     }
 
     @Test
@@ -292,6 +294,109 @@ class ClientPlaybackRuntimeTest {
         )
 
         assertEquals(1.9952623f, harness.platform.audio.normalizationGains.last(), 0.000001f)
+    }
+
+    @Test
+    fun `recheckLocalContentFilter stops playback when current track matches new block rule`() {
+        val harness = harness()
+        harness.acceptWelcome()
+
+        // Start playback with a track from source "youtube", id "track-1"
+        harness.runtime.handlePlaybackSnapshotPush(
+            PlaybackSnapshotPush(
+                reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK,
+                snapshot = PlaybackSnapshot(
+                    track = TrackInfoProto(
+                        source_id = "youtube",
+                        id = "track-1",
+                        title = "Blocked Song",
+                        duration_ms = 180_000L,
+                    ),
+                    playback = PlaybackResourceProto(url = "https://example.test/audio.mp3"),
+                    state = PlaybackStateProto.PLAYING,
+                    position_ms = 0L,
+                    position_anchor_server_monotonic = 0L,
+                ),
+            )
+        )
+        assertNotNull(harness.runtime.currentContext)
+
+        // Apply a filter rule that blocks this exact track
+        ContentFilterRuntime.applyConfig(
+            MoeMusicConfig(
+                contentFilter = ContentFilterRules(
+                    enabled = true,
+                    exactTrackRules = listOf(ExactTrackFilterRule(sourceId = "youtube", trackId = "track-1")),
+                ),
+            )
+        )
+
+        harness.runtime.recheckLocalContentFilter()
+
+        assertNull(harness.runtime.currentContext)
+        assertTrue(harness.platform.audio.stopped)
+    }
+
+    @Test
+    fun `recheckLocalContentFilter does not stop playback when rule does not match current track`() {
+        val harness = harness()
+        harness.acceptWelcome()
+
+        harness.runtime.handlePlaybackSnapshotPush(
+            PlaybackSnapshotPush(
+                reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK,
+                snapshot = PlaybackSnapshot(
+                    track = TrackInfoProto(
+                        source_id = "youtube",
+                        id = "track-1",
+                        title = "Safe Song",
+                        duration_ms = 180_000L,
+                    ),
+                    playback = PlaybackResourceProto(url = "https://example.test/audio.mp3"),
+                    state = PlaybackStateProto.PLAYING,
+                    position_ms = 0L,
+                    position_anchor_server_monotonic = 0L,
+                ),
+            )
+        )
+        assertNotNull(harness.runtime.currentContext)
+
+        // Block a different track
+        ContentFilterRuntime.applyConfig(
+            MoeMusicConfig(
+                contentFilter = ContentFilterRules(
+                    enabled = true,
+                    exactTrackRules = listOf(ExactTrackFilterRule(sourceId = "youtube", trackId = "other-track")),
+                ),
+            )
+        )
+
+        harness.runtime.recheckLocalContentFilter()
+
+        assertNotNull(harness.runtime.currentContext)
+        assertFalse(harness.platform.audio.stopped)
+    }
+
+    @Test
+    fun `recheckLocalContentFilter is no-op without active playback`() {
+        val harness = harness()
+        harness.acceptWelcome()
+        assertNull(harness.runtime.currentContext)
+
+        ContentFilterRuntime.applyConfig(
+            MoeMusicConfig(
+                contentFilter = ContentFilterRules(
+                    enabled = true,
+                    exactTrackRules = listOf(ExactTrackFilterRule(sourceId = "youtube", trackId = "track-1")),
+                ),
+            )
+        )
+
+        // Should not throw or cause side effects
+        harness.runtime.recheckLocalContentFilter()
+
+        assertNull(harness.runtime.currentContext)
+        assertFalse(harness.platform.audio.stopped)
     }
 
     private fun harness(): RuntimeHarness =

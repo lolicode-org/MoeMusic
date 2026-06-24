@@ -109,6 +109,14 @@ class ClientPlaybackRuntime(
     private val logger = LoggerFactory.getLogger(ClientPlaybackRuntime::class.java)
     private val timeSyncHandler = TimeSyncHandler()
     private val requestIdCounter = AtomicLong(1L)
+
+    init {
+        // Re-check the local content filter on the currently playing track whenever rules change,
+        // so that a quick-block or config-screen edit takes effect immediately.
+        CoreEvents.bus.subscribe<OnContentFilterRulesApplied> {
+            platform.executeOnClientThread { recheckLocalContentFilter() }
+        }
+    }
     private val pendingSearchResponses = PendingRequestRegistry<SearchResponse>()
     private val pendingQueueResponses = PendingRequestRegistry<QueueResponse>()
     private val pendingUiBootstrapResponses = PendingRequestRegistry<UiBootstrapResponse>()
@@ -265,6 +273,20 @@ class ClientPlaybackRuntime(
             applyTrackNormalization(track, "config refresh")
         } else {
             clearTrackNormalization("config refresh without active track")
+        }
+    }
+
+    /**
+     * Re-evaluate the local content filter on the currently playing track.
+     *
+     * Called automatically when [OnContentFilterRulesApplied] fires (e.g. after a quick-block
+     * action or config-screen edit) so that newly blocked tracks are stopped immediately instead
+     * of continuing until the next track transition.
+     */
+    fun recheckLocalContentFilter() {
+        val ctx = currentContext ?: return
+        if (applyLocalContentFilter(ctx.track) == null) {
+            stopActivePlayback(fireEvent = true)
         }
     }
 
