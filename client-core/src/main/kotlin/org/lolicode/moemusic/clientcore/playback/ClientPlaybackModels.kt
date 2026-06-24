@@ -6,7 +6,23 @@ import org.lolicode.moemusic.api.model.SelectionEntry
 data class ClientServerScope(
     val key: String,
     val displayName: String,
-)
+) {
+    constructor(
+        key: String,
+        displayName: String,
+        keyAliases: Set<String>,
+    ) : this(key, displayName) {
+        this.keyAliases = keyAliases
+    }
+
+    var keyAliases: Set<String> = emptySet()
+        private set
+
+    fun matchingKeys(): Set<String> = buildSet {
+        add(key)
+        addAll(keyAliases)
+    }
+}
 
 data class SearchSourceInfo(
     val id: String,

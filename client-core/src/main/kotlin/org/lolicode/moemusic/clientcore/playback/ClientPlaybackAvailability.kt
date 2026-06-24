@@ -12,7 +12,7 @@ object ClientPlaybackAvailability {
         serverScope: ClientServerScope?,
     ): Boolean {
         if (!clientConfig.playbackEnabled) return false
-        return serverScope?.key !in clientConfig.disabledServers
+        return serverScope?.matchingKeys()?.none { it in clientConfig.disabledServers } ?: true
     }
 
     fun availabilityIssue(

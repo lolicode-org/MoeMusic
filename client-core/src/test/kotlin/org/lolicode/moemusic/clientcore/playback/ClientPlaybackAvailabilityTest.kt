@@ -37,6 +37,25 @@ class ClientPlaybackAvailabilityTest {
     }
 
     @Test
+    fun `per-server aliases preserve legacy disablement keys`() {
+        val server = ClientServerScope(
+            key = "singleplayer-folder:test-world",
+            displayName = "Test World",
+            keyAliases = setOf("singleplayer:test world"),
+        )
+
+        assertFalse(
+            ClientPlaybackAvailability.isPlaybackEnabledForServer(
+                clientConfig = ClientConfig(
+                    playbackEnabled = true,
+                    disabledServers = listOf("singleplayer:test world"),
+                ),
+                serverScope = server,
+            )
+        )
+    }
+
+    @Test
     fun `availability issue distinguishes missing and rejected server handshake`() {
         assertNull(
             ClientPlaybackAvailability.availabilityIssue(

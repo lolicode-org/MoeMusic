@@ -238,6 +238,8 @@ Screen-facing client runtime models belong in [client-core](../client-core), not
 
 Client runtime code may expose public API through `api/client`, but the implementation should remain independent from Minecraft classes. Platform code should adapt Minecraft networking, audio output, and UI rendering at the edge.
 
+Client-local per-server playback disablement is keyed by a platform-provided `ClientServerScope`. Minecraft singleplayer scopes should use the save-folder identity (`singleplayer-folder:<level id>`) when available, not the mutable display name from `level.dat`. Keep the older display-name key (`singleplayer:<level name>`) as a matching alias so existing client configs continue to suppress playback until the user re-enables that world.
+
 ### Single-Instance Playback Lock
 
 To prevent multiple clients running on the same local device from playing music simultaneously and creating overlapping/noisy audio output, MoeMusic uses [InstancePlaybackLock](../client-core/src/main/kotlin/org/lolicode/moemusic/clientcore/playback/InstancePlaybackLock.kt).
