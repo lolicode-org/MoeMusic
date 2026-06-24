@@ -6,6 +6,7 @@ import org.lolicode.moemusic.api.client.ClientRequestException
 import org.lolicode.moemusic.api.debugString
 import org.lolicode.moemusic.api.event.UserParticipationState
 import org.lolicode.moemusic.api.model.*
+import org.lolicode.moemusic.clientcore.audio.ClientAudioFailure
 import org.lolicode.moemusic.core.config.ClientConfig
 import org.lolicode.moemusic.core.config.LoudnessNormalizationMode
 import org.lolicode.moemusic.core.config.MoeMusicConfig
@@ -229,7 +230,7 @@ class ClientPlaybackRuntimeTest {
         harness.acceptWelcome()
         harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
 
-        harness.platform.audio.failLast("temporary network timeout")
+        harness.platform.audio.failLast(ClientAudioFailure.network("temporary network timeout"))
         delay(25L.milliseconds)
 
         assertNotNull(harness.runtime.currentContext)
@@ -247,7 +248,7 @@ class ClientPlaybackRuntimeTest {
         harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
         harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-2", title = "Track Two"))
 
-        harness.platform.audio.failAt(0, "temporary network timeout")
+        harness.platform.audio.failAt(0, ClientAudioFailure.network("temporary network timeout"))
 
         assertEquals("track-2", harness.runtime.currentContext?.track?.id)
         assertEquals(2, harness.platform.audio.plays.size)
@@ -261,7 +262,7 @@ class ClientPlaybackRuntimeTest {
         harness.acceptWelcome()
         harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
 
-        harness.platform.audio.failLast("No audio source found at: https://example.test/audio.mp3")
+        harness.platform.audio.failLast(ClientAudioFailure.noMatches("https://example.test/audio.mp3"))
 
         assertNull(harness.runtime.currentContext)
         assertTrue(harness.platform.audio.stopped)
@@ -277,7 +278,7 @@ class ClientPlaybackRuntimeTest {
         harness.acceptWelcome()
         harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
 
-        harness.platform.audio.failLast("temporary network timeout")
+        harness.platform.audio.failLast(ClientAudioFailure.network("temporary network timeout"))
 
         assertNotNull(harness.runtime.lastLocalPlaybackFailureMessage)
 
@@ -293,10 +294,33 @@ class ClientPlaybackRuntimeTest {
         harness.acceptWelcome()
         harness.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
 
-        harness.platform.audio.failLast("temporary network timeout")
+        harness.platform.audio.failLast(ClientAudioFailure.network("temporary network timeout"))
 
         val request = harness.platform.decodeLast(PacketIds.PLAYBACK_CONTROL_REQUEST, PlaybackControlRequest.ADAPTER::decode)
         assertEquals(PlaybackControlAction.SKIP, request.action)
+    }
+
+    @Test
+    fun `http status failures use typed retry classification`() = runBlocking {
+        val retryable = harness(localPlaybackRetryDelaysMs = listOf(1L))
+        retryable.acceptWelcome()
+        retryable.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-1", title = "Track One"))
+
+        retryable.platform.audio.failLast(ClientAudioFailure.httpStatus("HTTP 503", 503))
+        delay(25L.milliseconds)
+
+        assertEquals(2, retryable.platform.audio.plays.size)
+        assertEquals(1, retryable.listener.localPlaybackRetryingMessages.size)
+
+        val permanent = harness(localPlaybackRetryDelaysMs = listOf(1L))
+        permanent.acceptWelcome()
+        permanent.runtime.handlePlaybackSnapshotPush(playbackPush(trackId = "track-2", title = "Track Two"))
+
+        permanent.platform.audio.failLast(ClientAudioFailure.httpStatus("HTTP 404", 404))
+
+        assertNull(permanent.runtime.currentContext)
+        assertTrue(permanent.listener.localPlaybackRetryingMessages.isEmpty())
+        assertEquals(1, permanent.listener.localPlaybackFailedMessages.size)
     }
 
     @Test
@@ -614,7 +638,7 @@ class ClientPlaybackRuntimeTest {
         data class Play(
             val playback: PlaybackResource,
             val seekMs: Long,
-            val onError: (String) -> Unit,
+            val onError: (ClientAudioFailure) -> Unit,
         )
 
         val plays = mutableListOf<Play>()
@@ -622,7 +646,7 @@ class ClientPlaybackRuntimeTest {
         var paused = false
         var stopped = false
 
-        override fun play(playback: PlaybackResource, seekMs: Long, onError: (String) -> Unit) {
+        override fun play(playback: PlaybackResource, seekMs: Long, onError: (ClientAudioFailure) -> Unit) {
             plays += Play(playback, seekMs, onError)
             paused = false
             stopped = false
@@ -642,12 +666,12 @@ class ClientPlaybackRuntimeTest {
 
         override fun currentPositionMs(): Long = plays.lastOrNull()?.seekMs ?: 0L
 
-        fun failLast(message: String) {
-            plays.last().onError(message)
+        fun failLast(failure: ClientAudioFailure) {
+            plays.last().onError(failure)
         }
 
-        fun failAt(index: Int, message: String) {
-            plays[index].onError(message)
+        fun failAt(index: Int, failure: ClientAudioFailure) {
+            plays[index].onError(failure)
         }
     }
 

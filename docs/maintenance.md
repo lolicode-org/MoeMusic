@@ -240,6 +240,8 @@ Client runtime code may expose public API through `api/client`, but the implemen
 
 Client-local per-server playback disablement is keyed by a platform-provided `ClientServerScope`. Minecraft singleplayer scopes should use the save-folder identity (`singleplayer-folder:<level id>`) when available, not the mutable display name from `level.dat`. Keep the older display-name key (`singleplayer:<level name>`) as a matching alias so existing client configs continue to suppress playback until the user re-enables that world.
 
+Local audio failures should flow through typed [ClientAudioFailure](../client-core/src/main/kotlin/org/lolicode/moemusic/clientcore/audio/ClientAudioFailure.kt) values. Retry decisions must use explicit recoverability from LavaPlayer severity/cause signals, `noMatches()`, track-stuck events, or the narrow HTTP status cause messages LavaPlayer emits; do not classify retryability by broad substring matching on user-facing error messages.
+
 ### Single-Instance Playback Lock
 
 To prevent multiple clients running on the same local device from playing music simultaneously and creating overlapping/noisy audio output, MoeMusic uses [InstancePlaybackLock](../client-core/src/main/kotlin/org/lolicode/moemusic/clientcore/playback/InstancePlaybackLock.kt).

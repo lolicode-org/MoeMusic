@@ -3,6 +3,8 @@ package org.lolicode.moemusic.clientcore.audio
 import org.lolicode.lavaplayer.format.StandardAudioDataFormats
 import org.lolicode.lavaplayer.player.AudioLoadResultHandler
 import org.lolicode.lavaplayer.player.DefaultAudioPlayerManager
+import org.lolicode.lavaplayer.player.AudioPlayer
+import org.lolicode.lavaplayer.player.event.AudioEventAdapter
 import org.lolicode.lavaplayer.source.http.HttpAudioReference
 import org.lolicode.lavaplayer.source.http.HttpAudioSourceManager
 import org.lolicode.lavaplayer.source.local.LocalAudioSourceManager
@@ -35,16 +37,35 @@ class LavaPlayerTrackLoader : ClientTrackLoader {
 
     @Volatile private var decodeThread: Thread? = null
     @Volatile private var stopRequested = false
+    @Volatile private var currentTrack: AudioTrack? = null
+    @Volatile private var currentErrorHandler: ((ClientAudioFailure) -> Unit)? = null
     /** Incremented on every stop()/load() to invalidate stale async loadItem callbacks. */
     @Volatile private var loadGeneration = 0
+
+    init {
+        player.addListener(object : AudioEventAdapter() {
+            override fun onTrackException(player: AudioPlayer, track: AudioTrack, exception: FriendlyException) {
+                if (track !== currentTrack) return
+                currentErrorHandler?.invoke(
+                    ClientAudioFailure.fromFriendlyException("Playback failed: ", exception)
+                )
+            }
+
+            override fun onTrackStuck(player: AudioPlayer, track: AudioTrack, thresholdMs: Long) {
+                if (track !== currentTrack) return
+                currentErrorHandler?.invoke(ClientAudioFailure.trackStuck(thresholdMs))
+            }
+        })
+    }
 
     /**
      * Load [playback] and begin streaming PCM into [ringBuffer] from [seekMs].
      * Invokes [onError] on the calling thread if loading fails.
      */
-    override fun load(playback: PlaybackResource, ringBuffer: PcmRingBuffer, seekMs: Long, onError: (String) -> Unit) {
+    override fun load(playback: PlaybackResource, ringBuffer: PcmRingBuffer, seekMs: Long, onError: (ClientAudioFailure) -> Unit) {
         stop(ringBuffer) // cancel any previous load
         val generation = ++loadGeneration
+        currentErrorHandler = onError
 
         playerManager.loadItem(
             HttpAudioReference(playback.url, null, playback.headers),
@@ -52,6 +73,7 @@ class LavaPlayerTrackLoader : ClientTrackLoader {
                 override fun trackLoaded(track: AudioTrack) {
                     if (loadGeneration != generation) return  // superseded by a later load() or stop()
                     if (seekMs > 0) track.position = seekMs
+                    currentTrack = track
                     player.playTrack(track)
                     startDecodeLoop(ringBuffer)
                 }
@@ -62,11 +84,15 @@ class LavaPlayerTrackLoader : ClientTrackLoader {
                 }
 
                 override fun noMatches() {
-                    onError("No audio source found at: ${playback.url}")
+                    if (loadGeneration != generation) return
+                    currentErrorHandler = null
+                    onError(ClientAudioFailure.noMatches(playback.url))
                 }
 
                 override fun loadFailed(exception: FriendlyException) {
-                    onError("Failed to load track: ${exception.message}")
+                    if (loadGeneration != generation) return
+                    currentErrorHandler = null
+                    onError(ClientAudioFailure.fromFriendlyException("Failed to load track: ", exception))
                 }
             },
         )
@@ -81,6 +107,8 @@ class LavaPlayerTrackLoader : ClientTrackLoader {
         ringBuffer?.close()
         decodeThread?.interrupt()
         player.stopTrack()
+        currentTrack = null
+        currentErrorHandler = null
         decodeThread?.join(2_000)  // wait for the thread to actually finish
         decodeThread = null
         stopRequested = false

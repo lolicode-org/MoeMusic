@@ -6,6 +6,8 @@ import org.lolicode.moemusic.api.client.ClientRequestException
 import org.lolicode.moemusic.api.debugString
 import org.lolicode.moemusic.api.event.*
 import org.lolicode.moemusic.api.model.*
+import org.lolicode.moemusic.clientcore.audio.ClientAudioFailure
+import org.lolicode.moemusic.clientcore.audio.ClientAudioFailureRecoverability
 import org.lolicode.moemusic.clientcore.media.ClientMediaFirewall
 import org.lolicode.moemusic.clientcore.request.ClientRequestTransport
 import org.lolicode.moemusic.core.config.ClientConfig
@@ -24,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 
 interface ClientPlaybackAudioAdapter {
-    fun play(playback: PlaybackResource, seekMs: Long, onError: (String) -> Unit = {})
+    fun play(playback: PlaybackResource, seekMs: Long, onError: (ClientAudioFailure) -> Unit = {})
     fun pause()
     fun stop()
     fun setNormalizationGain(gain: Float) {}
@@ -1404,19 +1406,17 @@ class ClientPlaybackRuntime(
         }
     }
 
-    private fun handleLocalPlaybackFailure(identity: LocalPlaybackIdentity, rawMessage: String) {
+    private fun handleLocalPlaybackFailure(identity: LocalPlaybackIdentity, failure: ClientAudioFailure) {
         platform.executeOnClientThread {
             val ctx = currentContext ?: return@executeOnClientThread
             if (!identity.matches(ctx)) return@executeOnClientThread
-            val message = rawMessage.ifBlank {
-                platform.render(LocalizedText.key("error.moemusic.internal"))
-            }
+            val message = failure.message.ifBlank { platform.render(LocalizedText.key("error.moemusic.internal")) }
             val attempt = synchronized(localPlaybackFailureLock) {
                 if (localPlaybackFailureIdentity != identity) {
                     localPlaybackFailureIdentity = identity
                     localPlaybackFailureAttempts = 0
                 }
-                if (shouldRetryLocalPlaybackFailure(message) &&
+                if (shouldRetryLocalPlaybackFailure(failure) &&
                     localPlaybackFailureAttempts < localPlaybackRetryDelaysMs.size
                 ) {
                     localPlaybackFailureAttempts += 1
@@ -1521,26 +1521,8 @@ class ClientPlaybackRuntime(
         platform.onLocalPlaybackFailureFinal(ctx.track, message)
     }
 
-    private fun shouldRetryLocalPlaybackFailure(message: String): Boolean {
-        val lower = message.lowercase(Locale.ROOT)
-        val permanentTokens = listOf(
-            "no audio source",
-            "no matches",
-            "unsupported",
-            "unknown file format",
-            "not found at",
-            " 401",
-            " 403",
-            " 404",
-            " 410",
-            "401 ",
-            "403 ",
-            "404 ",
-            "410 ",
-            "forbidden",
-        )
-        return permanentTokens.none { it in lower }
-    }
+    private fun shouldRetryLocalPlaybackFailure(failure: ClientAudioFailure): Boolean =
+        failure.recoverability == ClientAudioFailureRecoverability.RETRYABLE
 
     private fun estimatedPlaybackPositionMs(ctx: TrackContext): Long =
         when (val state = ctx.state) {

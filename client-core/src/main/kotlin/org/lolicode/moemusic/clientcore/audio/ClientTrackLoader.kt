@@ -17,7 +17,7 @@ interface ClientTrackLoader {
         playback: PlaybackResource,
         ringBuffer: PcmRingBuffer,
         seekMs: Long = 0L,
-        onError: (String) -> Unit = {},
+        onError: (ClientAudioFailure) -> Unit = {},
     )
 
     /**

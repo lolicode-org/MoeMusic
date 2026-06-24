@@ -29,9 +29,9 @@ class ClientAudioPlayerRuntime(
     /** Saved state across a sound-engine reload (destroy -> reload cycle). */
     @Volatile private var savedPlayback: PlaybackResource? = null
     @Volatile private var savedSeekMs: Long = 0L
-    @Volatile private var savedErrorHandler: ((String) -> Unit)? = null
+    @Volatile private var savedErrorHandler: ((ClientAudioFailure) -> Unit)? = null
 
-    @Volatile private var currentErrorHandler: ((String) -> Unit)? = null
+    @Volatile private var currentErrorHandler: ((ClientAudioFailure) -> Unit)? = null
 
     @Volatile
     var isPlaying: Boolean = false
@@ -53,7 +53,7 @@ class ClientAudioPlayerRuntime(
     fun play(
         playback: PlaybackResource,
         seekMs: Long = 0L,
-        onError: (String) -> Unit = { logger.error("Audio error: {}", it) },
+        onError: (ClientAudioFailure) -> Unit = { logger.error("Audio error: {}", it.message) },
     ) {
         stop()
         val generation = ++playGeneration
@@ -63,7 +63,7 @@ class ClientAudioPlayerRuntime(
         applyOutputGain("track load")
         loader.load(playback, ringBuffer, seekMs) { error ->
             if (playGeneration != generation) return@load
-            logger.error("Track load failed: {}", error)
+            logger.error("Track playback failed: {}", error.message)
             clearFailedPlayback(generation)
             onError(error)
         }
@@ -124,7 +124,7 @@ class ClientAudioPlayerRuntime(
     fun restoreAfterReload() {
         val playback = savedPlayback ?: return
         val seekMs = savedSeekMs
-        val onError = savedErrorHandler ?: { error: String -> logger.error("Audio error: {}", error) }
+        val onError = savedErrorHandler ?: { error: ClientAudioFailure -> logger.error("Audio error: {}", error.message) }
         savedPlayback = null
         savedSeekMs = 0L
         savedErrorHandler = null

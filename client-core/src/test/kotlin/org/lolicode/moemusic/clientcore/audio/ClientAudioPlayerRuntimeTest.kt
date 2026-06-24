@@ -63,12 +63,12 @@ class ClientAudioPlayerRuntimeTest {
         val loader = FakeTrackLoader()
         val output = FakeAudioOutput()
         val runtime = ClientAudioPlayerRuntime(PcmRingBuffer(), loader, output)
-        val errors = mutableListOf<String>()
+        val errors = mutableListOf<ClientAudioFailure>()
 
         runtime.play(PlaybackResource("https://example.com/a.mp3"), onError = errors::add)
-        loader.failLast("temporary network error")
+        loader.failLast(ClientAudioFailure.network("temporary network error"))
 
-        assertEquals(listOf("temporary network error"), errors)
+        assertEquals(listOf("temporary network error"), errors.map { it.message })
         assertFalse(runtime.isPlaying)
         assertEquals(0L, runtime.currentPositionMs())
         assertEquals(2, output.stopCalls)
@@ -80,19 +80,19 @@ class ClientAudioPlayerRuntimeTest {
         val output = FakeAudioOutput()
         val runtime = ClientAudioPlayerRuntime(PcmRingBuffer(), loader, output)
         val playback = PlaybackResource("https://example.com/a.mp3")
-        val errors = mutableListOf<String>()
+        val errors = mutableListOf<ClientAudioFailure>()
 
         runtime.play(playback, onError = errors::add)
         runtime.reportPlaybackPosition(4_321L)
         runtime.saveStateForReload()
         runtime.stop()
         runtime.restoreAfterReload()
-        loader.failLast("restore failed")
+        loader.failLast(ClientAudioFailure.decoder("restore failed"))
 
         assertEquals(2, loader.loads.size)
         assertEquals(4_321L, loader.loads.last().seekMs)
         assertEquals(listOf(0L, 4_321L), output.startPositions)
-        assertEquals(listOf("restore failed"), errors)
+        assertEquals(listOf("restore failed"), errors.map { it.message })
         assertFalse(runtime.isPlaying)
     }
 
@@ -100,7 +100,7 @@ class ClientAudioPlayerRuntimeTest {
         data class Load(val playback: PlaybackResource, val seekMs: Long)
 
         val loads = mutableListOf<Load>()
-        private val errorCallbacks = mutableListOf<(String) -> Unit>()
+        private val errorCallbacks = mutableListOf<(ClientAudioFailure) -> Unit>()
         var stopCalls: Int = 0
 
         val loadedPlayback: PlaybackResource?
@@ -113,7 +113,7 @@ class ClientAudioPlayerRuntimeTest {
             playback: PlaybackResource,
             ringBuffer: PcmRingBuffer,
             seekMs: Long,
-            onError: (String) -> Unit,
+            onError: (ClientAudioFailure) -> Unit,
         ) {
             loads += Load(playback, seekMs)
             errorCallbacks += onError
@@ -123,8 +123,8 @@ class ClientAudioPlayerRuntimeTest {
             stopCalls++
         }
 
-        fun failLast(message: String) {
-            errorCallbacks.last()(message)
+        fun failLast(failure: ClientAudioFailure) {
+            errorCallbacks.last()(failure)
         }
     }
 
