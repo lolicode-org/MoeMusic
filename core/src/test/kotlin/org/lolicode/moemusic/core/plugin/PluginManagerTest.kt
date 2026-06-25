@@ -1,6 +1,7 @@
 package org.lolicode.moemusic.core.plugin
 
 import kotlinx.serialization.Serializable
+import org.junit.jupiter.api.parallel.ResourceLock
 import org.lolicode.moemusic.api.*
 import org.lolicode.moemusic.api.plugin.*
 import org.lolicode.moemusic.api.service.*
@@ -19,6 +20,7 @@ import java.util.jar.JarOutputStream
 import javax.tools.ToolProvider
 import kotlin.test.*
 
+@ResourceLock("PluginManager")
 class PluginManagerTest {
 
     @BeforeTest

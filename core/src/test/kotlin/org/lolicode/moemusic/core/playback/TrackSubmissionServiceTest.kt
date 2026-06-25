@@ -1,6 +1,7 @@
 package org.lolicode.moemusic.core.playback
 
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.parallel.ResourceLock
 import org.lolicode.moemusic.api.*
 import org.lolicode.moemusic.api.event.OnTrackSubmitted
 import org.lolicode.moemusic.api.model.*
@@ -16,6 +17,7 @@ import java.nio.file.Files
 import java.util.*
 import kotlin.test.*
 
+@ResourceLock("PluginManager")
 class TrackSubmissionServiceTest {
 
     init {

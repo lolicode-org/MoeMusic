@@ -1,5 +1,6 @@
 package org.lolicode.moemusic.core.session
 
+import org.junit.jupiter.api.parallel.ResourceLock
 import org.lolicode.moemusic.api.event.OnServerPlayerConnected
 import org.lolicode.moemusic.api.event.OnServerPlayerDisconnected
 import org.lolicode.moemusic.api.event.subscribe
@@ -11,6 +12,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+@ResourceLock("PluginManager")
 class ServerConnectionEventsDispatcherTest {
 
     @BeforeTest

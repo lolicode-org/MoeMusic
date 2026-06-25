@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.parallel.ResourceLock
 import org.lolicode.moemusic.api.*
 import org.lolicode.moemusic.api.event.*
 import org.lolicode.moemusic.api.model.*
@@ -141,6 +142,7 @@ private fun awaitCondition(timeoutMs: Long = 1_000, condition: () -> Boolean): B
 // TrackQueue tests
 // ---------------------------------------------------------------------------
 
+@ResourceLock("PluginManager")
 class TrackQueueTest {
 
     @Test
@@ -356,6 +358,7 @@ class TrackQueueTest {
 // ServerPlaybackController tests
 // ---------------------------------------------------------------------------
 
+@ResourceLock("PluginManager")
 class ServerPlaybackControllerTest {
 
     @Test
@@ -1058,8 +1061,9 @@ class ServerPlaybackControllerTest {
 
     @Test
     fun `buildPlaybackSnapshot refreshes playback at most once per cooldown window`() {
+        val refreshSourceId = "refresh-cooldown-source"
         val source = object : MusicSource {
-            override val id: String = SAMPLE_SOURCE_ID
+            override val id: String = refreshSourceId
             var resolveCalls: Int = 0
 
             override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
@@ -1095,8 +1099,9 @@ class ServerPlaybackControllerTest {
 
     @Test
     fun `buildPlaybackSnapshot refresh updates current track metadata from resolve`() {
+        val refreshSourceId = "refresh-metadata-source"
         val source = object : MusicSource {
-            override val id: String = SAMPLE_SOURCE_ID
+            override val id: String = refreshSourceId
             var resolveCalls: Int = 0
 
             override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
@@ -1148,8 +1153,9 @@ class ServerPlaybackControllerTest {
 
     @Test
     fun `buildPlaybackSnapshot backs off repeated refresh failures and keeps existing playback`() {
+        val refreshSourceId = "failing-refresh-source"
         val source = object : MusicSource {
-            override val id: String = SAMPLE_SOURCE_ID
+            override val id: String = refreshSourceId
             var resolveCalls: Int = 0
 
             override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
@@ -1185,8 +1191,9 @@ class ServerPlaybackControllerTest {
 
     @Test
     fun `resume refreshes playback and includes it in state update`() {
+        val refreshSourceId = "resume-refresh-source"
         val source = object : MusicSource {
-            override val id: String = SAMPLE_SOURCE_ID
+            override val id: String = refreshSourceId
             var resolveCalls: Int = 0
 
             override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution {
@@ -1356,8 +1363,10 @@ class ServerPlaybackControllerTest {
     fun `enqueueAndPlay with allowDuplicate bypasses already-queued check`() {
         val queue = TrackQueue().apply { enqueueUser(SAMPLE_TRACK) }
         val (ctrl, _) = freshController(queue)
+        ctrl.play(SAMPLE_TRACK.copy { id = "manual-stop-guard"; sourceId = null }, SAMPLE_TRACK.directPlayback())
+        ctrl.stop()
 
-        // No current track — should fail the queue dedup without bypass
+        // No current track, and manual stop keeps startNextIfStopped from asynchronously draining the queue.
         assertFailsWith<AlreadyQueuedException> {
             ctrl.enqueueAndPlay(SAMPLE_TRACK.copy { title = "Renamed" }, requesterId = null, allowDuplicate = false)
         }

@@ -1,5 +1,6 @@
 package org.lolicode.moemusic.core.plugin
 
+import org.junit.jupiter.api.parallel.ResourceLock
 import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.core.i18n.Localization
 import java.nio.file.Files
@@ -9,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
+@ResourceLock("PluginManager")
 class PluginManagerBuiltInLocalizationTest {
 
     @BeforeTest

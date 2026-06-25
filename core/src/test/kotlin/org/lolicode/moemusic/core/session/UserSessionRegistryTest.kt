@@ -1,5 +1,6 @@
 package org.lolicode.moemusic.core.session
 
+import org.junit.jupiter.api.parallel.ResourceLock
 import org.lolicode.moemusic.api.event.UserParticipationState
 import org.lolicode.moemusic.api.event.OnUserSessionStarted
 import org.lolicode.moemusic.api.event.OnUserSessionEnded
@@ -15,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
+@ResourceLock("PluginManager")
 class UserSessionRegistryTest {
 
     @BeforeTest

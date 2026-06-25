@@ -1,5 +1,6 @@
 package org.lolicode.moemusic.core.playback.audience
 
+import org.junit.jupiter.api.parallel.ResourceLock
 import org.lolicode.moemusic.api.MoeMusicUser
 import org.lolicode.moemusic.api.MusicSource
 import org.lolicode.moemusic.api.model.PlaybackResolution
@@ -26,6 +27,7 @@ private class LeaseCapturingChannel : NetworkChannel {
     override fun sendToAllClients(packetId: PacketId, payload: ByteArray) = Unit
 }
 
+@ResourceLock("PluginManager")
 class PlaybackAudienceLeaseCoordinatorTest {
 
     @BeforeTest
