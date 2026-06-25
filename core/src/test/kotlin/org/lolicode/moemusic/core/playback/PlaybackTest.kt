@@ -1074,13 +1074,13 @@ class ServerPlaybackControllerTest {
                 queue = TrackQueue(),
                 eventBus = EventBusImpl(),
             ).apply {
-                playbackRefreshCooldownNanos = 20L * 1_000_000L
-                playbackRefreshFailureBackoffNanos = 20L * 1_000_000L
+                playbackRefreshCooldownNanos = 0L
+                playbackRefreshFailureBackoffNanos = TimeUnit.MINUTES.toNanos(1)
             }
             val track = SAMPLE_TRACK.copy { id = "refreshable-track"; sourceId = source.id }
             ctrl.play(track, PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=initial"))
+            ctrl.playbackRefreshCooldownNanos = TimeUnit.MINUTES.toNanos(1)
 
-            Thread.sleep(30)
             val first = assertNotNull(ctrl.buildPlaybackSnapshot())
             val second = assertNotNull(ctrl.buildPlaybackSnapshot())
 
@@ -1123,13 +1123,12 @@ class ServerPlaybackControllerTest {
                 queue = TrackQueue(),
                 eventBus = EventBusImpl(),
             ).apply {
-                playbackRefreshCooldownNanos = 20L * 1_000_000L
-                playbackRefreshFailureBackoffNanos = 20L * 1_000_000L
+                playbackRefreshCooldownNanos = 0L
+                playbackRefreshFailureBackoffNanos = TimeUnit.MINUTES.toNanos(1)
             }
             val track = SAMPLE_TRACK.copy { id = "refresh-metadata-track"; sourceId = source.id }
             ctrl.play(track, PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=initial"))
 
-            Thread.sleep(30)
             val snapshot = assertNotNull(ctrl.buildPlaybackSnapshot())
 
             assertEquals(1, source.resolveCalls)
@@ -1166,7 +1165,7 @@ class ServerPlaybackControllerTest {
                 eventBus = EventBusImpl(),
             ).apply {
                 playbackRefreshCooldownNanos = 0L
-                playbackRefreshFailureBackoffNanos = 50L * 1_000_000L
+                playbackRefreshFailureBackoffNanos = TimeUnit.MINUTES.toNanos(1)
             }
             val track = SAMPLE_TRACK.copy { id = "failing-refresh-track"; sourceId = source.id }
             val initialPlayback = PlaybackResource("https://cdn.example.com/audio/${track.id}.mp3?sig=initial")
