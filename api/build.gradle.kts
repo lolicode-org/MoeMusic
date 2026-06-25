@@ -40,7 +40,6 @@ kotlin {
 
     @OptIn(org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation::class)
     abiValidation {
-        enabled.set(true)
         filters {
             // Freeze only the supported plugin API surface.
             include {
