@@ -4,13 +4,15 @@
 
 > [!TIP]
 > 本仓库存放的是 MoeMusic 的**核心库**，包含了核心业务逻辑、API 接口和共享数据模型。
-> - 如果你需要获取可直接运行的 Minecraft Mod（Fabric / NeoForge / Forge 版本）或其平台适配层源码，请访问 [MoeMusic Mod](https://github.com/lolicode-org/MoeMusic-Minecraft)。
+> - 如果你需要获取可直接运行的 Minecraft Mod（Fabric / NeoForge / Forge）或其平台适配层源码，请访问 [MoeMusic Mod](https://github.com/lolicode-org/MoeMusic-Minecraft)。
 > - 如果你需要完全脱离 Minecraft 的独立轻量终端客户端实现，请访问 [MoeMusic Terminal](https://github.com/KoishiMoe/MoeMusic-Terminal)。该项目可作为核心库可移植性与可扩展性的概念验证，同时在开发音源插件时，也可用于进行快速测试，避免启动 Minecraft 实例占用过多资源。
 
-> [!NOTE]
-> 本仓库的大部分代码在 AI 辅助下生成并进行测试。虽然我人工对每个组件进行了审查和测试，如在使用中遇到任何问题，欢迎提交 issue 或 pull request。
+> [!NOTE]~~~~
+> 本仓库的大部分代码在 AI 辅助下编写。虽然我人工对每个组件进行了审查和测试，但仍可能存在预料之外的问题。如在使用中遇到任何问题，欢迎提交 issue 或 pull request。
 
-MoeMusic 是一个专为多人同步播放音乐而设计的 Kotlin 库，支持多平台（Windows、Linux、macOS）。虽然它本身并不直接依赖 Minecraft 的任何组件，但它的核心逻辑是针对 Minecraft 联机环境进行设计和适配的，可以嵌入 Minecraft 模组中，因此如果需要在其他项目中使用，可能需要额外的适配。
+MoeMusic 是一个专为多人同步播放音乐而设计的 Kotlin 库，支持多平台（Windows、Linux、macOS）。
+
+虽然它本身并不直接依赖 Minecraft 的任何组件，但它的核心逻辑是针对 Minecraft 联机环境进行设计和适配的，因此如果需要在其他项目中使用，可能需要额外的适配。
 
 ---
 
@@ -21,11 +23,12 @@ MoeMusic 是一个专为多人同步播放音乐而设计的 Kotlin 库，支持
 MoeMusic 发布在 Codeberg Packages 和 GitHub Packages 上。 
 
 有关如何在 Gradle 中声明仓库和引入依赖的具体配置，请参阅 API 开发文档的对应章节。
+
 ### 文档链接
 - **开发接口指南**：[docs/api_zh.md](docs/api_zh.md) | [docs/api.md](docs/api.md)
 - **架构设计与维护说明**：[docs/maintenance.md](docs/maintenance.md)
-- **支持及社区插件列表**：[GitHub Wiki 插件列表](https://github.com/lolicode-org/MoeMusic/wiki/Plugins---%E6%8F%92%E4%BB%B6%E5%88%97%E8%A1%A8)（用于探索官方插件或提交您自己的插件）
-- **自定义音源模板项目**：[MoeMusic-source-template](https://github.com/lolicode-org/MoeMusic-source-template)
+- **插件列表**：[GitHub Wiki 插件列表](https://github.com/lolicode-org/MoeMusic/wiki/Plugins---%E6%8F%92%E4%BB%B6%E5%88%97%E8%A1%A8)（你可以在此提交自己的插件）
+- **自定义音源模板**：[MoeMusic-source-template](https://github.com/lolicode-org/MoeMusic-source-template)
 
 ---
 

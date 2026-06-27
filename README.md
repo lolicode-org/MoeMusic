@@ -8,9 +8,11 @@
 > - For a standalone, lightweight terminal client implementation, please see [MoeMusic Terminal](https://github.com/KoishiMoe/MoeMusic-Terminal). It serves as a proof of concept demonstrating the core library's portability and extensibility, and can also be used as a fast, resource-efficient testing environment for developing custom audio source plugins without launching a full Minecraft client.
 
 > [!NOTE]
-> Most of the codebase in this repository is generated and refined with AI assistance. While all components are human reviewed, tested, and validated, if you encounter any issues during use, please feel free to open an issue or submit a pull request.
+> Most of the codebase in this repository is written with AI assistance. While all components are human reviewed, tested, and validated, there may still be unexpected issues. If you encounter any during use, please feel free to open an issue or submit a pull request.
 
-MoeMusic is a Kotlin library designed for synchronized multi-user music playback across multiple platforms (Windows, Linux, macOS). While not directly tied to any Minecraft components, it is optimized for Minecraft mod development and integrates with Minecraft modding environments, so some concepts may require additional adaptation to fit into non-Minecraft projects.
+MoeMusic is a Kotlin library designed for synchronized multi-user music playback across multiple platforms (Windows, Linux, macOS).
+
+While not directly tied to any Minecraft components, it is optimized for Minecraft environments, so some concepts may require additional adaptation to fit into non-Minecraft projects.
 
 ---
 
@@ -25,7 +27,7 @@ Detailed installation and build setup instructions (including repository declara
 ### Documentation Links
 - **Public API Guide**: [docs/api.md](docs/api.md) | [docs/api_zh.md](docs/api_zh.md)
 - **Architecture & Maintenance**: [docs/maintenance.md](docs/maintenance.md)
-- **Supported & Community Plugins**: [GitHub Wiki Plugins List](https://github.com/lolicode-org/MoeMusic/wiki/Plugins---%E6%8F%92%E4%BB%B6%E5%88%97%E8%A1%A8) (To explore official plugins or submit your own plugin implementation)
+- **Plugins**: [GitHub Wiki Plugins List](https://github.com/lolicode-org/MoeMusic/wiki/Plugins---%E6%8F%92%E4%BB%B6%E5%88%97%E8%A1%A8) (To explore official plugins or submit your own plugin implementation)
 - **Example Audio Source Project**: [MoeMusic-source-template](https://github.com/lolicode-org/MoeMusic-source-template)
 
 ---

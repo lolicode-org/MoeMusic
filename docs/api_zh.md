@@ -51,7 +51,7 @@ dependencies {
 [MoeMusicApi.API_VERSION](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicApi.kt) 是插件接口的内部版本，用于与 [Plugin.supportedApiVersions](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt) 进行匹配。正式发布版的接口版本号会和 Maven 产物版本号保持一致；快照版的接口版本号可能更频繁变动，不保证与 Maven 版本号完全同步。
 
 建议在插件中显式声明所支持的 API 版本范围。
-本项目接口版本遵循语义化版本规范，并且在主版本号不变的前提下保持向后兼容。因此，推荐的声明方式为：大于等于当前的最新次要版本号，并且小于下一个主版本号，例如：
+本项目接口版本遵循语义化版本规范，并且在主版本号不变的前提下保持向后兼容。因此，推荐的声明方式为：大于等于当前的最新次要版本号（不是修订版本号），并且小于下一个主版本号，例如：
 
 ```kotlin
 override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
@@ -61,7 +61,7 @@ override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
 
 ### 只读事件与结果类型
 
-事件（如 `OnPlaybackStarted`）、服务结果（如 `SubmitOutcome`、`QueueRemoveOutcome`）、客户端模型（`ClientSearchPage` 等）以及密封结果（`UserResult`、`FilterVerdict`）均由核心产生，插件侧应**只读**使用。
+事件（如 `OnPlaybackStarted`）、服务结果（如 `SubmitOutcome`、`QueueRemoveOutcome`）、客户端模型（`ClientSearchPage` 等）以及封闭结果（`UserResult`、`FilterVerdict`）均由核心产生，插件侧应**只读**使用。
 请避免在插件中构造、解构或 `.copy()` 这些类型。我们可能会在次要版本的API更新中向其中增加字段，如果您在插件中构造它们，则可能面临意外的破坏性更改。
 
 插件**可以**构造的类型（`TrackInfo`、`SearchResult`、`SelectionEntry`、`PlaybackResource`、`ArtistInfo`）采用接口 + Builder DSL 模式，可通过工厂语法安全构造（如 `TrackInfo(id, title, artists, durationMs) { ... }`）。为这些类型添加可选字段是纯增量的，不会造成破坏。
@@ -76,13 +76,13 @@ override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
 - `configId` 必须符合正则表达式 `^[a-z0-9_-]+$`。尽管该值默认会根据 `id` 派生，但为了保证配置文件名和生成路径的稳定性，建议显式声明。
 - `displayName` 建议使用 [LocalizedText.key(...)](../api/src/main/kotlin/org/lolicode/moemusic/api/LocalizedText.kt)，并由对应的语言文件（Language Files）提供具体的本地化翻译。
 - 不支持插件热重载；替换插件 Jar 包后，需要重启游戏客户端或服务端。
-- 请勿在 `onServerSessionLoad` 回调中注册音源或长生命周期的事件监听器。因为在单人游戏或联机时，Minecraft 的集成服务端（Integrated Server）在同一个 JVM 进程中可能会多次启动和关闭 Server Session。
+- 请勿在 `onServerSessionLoad` 回调中注册音源或长生命周期的事件监听器。因为在单人游戏或联机时，Minecraft 的集成服务端（Integrated Server）在同一个 JVM 进程中可能会多次启动和关闭。
 
 一个典型的插件结构通常包含：
 
 1. 声明 `id`、`version` 以及 `supportedApiVersions`；
-2. （可选）定义配置规范 `configSpec`；
-3. （可选）在 `onServerRuntimeLoad` 中调用 `ctx.registerMusicSource(...)` 注册音源；
+2. 定义配置规范 `configSpec`；
+3. 在 `onServerRuntimeLoad` 中调用 `ctx.registerMusicSource(...)` 注册音源；
 4. 通过 `ctx.eventBus.subscribe<T> { ... }` 订阅并观察所需事件；
 5. 通过 `ctx.onConfigChanged(spec) { ... }` 实时监听并处理配置项变更。
 
@@ -136,8 +136,8 @@ com.example.moemusic.ExampleProvider
 MoeMusic 的生命周期分为运行时（Runtime）和会话（Session）两层：
 
 - `onServerRuntimeLoad(ctx)`：在每个逻辑服务端（Logical Server）运行时初始化时调用一次。用于注册音源、事件监听器、翻译文本以及配置监听器。
-- `onServerSessionLoad(ctx)`：在每个具体的游戏会话（Server Session）建立时调用一次。只应当在此处放置与当前会话绑定的资源，例如外部播放受众租约（Audience Lease）。
-- `onServerSessionUnload()`：在游戏会话结束时调用，用于释放与当前会话绑定的资源。
+- `onServerSessionLoad(ctx)`：在每个具体的服务端会话（Server Session）建立时调用一次。只应当在此处放置与当前会话绑定的资源，例如外部播放受众租约（Audience Lease）。
+- `onServerSessionUnload()`：在服务端会话结束时调用，用于释放与当前会话绑定的资源。
 - `onServerRuntimeUnload()`：逻辑服务端运行时最终卸载时调用，用于执行全局清理。
 - `onClientRuntimeLoad(ctx)`：在每个客户端（Client）运行时初始化时调用一次。用于客户端的播放、请求逻辑以及本地状态的集成。
 - `onClientRuntimeUnload()`：在客户端关闭时调用，执行清理操作。
@@ -168,7 +168,7 @@ config/moemusic/plugin-data/<configId>/
 
 配置的数据类（Data Class）必须支持 Kotlin Serialization 序列化。在进行参数校验时，验证器（Validator）如果返回 `null` 则表示校验通过，返回 `LocalizedText` 则表示具体的输入错误信息；**请勿**使用抛出异常的方式来表达常规的参数校验失败。
 
-本地化语言文件建议打包在插件 Jar 中的以下路径：
+本地化语言文件需要打包在插件 Jar 中的以下路径：
 
 ```text
 assets/<namespace>/lang/en_us.json
@@ -209,15 +209,15 @@ ctx.eventBus.subscribe<OnTrackSubmitted> { event ->
 
 核心接口方法的语义说明：
 
-- `TrackInfo.id`：由音源自己定义和解释。它是音源内部稳定使用的曲目标识，不必等同于上游平台的 ID。一个音源若同时暴露多种上游资源类型，应使用带类型的标识，避免后续查询和播放走错接口。
-- `TrackInfo.loudness`：可选的音源侧响度数据。将 LUFS 放在 `loudness.integratedLufs`，若音源还能提供可信的峰值测量，则可额外填写 `loudness.peak`。客户端会对缺失或无效的 LUFS 采用保守处理，因此能提供真实 LUFS 的音源应尽量提供。
+- `TrackInfo.id`：由音源自己定义和解释。它是音源内部稳定使用的曲目标识，不必等同于上游平台的 ID。一个音源若同时暴露多种上游资源类型，应使用带类型的标识，以在后续查询和播放时使用正确的接口。
+- `TrackInfo.loudness`：可选的音源侧响度数据。将 LUFS 信息放在 `loudness.integratedLufs`，若音源还能提供可信的峰值测量，则可额外填写 `loudness.peak`。客户端会对缺失或无效的 LUFS 采用保守处理，因此能提供真实 LUFS 的音源应尽量提供。
 - `search(...)`：返回用户可见的 [SearchResult](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt#L59)。无结果属于成功的空页面，不应抛出异常。
-- 直接曲目行必须使用 [SelectionEntryKind.TRACK](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt#L30)，并将最终稳定的 `TrackInfo.id` 填入 `selectionId`。
-- 专辑、歌单等中间容器行可使用 `CONTAINER` 或 `UNKNOWN`，随后通过 `resolveSelection(...)` 展开。
+- 若某条结果直接对应确定的曲目，必须使用 [SelectionEntryKind.TRACK](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt#L30)，并将最终稳定的 `TrackInfo.id` 填入 `selectionId`。
+- 若某条结果是专辑、歌单等中间容器，可使用 `CONTAINER` 或 `UNKNOWN`（若平台方未提供足够的信息判断是否是容器），随后通过 `resolveSelection(...)` 展开。
 - `getTrackInfo(...)`：若曲目不存在，应返回 `UserResult.Success(null)`；若为预期内的拒绝操作，应返回 `UserResult.Error`；只有当本次查找必须异常中止时，才应当抛出异常。
 - `resolve(...)`：返回 [PlaybackResolution](../api/src/main/kotlin/org/lolicode/moemusic/api/model/PlaybackResolution.kt) 的播放解析入口。同一首曲目在恢复播放、跳转进度或新玩家同步时可能会被多次解析，因此播放地址应视为可重新签发的资源。
 - 若签发播放地址的同一次请求还能拿到当前曲目的额外元数据，可通过 `PlaybackResolution.trackPatch` 回传一个针对 TrackInfo 的补丁，例如响度信息或歌词。
-- `resolveIdentifier(...)`：对于非本音源支持的输入，应返回 `Pass`；对于预期内的拒绝，应返回 `Blocked`；对于确定的直接曲目，应返回 `Resolved`；对于需要进一步展开选择的容器，应返回 `Choices`。
+- `resolveIdentifier(...)`：对于非本音源支持的输入，应返回 `Pass` 以允许其他音源尝试解析；对于预期内的拒绝（确定指向本音源，但权限不足、格式错误、目标无效等），应返回 `Blocked` 以阻断传递并返回结果；对于确定的曲目，应返回 `Resolved`；对于需要进一步展开选择的容器，应返回 `Choices`。
 - 类似于通用 HTTP 解析器这类泛用解析器，应设置 `isFallbackResolver = true`，以便让针对特定平台的分享链接解析器优先尝试解析。
 
 在执行任何高消耗或敏感操作之前，应先校验权限。音源专属权限的校验示例：
@@ -232,14 +232,14 @@ submitter?.hasPermission("your.node", defaultLevel = 2)
 
 [TrackInfo.unavailableReason](../api/src/main/kotlin/org/lolicode/moemusic/api/model/TrackInfo.kt) 与 [SelectionEntry.unavailableReason](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt) 仅用于表示音源层面的固有不可用状态，例如会员限制、地区限制、资源已下架、无法获取播放地址等。这类限制不能通过内容过滤的免过滤权限绕过。
 
-因触发全局内容过滤器而导致不可用的情况，不应写入 `unavailableReason`。如果音源需要根据简介、标签等更丰富的元数据执行自己的过滤逻辑，应通过 `sourceFilterVerdict` 返回判定结果。曲目提交校验入口会使用与内置过滤器相同的免过滤规则执行该判定。
+MoeMusic 核心会自动对公共字段进行过滤检查，音源无需自己实现。如果音源需要根据简介、标签等更丰富的元数据执行自己的过滤逻辑，应通过 `sourceFilterVerdict` 返回判定结果。曲目提交校验入口会使用与内置过滤器相同的免过滤规则执行该判定。**不要**把过滤结果写入 `unavailableReason`。
 
 标准的曲目提交接口为 [ITrackSubmissionService](../api/src/main/kotlin/org/lolicode/moemusic/api/service/ITrackSubmissionService.kt)：
 
 - `submitBySourceAndId(sourceId, trackId, ...)`：提交稳定的音源曲目标识，并先通过 `getTrackInfo(...)` 获取权威元数据。
 - `submitBySelection(sourceId, selectionId, ...)`：提交或进一步展开一个由音源返回的选择项。
-- `submitResolved(track, ...)`：接收调用方提供的曲目元数据，并在可能时从所属音源重新获取权威元数据。跨越不可信边界时应使用这个方法。
-- `submitResolvedFromSource(track, ...)`：接收刚由所属音源在同一服务端流程中返回的 `TrackInfo`。它会跳过额外的元数据刷新，但仍会写入提交者、检查时长、内容过滤、可用性和队列规则。
+- `submitResolved(track, ...)`：接收调用方提供的曲目元数据，并在可能时从所属音源重新获取权威元数据。跨越不可信边界（如接受由客户端发送的曲目信息）时应使用这个方法。
+- `submitResolvedFromSource(track, ...)`：接收刚由所属音源在同一服务端流程中返回的 `TrackInfo`。它会跳过额外的元数据刷新（默认现有元数据是可信的），但仍会写入提交者、检查时长、内容过滤、可用性和队列规则。
 
 如果插件需要代表玩家执行操作，应优先使用 [IUserActionService](../api/src/main/kotlin/org/lolicode/moemusic/api/service/IUserActionService.kt)。它会在调用底层原始服务前执行 MoeMusic 内置的权限校验与请求频率限制。
 
@@ -296,7 +296,7 @@ submitter?.hasPermission("your.node", defaultLevel = 2)
 ### `org.lolicode.moemusic.api.event`
 
 - [EventBus](../api/src/main/kotlin/org/lolicode/moemusic/api/event/EventBus.kt) 及 `subscribe<T>` 订阅机制。
-- 网络连接与 Session 级生命周期事件、搜索/解析/点歌提交事件、播放相关核心事件、客户端本地连接及播放事件、内容过滤变更事件等。
+- 网络连接与会话级生命周期事件、搜索/解析/点歌提交事件、播放相关核心事件、客户端本地连接及播放事件、内容过滤变更事件等。
 
 ### `org.lolicode.moemusic.api.client`
 
@@ -309,13 +309,13 @@ submitter?.hasPermission("your.node", defaultLevel = 2)
 - [MoeMusicPermission](../api/src/main/kotlin/org/lolicode/moemusic/api/permission/MoeMusicPermission.kt)：[IPermissionService](../api/src/main/kotlin/org/lolicode/moemusic/api/service/IPermissionService.kt) 支持的 MoeMusic 内置标准公开权限组。
 - 插件自定义的专属权限节点，仍直接通过 [MoeMusicUser.hasPermission(...)](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicUser.kt) 进行动态检索。
 
-## 实用开发检查表
+## 提示
 
 - 确保插件在 MoeMusic 运行时初始化之前完成注册。
 - **只能**在 `onServerRuntimeLoad` 回调中执行自定义音源的注册操作。
 - 任何面向玩家展示的文本，应当优先使用 `LocalizedText.key` 方式定义。
 - 预期内的不通过（如点歌不合法）请返回 `UserResult.Error`，只有致命/非预期的底层失败时才应抛出 `UserFacingException`。
 - 如果是代表玩家执行操作，除非有明确理由需要直接调用原始底层服务，否则一律优先通过 `userActionService` 发起。
-- 在执行网络 I/O 或高耗能的敏感操作前，必须手动或自动执行权限与频控校验。
-- 保持直接曲目的稳定标识符格式为 `(sourceId, trackId)`。
+- 网络 I/O 或高耗能的敏感操作必须放在权限与频率校验流程后。
+- 保持曲目的稳定标识符格式为 `(sourceId, trackId)`。
 - 插件自身的配置文件与专属持久化数据，应存放在 MoeMusic 指定的配置和数据目录下，切勿将其直接写入或读取自 Jar 文件本身的所在目录。

@@ -51,7 +51,7 @@ dependencies {
 [MoeMusicApi.API_VERSION](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicApi.kt) is the plugin API compatibility version. It is checked against [Plugin.supportedApiVersions](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt). It will be the same as Maven artifact version for release builds, but snapshot builds may increment more frequently for internal compatibility tracking.
 
 Keep your supported range explicit.
-This project's API version follows semantic versioning, and breaking changes will increment the major version. So it's recommended to declare the supported range as >= the current minor version and < the next major version, to allow patch updates without needing plugin changes.
+This project's API version follows semantic versioning, and breaking changes will increment the major version. So it's recommended to declare the supported range as >= the current minor version (**not patch version**) and < the next major version, to allow patch updates without needing plugin changes.
 
 ```kotlin
 override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
@@ -360,7 +360,7 @@ Source method contracts:
 - `getTrackInfo(...)` returns `Success(null)` for not found, `UserResult.Error` for expected user-facing rejection, and throws only when the lookup must abort.
 - `resolve(...)` returns a [PlaybackResolution](../api/src/main/kotlin/org/lolicode/moemusic/api/model/PlaybackResolution.kt). It may be called again for the same track on resume, seek, or late-join sync, so treat playback URLs as renewable.
 - Attach resolve-time metadata such as loudness or synchronized lyrics through `PlaybackResolution.trackPatch`. That patch is intentionally limited to a small subset of writable track fields.
-- `resolveIdentifier(...)` returns `Pass` when the input does not belong to your source, `Blocked` for expected refusal, `Resolved` for a final track, or `Choices` for a further selection step.
+- `resolveIdentifier(...)` returns `Pass` when the input does not belong to your source to allow other sources handle it, `Blocked` for expected refusal (you confirm that identifier belongs to your source, but it's invalid / permission denied / etc.), `Resolved` for a final track, or `Choices` for a further selection step.
 - Generic resolvers such as plain HTTP should set `isFallbackResolver = true` so source-specific share-link handlers run first.
 
 Check permissions before expensive or sensitive work. For custom source-private permissions, use `submitter?.hasPermission("your.node", defaultLevel = 2)` before network I/O. If you want MoeMusic's built-in checked submit/search path, call `userActionService` from a runtime context instead of raw services.
@@ -369,14 +369,14 @@ Check permissions before expensive or sensitive work. For custom source-private 
 
 Use [TrackInfo.unavailableReason](../api/src/main/kotlin/org/lolicode/moemusic/api/model/TrackInfo.kt) or [SelectionEntry.unavailableReason](../api/src/main/kotlin/org/lolicode/moemusic/api/model/Search.kt) only for inherent, unbypassable source-level restrictions such as VIP-only content, region lock, deleted media, or no stream URL.
 
-Do not put shared content-filter hits in `unavailableReason`. If a source checks richer metadata such as descriptions or tags, return a `FilterVerdict` through `sourceFilterVerdict`; the submission gate will enforce it with the same bypass rules as built-in filters.
+MoeMusic core will apply filter on all common fields, sources generally do not need to implement checking themselves. If a source checks richer metadata that is not in common fields, such as descriptions or tags, return a `FilterVerdict` through `sourceFilterVerdict`; the submission gate will enforce it with the same bypass rules as built-in filters. **Do not** put shared content-filter hits in `unavailableReason`.
 
 The canonical submission path is [ITrackSubmissionService](../api/src/main/kotlin/org/lolicode/moemusic/api/service/ITrackSubmissionService.kt):
 
 - `submitBySourceAndId(sourceId, trackId, ...)`: submits a stable source track key after an authoritative `getTrackInfo(...)` lookup.
 - `submitBySelection(sourceId, selectionId, ...)`: submits or expands a source-owned selection row.
-- `submitResolved(track, ...)`: accepts caller-supplied metadata and refreshes it from the owning source when possible. Use this at untrusted boundaries.
-- `submitResolvedFromSource(track, ...)`: accepts a `TrackInfo` that was just returned by its owning source in the same server-side flow. It skips the extra metadata refresh but still stamps the submitter, checks duration, filters, availability, and queue policy.
+- `submitResolved(track, ...)`: accepts caller-supplied metadata and refreshes it from the owning source when possible. Use this at untrusted boundaries (e.g. when accepting track info from client).
+- `submitResolvedFromSource(track, ...)`: accepts a `TrackInfo` that was just returned by its owning source in the same server-side flow. It skips the extra metadata refresh (i.e. assumes all metadata is trustworthy) but still stamps the submitter, checks duration, filters, availability, and queue policy.
 
 For user-facing actions, prefer [IUserActionService](../api/src/main/kotlin/org/lolicode/moemusic/api/service/IUserActionService.kt). It applies built-in permissions and shared request budgets before reaching the raw services.
 
@@ -445,6 +445,6 @@ Client plugins receive [ClientRuntimeContext](../api/src/main/kotlin/org/lolicod
 - Use `LocalizedText.key` for messages the user may see.
 - Use `UserResult.Error` for expected "no" answers and `UserFacingException` for aborted operations.
 - Use `userActionService` for user-behalf actions unless you intentionally need raw services.
-- Check permissions and rate limits before network I/O or other resource-consuming work.
+- Do network I/O or other resource-consuming work **after** checking permissions and rate limits.
 - Keep direct track identity stable as `(sourceId, trackId)`.
 - Keep plugin config/data under the MoeMusic plugin config/data directories, not inside the executable jar.
