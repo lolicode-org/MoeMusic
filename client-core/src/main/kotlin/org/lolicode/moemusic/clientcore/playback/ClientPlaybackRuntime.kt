@@ -10,6 +10,7 @@ import org.lolicode.moemusic.clientcore.audio.ClientAudioFailure
 import org.lolicode.moemusic.clientcore.audio.ClientAudioFailureRecoverability
 import org.lolicode.moemusic.clientcore.media.ClientMediaFirewall
 import org.lolicode.moemusic.clientcore.request.ClientRequestTransport
+import org.lolicode.moemusic.clientcore.transport.ClientChunkAssembler
 import org.lolicode.moemusic.core.config.ClientConfig
 import org.lolicode.moemusic.core.contentfilter.ContentFilterRuntime
 import org.lolicode.moemusic.core.event.CoreEvents
@@ -19,6 +20,7 @@ import org.lolicode.moemusic.core.protocol.MoeMusicProtocol
 import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
 import org.lolicode.moemusic.core.protocol.proto.*
+import org.lolicode.moemusic.core.transport.FramedPayloadCodec
 import org.slf4j.LoggerFactory
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -125,6 +127,9 @@ class ClientPlaybackRuntime(
             pending.remove(requestId)?.complete(response)
         }
 
+        fun remove(requestId: Long): CompletableDeferred<T>? =
+            pending.remove(requestId)
+
         fun failAll(cause: Throwable) {
             val entries = pending.values.toList()
             pending.clear()
@@ -169,6 +174,19 @@ class ClientPlaybackRuntime(
 
     @Volatile
     private var standbyWaitingForLock: Boolean = false
+
+    private val chunkAssembler = ClientChunkAssembler()
+    private val SUPPORTED_LEGACY_PROTOCOL_VERSIONS = setOf(2)
+
+    @Volatile
+    var activeProtocolVersion: Int = MoeMusicProtocol.VERSION
+        private set
+
+    @Volatile
+    private var downgradeAttempted: Boolean = false
+
+    val isFramingEnabled: Boolean
+        get() = activeProtocolVersion >= 3
 
     @Volatile
     private var instanceLockWaitNotified: Boolean = false
@@ -229,7 +247,8 @@ class ClientPlaybackRuntime(
         private set
 
     @Volatile
-    private var serverSessionAccepted: Boolean = false
+    var serverSessionAccepted: Boolean = false
+        private set
 
     @Volatile
     var lastServerWelcomeRejection: ServerWelcomeRejection? = null
@@ -331,6 +350,9 @@ class ClientPlaybackRuntime(
             platform.name,
             platform.currentServerScope()?.displayName ?: "unknown",
         )
+        activeProtocolVersion = platform.clientProtocolVersion
+        downgradeAttempted = false
+        chunkAssembler.clear()
         startSession()
         CoreEvents.bus.fire(OnClientConnected)
     }
@@ -338,6 +360,9 @@ class ClientPlaybackRuntime(
     fun onConnectionDisconnected() {
         logger.info("{} connection disconnected; clearing MoeMusic client session.", platform.name)
         CoreEvents.bus.fire(OnClientDisconnected)
+        activeProtocolVersion = platform.clientProtocolVersion
+        downgradeAttempted = false
+        chunkAssembler.clear()
         stopStandbyPolling()
         stopSyncLoop()
         InstancePlaybackLock.release()
@@ -368,21 +393,22 @@ class ClientPlaybackRuntime(
     }
 
     fun receiveFromServer(packetId: PacketId, payload: ByteArray) {
+        val completePayload = chunkAssembler.process(payload) ?: return
         when (packetId) {
-            PacketIds.PLAYBACK_SNAPSHOT_PUSH -> handlePlaybackSnapshotPush(PlaybackSnapshotPush.ADAPTER.decode(payload))
-            PacketIds.STATE_UPDATE -> handleStateUpdate(StateUpdate.ADAPTER.decode(payload))
-            PacketIds.SYNC_RESPONSE -> handleSyncResponse(SyncResponse.ADAPTER.decode(payload))
-            PacketIds.SERVER_WELCOME -> handleServerWelcome(ServerWelcome.ADAPTER.decode(payload))
-            PacketIds.SEARCH_RESPONSE -> handleSearchResponse(SearchResponse.ADAPTER.decode(payload))
-            PacketIds.UI_BOOTSTRAP_RESPONSE -> handleUiBootstrapResponse(UiBootstrapResponse.ADAPTER.decode(payload))
-            PacketIds.TRACK_SUBMIT_RESPONSE -> handleTrackSubmitResponse(TrackSubmitResponse.ADAPTER.decode(payload))
-            PacketIds.IDENTIFIER_SUBMIT_RESPONSE -> handleIdentifierSubmitResponse(IdentifierSubmitResponse.ADAPTER.decode(payload))
-            PacketIds.SELECTION_SUBMIT_RESPONSE -> handleSelectionSubmitResponse(SelectionSubmitResponse.ADAPTER.decode(payload))
-            PacketIds.QUEUE_RESPONSE -> handleQueueResponse(QueueResponse.ADAPTER.decode(payload))
-            PacketIds.QUEUE_REMOVE_RESPONSE -> handleQueueRemoveResponse(QueueRemoveResponse.ADAPTER.decode(payload))
-            PacketIds.PLAYBACK_CONTROL_RESPONSE -> handlePlaybackControlResponse(PlaybackControlResponse.ADAPTER.decode(payload))
+            PacketIds.PLAYBACK_SNAPSHOT_PUSH -> handlePlaybackSnapshotPush(PlaybackSnapshotPush.ADAPTER.decode(completePayload))
+            PacketIds.STATE_UPDATE -> handleStateUpdate(StateUpdate.ADAPTER.decode(completePayload))
+            PacketIds.SYNC_RESPONSE -> handleSyncResponse(SyncResponse.ADAPTER.decode(completePayload))
+            PacketIds.SERVER_WELCOME -> handleServerWelcome(ServerWelcome.ADAPTER.decode(completePayload))
+            PacketIds.SEARCH_RESPONSE -> handleSearchResponse(SearchResponse.ADAPTER.decode(completePayload))
+            PacketIds.UI_BOOTSTRAP_RESPONSE -> handleUiBootstrapResponse(UiBootstrapResponse.ADAPTER.decode(completePayload))
+            PacketIds.TRACK_SUBMIT_RESPONSE -> handleTrackSubmitResponse(TrackSubmitResponse.ADAPTER.decode(completePayload))
+            PacketIds.IDENTIFIER_SUBMIT_RESPONSE -> handleIdentifierSubmitResponse(IdentifierSubmitResponse.ADAPTER.decode(completePayload))
+            PacketIds.SELECTION_SUBMIT_RESPONSE -> handleSelectionSubmitResponse(SelectionSubmitResponse.ADAPTER.decode(completePayload))
+            PacketIds.QUEUE_RESPONSE -> handleQueueResponse(QueueResponse.ADAPTER.decode(completePayload))
+            PacketIds.QUEUE_REMOVE_RESPONSE -> handleQueueRemoveResponse(QueueRemoveResponse.ADAPTER.decode(completePayload))
+            PacketIds.PLAYBACK_CONTROL_RESPONSE -> handlePlaybackControlResponse(PlaybackControlResponse.ADAPTER.decode(completePayload))
             PacketIds.CONTENT_FILTER_ACTION_RESPONSE ->
-                handleContentFilterActionResponse(ContentFilterActionResponse.ADAPTER.decode(payload))
+                handleContentFilterActionResponse(ContentFilterActionResponse.ADAPTER.decode(completePayload))
 
             else -> logger.debug("Ignoring unsupported {} S2C packet {}", platform.name, packetId)
         }
@@ -526,6 +552,30 @@ class ClientPlaybackRuntime(
             logger.warn("Ignoring ServerWelcome because no {} client session was requested.", platform.name)
             return
         }
+
+        // Automatic Handshake Downgrade Fallback for legacy v2 servers
+        if (!msg.accepted &&
+            !downgradeAttempted &&
+            msg.reject_reason == ServerWelcomeRejectReason.SERVER_WELCOME_REJECT_PROTOCOL_MISMATCH &&
+            msg.server_protocol_version in SUPPORTED_LEGACY_PROTOCOL_VERSIONS
+        ) {
+            downgradeAttempted = true
+            activeProtocolVersion = msg.server_protocol_version
+            logger.info(
+                "{} server rejected protocol v{}, falling back to legacy protocol v{}",
+                platform.name,
+                platform.clientProtocolVersion,
+                msg.server_protocol_version,
+            )
+            val desired = desiredParticipation()
+            sendHandshake(
+                locale = platform.currentLocale(),
+                initialState = desired.state,
+                protocolVersion = msg.server_protocol_version,
+            )
+            return
+        }
+
         msg.initial_time_sync?.let(::applyTimeSync)
         serverHandshakeReceived = true
         serverSessionAccepted = msg.accepted
@@ -555,6 +605,24 @@ class ClientPlaybackRuntime(
             return
         }
         lastServerWelcomeRejection = null
+
+        if (activeProtocolVersion < platform.clientProtocolVersion) {
+            logger.info(
+                "{} connected in compatibility mode (activeProtocol=v{}, clientProtocol=v{})",
+                platform.name,
+                activeProtocolVersion,
+                platform.clientProtocolVersion,
+            )
+            platform.showPersistentWarning(
+                LocalizedText.key("screen.moemusic.unavailable.compatibility.title"),
+                platform.render(
+                    LocalizedText.key(
+                        "screen.moemusic.unavailable.compatibility.body",
+                        activeProtocolVersion,
+                    )
+                ),
+            )
+        }
 
         val catalog = SearchSourceCatalog(
             sources = msg.sources.map { info ->
@@ -718,7 +786,7 @@ class ClientPlaybackRuntime(
 
     fun sendSyncRequest() {
         if (!canHandleSessionPackets()) return
-        platform.sendToServer(
+        sendToServer(
             PacketIds.SYNC_REQUEST,
             SyncRequest(client_send_monotonic = System.nanoTime()).encode(),
         )
@@ -731,7 +799,7 @@ class ClientPlaybackRuntime(
             return
         }
         playbackRegistrationActive = state == ClientStateProto.CLIENT_STATE_ACTIVE
-        platform.sendToServer(
+        sendToServer(
             PacketIds.CLIENT_STATE_CHANGE,
             ClientStateChange(state = state).encode(),
         )
@@ -740,7 +808,7 @@ class ClientPlaybackRuntime(
 
     fun sendSearchRequest(query: String, sourceId: String = "", limit: Int = 20, offset: Int = 0): Long? {
         val requestId = nextCorrelatedRequestId() ?: return null
-        platform.sendToServer(
+        sendToServer(
             PacketIds.SEARCH_REQUEST,
             SearchRequest(query = query, source_id = sourceId, limit = limit, offset = offset, request_id = requestId).encode(),
         )
@@ -749,13 +817,13 @@ class ClientPlaybackRuntime(
 
     fun sendQueueRequest(): Long? {
         val requestId = nextCorrelatedRequestId() ?: return null
-        platform.sendToServer(PacketIds.QUEUE_REQUEST, QueueRequest(request_id = requestId).encode())
+        sendToServer(PacketIds.QUEUE_REQUEST, QueueRequest(request_id = requestId).encode())
         return requestId
     }
 
     fun sendUiBootstrapRequest(): Long? {
         val requestId = nextCorrelatedRequestId() ?: return null
-        platform.sendToServer(PacketIds.UI_BOOTSTRAP_REQUEST, UiBootstrapRequest(request_id = requestId).encode())
+        sendToServer(PacketIds.UI_BOOTSTRAP_REQUEST, UiBootstrapRequest(request_id = requestId).encode())
         return requestId
     }
 
@@ -763,7 +831,7 @@ class ClientPlaybackRuntime(
         val sourceId = track.sourceId ?: return null
         if (sourceId.isBlank() || track.id.isBlank()) return null
         val requestId = nextCorrelatedRequestId() ?: return null
-        platform.sendToServer(
+        sendToServer(
             PacketIds.QUEUE_REMOVE_REQUEST,
             QueueRemoveRequest(source_id = sourceId, track_id = track.id, request_id = requestId).encode(),
         )
@@ -772,7 +840,7 @@ class ClientPlaybackRuntime(
 
     fun sendTrackSubmit(track: TrackInfo, mode: TrackAddMode = TrackAddMode.NORMAL): Long? {
         val requestId = nextCorrelatedRequestId() ?: return null
-        platform.sendToServer(
+        sendToServer(
             PacketIds.TRACK_SUBMIT,
             TrackSubmitRequest(
                 source_id = track.sourceId.orEmpty(),
@@ -789,7 +857,7 @@ class ClientPlaybackRuntime(
 
     fun sendIdentifierSubmit(identifier: String, mode: TrackAddMode): Long? {
         val requestId = nextCorrelatedRequestId() ?: return null
-        platform.sendToServer(
+        sendToServer(
             PacketIds.IDENTIFIER_SUBMIT,
             IdentifierSubmitRequest(identifier = identifier, mode = mode.toProto(), request_id = requestId).encode(),
         )
@@ -798,7 +866,7 @@ class ClientPlaybackRuntime(
 
     fun sendSelectionSubmit(entry: SelectionEntry, mode: TrackAddMode = TrackAddMode.NORMAL): Long? {
         val requestId = nextCorrelatedRequestId() ?: return null
-        platform.sendToServer(
+        sendToServer(
             PacketIds.SELECTION_SUBMIT,
             SelectionSubmitRequest(
                 source_id = entry.sourceId.orEmpty(),
@@ -813,7 +881,7 @@ class ClientPlaybackRuntime(
     fun sendPlaybackControl(action: PlaybackControlAction, positionMs: Long = 0L): Long? {
         logInvalidPlaybackControl(action, positionMs)
         val requestId = nextCorrelatedRequestId() ?: return null
-        platform.sendToServer(
+        sendToServer(
             PacketIds.PLAYBACK_CONTROL_REQUEST,
             PlaybackControlRequest(action = action, position_ms = positionMs, request_id = requestId).encode(),
         )
@@ -822,7 +890,7 @@ class ClientPlaybackRuntime(
 
     fun sendContentFilterTrackAction(sourceId: String, trackId: String, note: String?, ban: Boolean): Long? {
         val requestId = nextCorrelatedRequestId() ?: return null
-        platform.sendToServer(
+        sendToServer(
             PacketIds.CONTENT_FILTER_ACTION_REQUEST,
             ContentFilterActionRequest(
                 action = if (ban) {
@@ -930,7 +998,24 @@ class ClientPlaybackRuntime(
         }
     }
 
-    private fun sendHandshake(locale: String, initialState: ClientStateProto) {
+    private fun wrapClientPayload(payload: ByteArray, protocolVersion: Int = activeProtocolVersion): ByteArray {
+        if (protocolVersion < 3) return payload
+        val frames = FramedPayloadCodec.encode(payload)
+        require(frames.size == 1 && !FramedPayloadCodec.isChunk(frames[0][0])) {
+            "C2S payload of ${payload.size} bytes cannot be sent in a single frame (C2S chunking is forbidden)"
+        }
+        return frames[0]
+    }
+
+    private fun sendToServer(packetId: PacketId, payload: ByteArray, protocolVersion: Int = activeProtocolVersion) {
+        platform.sendToServer(packetId, wrapClientPayload(payload, protocolVersion))
+    }
+
+    private fun sendHandshake(
+        locale: String,
+        initialState: ClientStateProto,
+        protocolVersion: Int = activeProtocolVersion,
+    ) {
         participationRequested = true
         playbackRegistrationActive = false
         val now = System.nanoTime()
@@ -940,23 +1025,22 @@ class ClientPlaybackRuntime(
         serverHandshakeMissingLogged = false
         lastServerWelcomeRejection = null
         sourceCatalog = null
-        platform.sendToServer(
-            PacketIds.CLIENT_HANDSHAKE,
-            ClientHandshake(
-                locale = locale,
-                mod_version = platform.clientModVersion.ifBlank { "unknown" },
-                protocol_version = platform.clientProtocolVersion,
-                initial_state = initialState,
-                client_send_monotonic = now,
-            ).encode(),
-        )
+        val handshakeBytes = ClientHandshake(
+            locale = locale,
+            mod_version = platform.clientModVersion.ifBlank { "unknown" },
+            protocol_version = protocolVersion,
+            initial_state = initialState,
+            client_send_monotonic = now,
+        ).encode()
+        // Handshake packet is sent unframed so legacy v2 servers can decode it directly and negotiate downgrade.
+        platform.sendToServer(PacketIds.CLIENT_HANDSHAKE, handshakeBytes)
         logger.info(
             "{} client handshake sent (locale={}, initialState={}, mod={}, protocol={})",
             platform.name,
             locale,
             initialState,
             platform.clientModVersion,
-            platform.clientProtocolVersion,
+            protocolVersion,
         )
     }
 
@@ -1708,7 +1792,13 @@ class ClientPlaybackRuntime(
     ): Deferred<T>? {
         val requestId = nextCorrelatedRequestId() ?: return null
         val deferred = registry.register(requestId)
-        platform.sendToServer(packetId, payloadFactory(requestId))
+        try {
+            sendToServer(packetId, payloadFactory(requestId))
+        } catch (e: Throwable) {
+            registry.remove(requestId)
+            deferred.completeExceptionally(e)
+            throw e
+        }
         return deferred
     }
 

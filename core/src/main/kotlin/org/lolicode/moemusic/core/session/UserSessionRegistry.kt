@@ -6,6 +6,7 @@ import org.lolicode.moemusic.api.event.OnUserSessionStarted
 import org.lolicode.moemusic.api.event.OnUserSessionEnded
 import org.lolicode.moemusic.api.event.OnUserParticipationChanged
 import org.lolicode.moemusic.core.event.CoreEvents
+import org.lolicode.moemusic.core.protocol.MoeMusicProtocol
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -36,7 +37,11 @@ object UserSessionRegistry {
         val user: MoeMusicUser,
         val locale: String,
         val participation: Participation,
-    )
+        val protocolVersion: Int = MoeMusicProtocol.VERSION,
+    ) {
+        val supportsFraming: Boolean
+            get() = protocolVersion >= 3
+    }
 
     private val sessions: ConcurrentHashMap<UUID, Session> = ConcurrentHashMap()
     private val localeHints: ConcurrentHashMap<UUID, String> = ConcurrentHashMap()
@@ -45,12 +50,14 @@ object UserSessionRegistry {
         user: MoeMusicUser,
         locale: String = user.locale,
         participation: Participation,
+        protocolVersion: Int = MoeMusicProtocol.VERSION,
     ): Session {
         rememberLocale(user.id, locale)
         val updated = Session(
             user = user,
             locale = locale,
             participation = participation,
+            protocolVersion = protocolVersion,
         )
         val previous = sessions.put(user.id, updated)
         if (previous == null) {
@@ -67,19 +74,35 @@ object UserSessionRegistry {
         return updated
     }
 
-    fun activate(user: MoeMusicUser, locale: String = user.locale): Session =
+    fun activate(
+        user: MoeMusicUser,
+        locale: String = user.locale,
+        protocolVersion: Int = MoeMusicProtocol.VERSION,
+    ): Session =
         upsert(
             user = user,
             locale = locale,
             participation = Participation.ACTIVE,
+            protocolVersion = protocolVersion,
         )
 
-    fun registerStandby(user: MoeMusicUser, locale: String = user.locale): Session =
+    fun registerStandby(
+        user: MoeMusicUser,
+        locale: String = user.locale,
+        protocolVersion: Int = MoeMusicProtocol.VERSION,
+    ): Session =
         upsert(
             user = user,
             locale = locale,
             participation = Participation.STANDBY,
+            protocolVersion = protocolVersion,
         )
+
+    fun supportsFraming(userId: UUID): Boolean =
+        sessions[userId]?.supportsFraming ?: false
+
+    fun protocolVersion(userId: UUID): Int =
+        sessions[userId]?.protocolVersion ?: 0
 
     fun setParticipation(userId: UUID, participation: Participation): Session? {
         val previous = sessions[userId] ?: return null

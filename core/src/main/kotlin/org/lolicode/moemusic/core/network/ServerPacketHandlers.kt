@@ -26,14 +26,16 @@ import org.lolicode.moemusic.core.protocol.ProtocolViewMapper
 import org.lolicode.moemusic.core.protocol.proto.*
 import org.lolicode.moemusic.core.runtime.ServerRuntimeCoordinator
 import org.lolicode.moemusic.core.session.UserSessionRegistry
+import org.lolicode.moemusic.core.transport.FramedPayloadCodec
 import org.lolicode.moemusic.core.transport.NetworkChannel
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
 interface ServerPacketSessionBridge {
-    fun activate(sender: MoeMusicUser, locale: String): MoeMusicUser
-    fun standby(sender: MoeMusicUser, locale: String): MoeMusicUser
+    fun activate(sender: MoeMusicUser, locale: String, protocolVersion: Int): MoeMusicUser
+    fun standby(sender: MoeMusicUser, locale: String, protocolVersion: Int): MoeMusicUser
     fun handleRegisteredClientLeave(userId: UUID)
+    fun notifyOutdatedClient(user: MoeMusicUser, clientProtocolVersion: Int) {}
 }
 
 /**
@@ -60,11 +62,11 @@ class ServerPacketHandlers(
         // CLIENT_HANDSHAKE — registers the user's locale plus initial playback participation.
         registry.register(
             PacketIds.CLIENT_HANDSHAKE,
-            { ClientHandshake.ADAPTER.decode(it) },
+            { ClientHandshake.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             val serverRecvMonotonic = System.nanoTime()
             if (sender == null) return@register
-            if (msg.protocol_version != MoeMusicProtocol.VERSION) {
+            if (msg.protocol_version !in MIN_SUPPORTED_PROTOCOL_VERSION..MoeMusicProtocol.VERSION) {
                 val welcome = ServerWelcome(
                     accepted = false,
                     failure = "protocol_mismatch",
@@ -88,9 +90,9 @@ class ServerPacketHandlers(
             val initialParticipation = msg.initial_state.toParticipation()
             val user = when (initialParticipation) {
                 UserSessionRegistry.Participation.ACTIVE ->
-                    sessions.activate(sender, normalizedLocale)
+                    sessions.activate(sender, normalizedLocale, msg.protocol_version)
                 UserSessionRegistry.Participation.STANDBY ->
-                    sessions.standby(sender, normalizedLocale)
+                    sessions.standby(sender, normalizedLocale, msg.protocol_version)
             }
             val searchService = PluginManager.searchService
             val sourceSnapshot = searchService.sourceSnapshot()
@@ -103,6 +105,15 @@ class ServerPacketHandlers(
                 msg.protocol_version,
                 sourceSnapshot.size,
             )
+            if (msg.protocol_version < MoeMusicProtocol.VERSION) {
+                logger.info(
+                    "Client {} is running legacy protocol v{} (server protocol is v{}). Operating in backward-compatibility mode.",
+                    user.displayName,
+                    msg.protocol_version,
+                    MoeMusicProtocol.VERSION,
+                )
+                sessions.notifyOutdatedClient(user, msg.protocol_version)
+            }
 
             val sources = sourceSnapshot.map { source ->
                 SearchSourceInfo(
@@ -142,7 +153,7 @@ class ServerPacketHandlers(
 
         registry.register(
             PacketIds.CLIENT_STATE_CHANGE,
-            { ClientStateChange.ADAPTER.decode(it) },
+            { ClientStateChange.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             when (msg.state.toParticipation()) {
@@ -150,7 +161,8 @@ class ServerPacketHandlers(
                     val locale = Localization.normalizeLocale(
                         UserSessionRegistry.localeFor(sender.id) ?: sender.locale
                     )
-                    val user = sessions.activate(sender, locale)
+                    val protocolVersion = UserSessionRegistry.protocolVersion(sender.id)
+                    val user = sessions.activate(sender, locale, protocolVersion)
                     logger.info("Client participation changed: {} -> ACTIVE", user.displayName)
                     ServerRuntimeCoordinator.ensureNativeAudienceLease()
                     ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()?.let { snapshot ->
@@ -175,7 +187,7 @@ class ServerPacketHandlers(
         // SYNC_REQUEST — respond with server-side timestamps via TimeSyncHandler
         registry.register(
             PacketIds.SYNC_REQUEST,
-            { SyncRequest.ADAPTER.decode(it) },
+            { SyncRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             val response = timeSyncHandler.handleSyncRequest(msg)
@@ -186,7 +198,7 @@ class ServerPacketHandlers(
         // UI_BOOTSTRAP_REQUEST — send the builtin GUI its initial queue snapshot plus UI capabilities
         registry.register(
             PacketIds.UI_BOOTSTRAP_REQUEST,
-            { UiBootstrapRequest.ADAPTER.decode(it) },
+            { UiBootstrapRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
@@ -218,7 +230,7 @@ class ServerPacketHandlers(
         // TRACK_SUBMIT — enqueue by (source_id, track_id); permission checks then authoritative lookup
         registry.register(
             PacketIds.TRACK_SUBMIT,
-            { TrackSubmitRequest.ADAPTER.decode(it) },
+            { TrackSubmitRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             // Basic sanity check before any work
@@ -290,7 +302,7 @@ class ServerPacketHandlers(
 
         registry.register(
             PacketIds.SELECTION_SUBMIT,
-            { SelectionSubmitRequest.ADAPTER.decode(it) },
+            { SelectionSubmitRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             if (msg.source_id.isBlank() || msg.selection_id.isBlank()) {
@@ -379,7 +391,7 @@ class ServerPacketHandlers(
 
         registry.register(
             PacketIds.IDENTIFIER_SUBMIT,
-            { IdentifierSubmitRequest.ADAPTER.decode(it) },
+            { IdentifierSubmitRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             val mode = msg.mode.toTrackAddMode()
@@ -444,7 +456,7 @@ class ServerPacketHandlers(
         // SEARCH_REQUEST — run search via SearchService and respond to the requesting client only
         registry.register(
             PacketIds.SEARCH_REQUEST,
-            { SearchRequest.ADAPTER.decode(it) },
+            { SearchRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             val effectiveLimit = if (msg.limit > 0) msg.limit else 20
@@ -491,7 +503,7 @@ class ServerPacketHandlers(
         // QUEUE_REQUEST — send the current user queue to the requesting client
         registry.register(
             PacketIds.QUEUE_REQUEST,
-            { QueueRequest.ADAPTER.decode(it) },
+            { QueueRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
@@ -515,7 +527,7 @@ class ServerPacketHandlers(
         // QUEUE_REMOVE_REQUEST — remove a track from the user queue by (source_id, track_id)
         registry.register(
             PacketIds.QUEUE_REMOVE_REQUEST,
-            { QueueRemoveRequest.ADAPTER.decode(it) },
+            { QueueRemoveRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
@@ -563,7 +575,7 @@ class ServerPacketHandlers(
         // PLAYBACK_CONTROL_REQUEST — pause/resume/skip/stop/seek via packet (GUI-driven)
         registry.register(
             PacketIds.PLAYBACK_CONTROL_REQUEST,
-            { PlaybackControlRequest.ADAPTER.decode(it) },
+            { PlaybackControlRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
@@ -600,7 +612,7 @@ class ServerPacketHandlers(
 
         registry.register(
             PacketIds.CONTENT_FILTER_ACTION_REQUEST,
-            { ContentFilterActionRequest.ADAPTER.decode(it) },
+            { ContentFilterActionRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             if (!hasPermission(sender, PermissionNodes.CONTENT_FILTER_MANAGE)) {
@@ -851,4 +863,8 @@ class ServerPacketHandlers(
             server_recv_monotonic = serverRecvMonotonic,
             server_send_monotonic = System.nanoTime(),
         )
+
+    companion object {
+        const val MIN_SUPPORTED_PROTOCOL_VERSION = 2
+    }
 }

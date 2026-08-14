@@ -11,9 +11,11 @@ import org.lolicode.moemusic.core.config.ClientConfig
 import org.lolicode.moemusic.core.config.LoudnessNormalizationMode
 import org.lolicode.moemusic.core.config.MoeMusicConfig
 import org.lolicode.moemusic.core.contentfilter.ContentFilterRuntime
+import org.lolicode.moemusic.core.protocol.MoeMusicProtocol
 import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
 import org.lolicode.moemusic.core.protocol.proto.*
+import org.lolicode.moemusic.core.transport.FramedPayloadCodec
 import kotlin.test.*
 import kotlin.time.Duration.Companion.milliseconds
 import org.lolicode.moemusic.core.protocol.proto.SearchSourceInfo as SearchSourceInfoProto
@@ -74,6 +76,48 @@ class ClientPlaybackRuntimeTest {
         }
         assertEquals(2, harness.listener.searchCatalogs.size)
         assertNull(harness.listener.searchCatalogs.last())
+    }
+
+    @Test
+    fun `rejected handshake with legacy protocol v2 automatically retries and connects in compatibility mode`() {
+        val harness = harness()
+        harness.runtime.onConnectionJoined()
+
+        // 1. Initial handshake sent with v3
+        val firstHandshake = harness.platform.decodeLast(PacketIds.CLIENT_HANDSHAKE, ClientHandshake.ADAPTER::decode)
+        assertEquals(3, firstHandshake.protocol_version)
+
+        // 2. Legacy server rejects with protocol_version = 2
+        harness.runtime.handleServerWelcome(
+            ServerWelcome(
+                accepted = false,
+                failure = "protocol mismatch",
+                server_protocol_version = 2,
+                accepted_state = ClientStateProto.CLIENT_STATE_ACTIVE,
+                reject_reason = ServerWelcomeRejectReason.SERVER_WELCOME_REJECT_PROTOCOL_MISMATCH,
+            )
+        )
+
+        // 3. Client should have automatically sent a second handshake with protocol_version = 2
+        val secondHandshake = harness.platform.decodeLast(PacketIds.CLIENT_HANDSHAKE, ClientHandshake.ADAPTER::decode)
+        assertEquals(2, secondHandshake.protocol_version)
+        assertEquals(2, harness.runtime.activeProtocolVersion)
+        assertFalse(harness.runtime.isFramingEnabled)
+
+        // 4. Server accepts the second handshake
+        harness.runtime.handleServerWelcome(
+            ServerWelcome(
+                accepted = true,
+                failure = "",
+                server_protocol_version = 2,
+                accepted_state = ClientStateProto.CLIENT_STATE_ACTIVE,
+                sources = listOf(SearchSourceInfoProto(id = "youtube", display_name = "YouTube", searchable = true)),
+                default_source_id = "youtube",
+            )
+        )
+
+        assertTrue(harness.runtime.serverSessionAccepted)
+        assertEquals(UserParticipationState.ACTIVE, harness.runtime.currentParticipationState())
     }
 
     @Test
@@ -500,6 +544,48 @@ class ClientPlaybackRuntimeTest {
         assertFalse(harness.platform.audio.stopped)
     }
 
+    @Test
+    fun `initial handshake packet is sent completely unframed for backward compatibility`() {
+        val harness = harness()
+        harness.runtime.onConnectionJoined()
+
+        val rawHandshake = harness.platform.sentPackets.last { it.packetId == PacketIds.CLIENT_HANDSHAKE }.payload
+        // Protobuf message begins directly with field tag 1 wire type 2 (0x0a), NOT framing flags 0x00/0x01/0x02/0x03
+        assertNotEquals(FramedPayloadCodec.FLAG_RAW, rawHandshake[0])
+        assertNotEquals(FramedPayloadCodec.FLAG_COMPRESSED, rawHandshake[0])
+        assertNotEquals(FramedPayloadCodec.FLAG_CHUNK_RAW, rawHandshake[0])
+        assertNotEquals(FramedPayloadCodec.FLAG_CHUNK_COMPRESSED, rawHandshake[0])
+
+        // Verify it directly decodes with Wire without any framing stripping
+        val decoded = ClientHandshake.ADAPTER.decode(rawHandshake)
+        assertEquals(ClientStateProto.CLIENT_STATE_ACTIVE, decoded.initial_state)
+        assertEquals(MoeMusicProtocol.VERSION, decoded.protocol_version)
+    }
+
+    @Test
+    fun `C2S request packets are framed but reject chunking when payload exceeds single frame limit`() {
+        val harness = harness()
+        harness.acceptWelcome()
+
+        // 1. Normal C2S request is sent framed
+        harness.runtime.sendPlaybackControl(PlaybackControlAction.PAUSE)
+        val normalPacket = harness.platform.sentPackets.last { it.packetId == PacketIds.PLAYBACK_CONTROL_REQUEST }.payload
+        assertTrue(normalPacket[0] == FramedPayloadCodec.FLAG_RAW || normalPacket[0] == FramedPayloadCodec.FLAG_COMPRESSED)
+
+        // 2. Oversized C2S request (exceeding single frame limit even with compression) must fail immediately without sending chunks
+        val randomBytes = ByteArray(40 * 1024).also { java.util.Random(42).nextBytes(it) }
+        val oversizedQuery = String(randomBytes, Charsets.ISO_8859_1)
+        assertFailsWith<IllegalArgumentException> {
+            harness.runtime.beginSearchRequest(query = oversizedQuery, sourceId = "youtube", limit = 20, offset = 0)
+        }
+
+        // 3. Normal request after failure must succeed and not be blocked by leaked pending state
+        val validDeferred = harness.runtime.beginSearchRequest(query = "valid query", sourceId = "youtube", limit = 20, offset = 0)
+        assertNotNull(validDeferred)
+        val searchReqPacket = harness.platform.sentPackets.last { it.packetId == PacketIds.SEARCH_REQUEST }.payload
+        assertTrue(searchReqPacket[0] == FramedPayloadCodec.FLAG_RAW || searchReqPacket[0] == FramedPayloadCodec.FLAG_COMPRESSED)
+    }
+
     private fun harness(
         localPlaybackRetryDelaysMs: List<Long> = listOf(750L, 1_500L),
         autoSkipOnFinalFailure: Boolean = false,
@@ -589,7 +675,7 @@ class ClientPlaybackRuntimeTest {
 
         override val name: String = "test"
         override val clientModVersion: String = "test-client"
-        override var clientProtocolVersion: Int = 1
+        override var clientProtocolVersion: Int = MoeMusicProtocol.VERSION
         override val audio = FakeAudio()
         val sentPackets = mutableListOf<SentPacket>()
         val localPlaybackFailedWarnings = mutableListOf<String>()
@@ -631,7 +717,7 @@ class ClientPlaybackRuntimeTest {
         }
 
         fun <T> decodeLast(packetId: PacketId, decoder: (ByteArray) -> T): T =
-            decoder(sentPackets.last { it.packetId == packetId }.payload)
+            decoder(FramedPayloadCodec.unwrapServerInbound(sentPackets.last { it.packetId == packetId }.payload))
     }
 
     private class FakeAudio : ClientPlaybackAudioAdapter {
@@ -679,7 +765,7 @@ class ClientPlaybackRuntimeTest {
         fun acceptedWelcome(): ServerWelcome = ServerWelcome(
             accepted = true,
             failure = "",
-            server_protocol_version = 1,
+            server_protocol_version = MoeMusicProtocol.VERSION,
             accepted_state = ClientStateProto.CLIENT_STATE_ACTIVE,
             sources = listOf(
                 SearchSourceInfoProto(id = "youtube", display_name = "YouTube", searchable = true),
