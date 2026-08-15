@@ -52,6 +52,21 @@ class ClientPlaybackRuntimeTest {
     }
 
     @Test
+    fun `non-handshake server packets require an accepted server handshake`() {
+        val harness = harness()
+        harness.runtime.onConnectionJoined()
+
+        assertTrue(harness.runtime.acceptsServerPacket(PacketIds.SERVER_WELCOME))
+        assertFalse(harness.runtime.acceptsServerPacket(PacketIds.SYNC_RESPONSE))
+        assertFalse(harness.runtime.acceptsServerPacket(PacketIds.PLAYBACK_SNAPSHOT_PUSH))
+
+        harness.runtime.handleServerWelcome(acceptedWelcome())
+
+        assertTrue(harness.runtime.acceptsServerPacket(PacketIds.SYNC_RESPONSE))
+        assertTrue(harness.runtime.acceptsServerPacket(PacketIds.PLAYBACK_SNAPSHOT_PUSH))
+    }
+
+    @Test
     fun `rejected handshake clears catalog and fails pending requests`() = runBlocking {
         val harness = harness()
         harness.acceptWelcome()

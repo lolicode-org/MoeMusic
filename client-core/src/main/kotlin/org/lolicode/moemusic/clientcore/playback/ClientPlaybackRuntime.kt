@@ -413,6 +413,10 @@ class ClientPlaybackRuntime(
             else -> logger.debug("Ignoring unsupported {} S2C packet {}", platform.name, packetId)
         }
     }
+    /** Returns whether an S→C packet may be processed before the server session is accepted. */
+    fun acceptsServerPacket(packetId: PacketId): Boolean =
+        packetId == PacketIds.SERVER_WELCOME || serverSessionAccepted
+
 
     fun handlePlaybackSnapshotPush(msg: PlaybackSnapshotPush) {
         val snapshot = msg.snapshot ?: run {
