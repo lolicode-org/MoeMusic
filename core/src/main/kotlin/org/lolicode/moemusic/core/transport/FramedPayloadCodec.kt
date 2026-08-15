@@ -53,6 +53,14 @@ object FramedPayloadCodec {
     fun nextTransferId(): Short =
         (transferIdCounter.getAndIncrement() and 0x7FFF).toShort()
 
+    /** Returns true when [payload] starts with a recognized transport framing flag. */
+    fun isFramed(payload: ByteArray): Boolean =
+        payload.firstOrNull()?.let(::isFramingFlag) == true
+
+    /** Returns true when [flag] is one of the four transport framing flags. */
+    private fun isFramingFlag(flag: Byte): Boolean =
+        flag == FLAG_RAW || flag == FLAG_COMPRESSED || flag == FLAG_CHUNK_RAW || flag == FLAG_CHUNK_COMPRESSED
+
     fun isChunk(flag: Byte): Boolean =
         flag == FLAG_CHUNK_RAW || flag == FLAG_CHUNK_COMPRESSED
 

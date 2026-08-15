@@ -1,6 +1,7 @@
 package org.lolicode.moemusic.core.protocol
 
 import org.lolicode.moemusic.api.MoeMusicUser
+import org.lolicode.moemusic.core.session.UserSessionRegistry
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
@@ -55,6 +56,14 @@ class PacketRegistry {
      */
     @Suppress("UNCHECKED_CAST")
     fun dispatch(id: PacketId, raw: ByteArray, sender: MoeMusicUser?) {
+        if (sender != null && !acceptsClientPayload(id, raw, sender)) {
+            logger.debug(
+                "PacketRegistry: dropping {} from {} because its payload does not match the declared protocol version",
+                id,
+                sender.displayName,
+            )
+            return
+        }
         val entry = entries[id] as? Entry<Any>
         if (entry == null) {
             logger.debug("PacketRegistry: no handler for {}, dropping packet", id)
@@ -67,6 +76,13 @@ class PacketRegistry {
             logger.error("PacketRegistry: error handling packet {} from {}: {}", id, sender?.displayName ?: "server", e.message, e)
         }
     }
+
+    private fun acceptsClientPayload(id: PacketId, raw: ByteArray, sender: MoeMusicUser): Boolean =
+        ProtocolPayloadValidator.acceptsClientToServer(
+            packetId = id,
+            payload = raw,
+            declaredProtocolVersion = UserSessionRegistry.session(sender.id)?.protocolVersion,
+        )
 
     /** Returns true if a handler is registered for [id]. */
     fun isRegistered(id: PacketId): Boolean = entries.containsKey(id)

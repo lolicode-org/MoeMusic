@@ -19,6 +19,7 @@ import org.lolicode.moemusic.core.playback.*
 import org.lolicode.moemusic.core.protocol.MoeMusicProtocol
 import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
+import org.lolicode.moemusic.core.protocol.ProtocolPayloadValidator
 import org.lolicode.moemusic.core.protocol.proto.*
 import org.lolicode.moemusic.core.transport.FramedPayloadCodec
 import org.slf4j.LoggerFactory
@@ -393,12 +394,50 @@ class ClientPlaybackRuntime(
     }
 
     fun receiveFromServer(packetId: PacketId, payload: ByteArray) {
+        if (!acceptsServerPacket(packetId)) {
+            logger.debug("Ignoring {} S2C packet {} before the server handshake is accepted", platform.name, packetId)
+            return
+        }
+        if (!ProtocolPayloadValidator.acceptsServerToClient(
+                packetId = packetId,
+                payload = payload,
+                activeProtocolVersion = activeProtocolVersion,
+                serverSessionAccepted = serverSessionAccepted,
+            )
+        ) {
+            logger.debug(
+                "Dropping {} S2C packet {} because its payload does not match the active protocol version {}",
+                platform.name,
+                packetId,
+                activeProtocolVersion,
+            )
+            return
+        }
+
         val completePayload = chunkAssembler.process(payload) ?: return
         when (packetId) {
             PacketIds.PLAYBACK_SNAPSHOT_PUSH -> handlePlaybackSnapshotPush(PlaybackSnapshotPush.ADAPTER.decode(completePayload))
             PacketIds.STATE_UPDATE -> handleStateUpdate(StateUpdate.ADAPTER.decode(completePayload))
             PacketIds.SYNC_RESPONSE -> handleSyncResponse(SyncResponse.ADAPTER.decode(completePayload))
-            PacketIds.SERVER_WELCOME -> handleServerWelcome(ServerWelcome.ADAPTER.decode(completePayload))
+            PacketIds.SERVER_WELCOME -> {
+                val welcome = ServerWelcome.ADAPTER.decode(completePayload)
+                if (!ProtocolPayloadValidator.acceptsServerWelcome(
+                        payload = payload,
+                        welcome = welcome,
+                        activeProtocolVersion = activeProtocolVersion,
+                        serverSessionAccepted = serverSessionAccepted,
+                    )
+                ) {
+                    logger.debug(
+                        "Dropping {} ServerWelcome because accepted={} does not match protocol v{} transport",
+                        platform.name,
+                        welcome.accepted,
+                        activeProtocolVersion,
+                    )
+                    return
+                }
+                handleServerWelcome(welcome)
+            }
             PacketIds.SEARCH_RESPONSE -> handleSearchResponse(SearchResponse.ADAPTER.decode(completePayload))
             PacketIds.UI_BOOTSTRAP_RESPONSE -> handleUiBootstrapResponse(UiBootstrapResponse.ADAPTER.decode(completePayload))
             PacketIds.TRACK_SUBMIT_RESPONSE -> handleTrackSubmitResponse(TrackSubmitResponse.ADAPTER.decode(completePayload))

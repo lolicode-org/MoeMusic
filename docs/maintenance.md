@@ -268,9 +268,11 @@ Server handshake includes the source catalog (`id`, display name, searchable fla
 
 ### In-Band Transport Framing, Compression, and Chunking (Protocol v3)
 
-Protocol version 3 introduces an in-band framing layer on top of all existing custom packet channels:
+Protocol version 3 introduces an in-band framing layer for established-session packets on top of the existing custom packet channels:
 
-- **Framing Header**: Every packet is framed with a 1-byte flag header:
+- **Negotiation exceptions**: The initial `CLIENT_HANDSHAKE` is always unframed so a v3 client can negotiate down with a v2 server. A rejected `SERVER_WELCOME` sent before session registration is also unframed. An accepted `SERVER_WELCOME` is sent after the server registers the negotiated session, so it follows that session's transport: framed for v3 and unframed for v2.
+- **Established-session validation**: v3 requires a recognized framing flag on every packet; v2 rejects framing flags and uses legacy unframed protobuf. The server rejects client-to-server chunk frames before decoding them. The client applies the same version check to server-to-client packets.
+- **Framing Header**: Every framed packet has a 1-byte flag header:
   - `0x00` (`FLAG_RAW`): Single uncompressed Wire Protobuf packet payload.
   - `0x01` (`FLAG_COMPRESSED`): Single zlib-deflated Wire Protobuf packet payload.
   - `0x02` (`FLAG_CHUNK_RAW`): Multi-part uncompressed chunk frame with an 11-byte header (`[1B flag][2B transferId][2B chunkIndex][2B totalChunks][4B totalBytes]`) followed by uncompressed slice data.
@@ -278,7 +280,7 @@ Protocol version 3 introduces an in-band framing layer on top of all existing cu
 - **Compression Policy**: Payloads under 128 bytes are sent raw (`FLAG_RAW`). Payloads $\ge$ 128 bytes are compressed using standard `Deflater(BEST_SPEED)`. If compressed bytes do not yield smaller size than raw, uncompressed transmission (`FLAG_RAW` or `FLAG_CHUNK_RAW`) is retained.
 - **Chunk Sizing and Boundaries**: Chunks are split into 30 KB ($30,720\text{ B}$) slices, well within Minecraft's $32,767\text{ B}$ plugin message limit. Maximum payload limit is 1 MB ($1,048,576\text{ B}$, up to 35 chunks). Client-side chunk reassembly maintains up to 4 concurrent transfers with a 15-second TTL per transfer. Client-to-server (`C2S`) chunking is strictly disallowed on the server to prevent memory exhaustion attacks.
 - **Backward Compatibility**:
-  - **Server Compatibility**: Servers accept handshake protocol versions $\ge 2$. For legacy v2 clients, servers partition broadcasts and send legacy un-framed, uncompressed payloads with stripped optional fields (e.g. lyrics).
+  - **Server Compatibility**: Servers accept handshake protocol versions from v2 through the current protocol version. For legacy v2 clients, servers partition broadcasts and send legacy unframed, uncompressed payloads with stripped optional fields (e.g. lyrics).
   - **Client Compatibility**: If a v3 client connects to a legacy v2 server and receives a handshake rejection with `server_protocol_version = 2`, the client automatically downgrades its active session to protocol v2, disables framing/compression, and re-initiates handshake transparently.
 
 ## Localization

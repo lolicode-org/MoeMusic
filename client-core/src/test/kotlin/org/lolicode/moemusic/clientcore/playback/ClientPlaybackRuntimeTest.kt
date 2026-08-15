@@ -65,6 +65,76 @@ class ClientPlaybackRuntimeTest {
         assertTrue(harness.runtime.acceptsServerPacket(PacketIds.SYNC_RESPONSE))
         assertTrue(harness.runtime.acceptsServerPacket(PacketIds.PLAYBACK_SNAPSHOT_PUSH))
     }
+    @Test
+    fun `client rejects packets that violate negotiated framing`() {
+        val harness = harness()
+        harness.runtime.onConnectionJoined()
+        val welcome = acceptedWelcome()
+
+        // A v3 accepted welcome is the first established-session packet and must be framed.
+        harness.runtime.receiveFromServer(PacketIds.SERVER_WELCOME, welcome.encode())
+        assertFalse(harness.runtime.serverHandshakeReceived)
+        harness.runtime.receiveFromServer(
+            PacketIds.SERVER_WELCOME,
+            FramedPayloadCodec.encode(welcome.encode()).single(),
+        )
+        assertTrue(harness.runtime.serverHandshakeReceived)
+
+        val response = SearchResponse(
+            request_id = 0L,
+            query = "demo",
+            source_id = "youtube",
+        )
+        harness.runtime.receiveFromServer(PacketIds.SEARCH_RESPONSE, response.encode())
+        assertNull(harness.runtime.lastSearchResponse)
+        harness.runtime.receiveFromServer(
+            PacketIds.SEARCH_RESPONSE,
+            FramedPayloadCodec.encode(response.encode()).single(),
+        )
+        assertEquals("demo", harness.runtime.lastSearchResponse?.query)
+    }
+
+    @Test
+    fun `v3 client accepts a raw rejected welcome during negotiation`() {
+        val harness = harness()
+        harness.runtime.onConnectionJoined()
+        val rejected = ServerWelcome(
+            accepted = false,
+            failure = "protocol mismatch",
+            server_protocol_version = 2,
+            accepted_state = ClientStateProto.CLIENT_STATE_ACTIVE,
+            reject_reason = ServerWelcomeRejectReason.SERVER_WELCOME_REJECT_PROTOCOL_MISMATCH,
+        )
+
+        harness.runtime.receiveFromServer(PacketIds.SERVER_WELCOME, rejected.encode())
+
+        assertEquals(2, harness.runtime.activeProtocolVersion)
+        assertFalse(harness.runtime.serverSessionAccepted)
+        assertEquals(2, harness.platform.decodeLast(PacketIds.CLIENT_HANDSHAKE, ClientHandshake.ADAPTER::decode).protocol_version)
+    }
+
+    @Test
+    fun `v2 client accepts raw server packets and rejects framed packets`() {
+        val harness = harness()
+        harness.platform.clientProtocolVersion = 2
+        harness.runtime.onConnectionJoined()
+        harness.runtime.receiveFromServer(PacketIds.SERVER_WELCOME, acceptedWelcome(serverProtocolVersion = 2).encode())
+        assertTrue(harness.runtime.serverSessionAccepted)
+
+        val response = SearchResponse(
+            request_id = 0L,
+            query = "legacy",
+            source_id = "youtube",
+        )
+        harness.runtime.receiveFromServer(
+            PacketIds.SEARCH_RESPONSE,
+            FramedPayloadCodec.encode(response.encode()).single(),
+        )
+        assertNull(harness.runtime.lastSearchResponse)
+        harness.runtime.receiveFromServer(PacketIds.SEARCH_RESPONSE, response.encode())
+        assertEquals("legacy", harness.runtime.lastSearchResponse?.query)
+    }
+
 
     @Test
     fun `rejected handshake clears catalog and fails pending requests`() = runBlocking {
@@ -777,10 +847,10 @@ class ClientPlaybackRuntimeTest {
     }
 
     private companion object {
-        fun acceptedWelcome(): ServerWelcome = ServerWelcome(
+        fun acceptedWelcome(serverProtocolVersion: Int = MoeMusicProtocol.VERSION): ServerWelcome = ServerWelcome(
             accepted = true,
             failure = "",
-            server_protocol_version = MoeMusicProtocol.VERSION,
+            server_protocol_version = serverProtocolVersion,
             accepted_state = ClientStateProto.CLIENT_STATE_ACTIVE,
             sources = listOf(
                 SearchSourceInfoProto(id = "youtube", display_name = "YouTube", searchable = true),
