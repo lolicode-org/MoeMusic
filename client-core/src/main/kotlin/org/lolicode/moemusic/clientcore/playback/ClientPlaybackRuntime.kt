@@ -829,10 +829,9 @@ class ClientPlaybackRuntime(
 
     fun sendSyncRequest() {
         if (!canHandleSessionPackets()) return
-        sendToServer(
-            PacketIds.SYNC_REQUEST,
-            SyncRequest(client_send_monotonic = System.nanoTime()).encode(),
-        )
+        trySendToServer(PacketIds.SYNC_REQUEST) {
+            SyncRequest(client_send_monotonic = System.nanoTime()).encode()
+        }
     }
 
     fun sendClientStateChange(state: ClientStateProto) {
@@ -841,100 +840,72 @@ class ClientPlaybackRuntime(
             logger.warn("Cannot send {} client participation change {}: {}", platform.name, state, blockedReason)
             return
         }
+        if (trySendToServer(PacketIds.CLIENT_STATE_CHANGE) {
+                ClientStateChange(state = state).encode()
+            } != null
+        ) {
+            return
+        }
         playbackRegistrationActive = state == ClientStateProto.CLIENT_STATE_ACTIVE
-        sendToServer(
-            PacketIds.CLIENT_STATE_CHANGE,
-            ClientStateChange(state = state).encode(),
-        )
         logger.info("{} client participation change sent: {}", platform.name, state)
     }
 
-    fun sendSearchRequest(query: String, sourceId: String = "", limit: Int = 20, offset: Int = 0): Long? {
-        val requestId = nextCorrelatedRequestId() ?: return null
-        sendToServer(
-            PacketIds.SEARCH_REQUEST,
-            SearchRequest(query = query, source_id = sourceId, limit = limit, offset = offset, request_id = requestId).encode(),
-        )
-        return requestId
-    }
+    fun sendSearchRequest(query: String, sourceId: String = "", limit: Int = 20, offset: Int = 0): Long? =
+        sendCorrelatedRequest(PacketIds.SEARCH_REQUEST) { requestId ->
+            SearchRequest(query = query, source_id = sourceId, limit = limit, offset = offset, request_id = requestId).encode()
+        }
 
-    fun sendQueueRequest(): Long? {
-        val requestId = nextCorrelatedRequestId() ?: return null
-        sendToServer(PacketIds.QUEUE_REQUEST, QueueRequest(request_id = requestId).encode())
-        return requestId
-    }
+    fun sendQueueRequest(): Long? =
+        sendCorrelatedRequest(PacketIds.QUEUE_REQUEST) { requestId -> QueueRequest(request_id = requestId).encode() }
 
-    fun sendUiBootstrapRequest(): Long? {
-        val requestId = nextCorrelatedRequestId() ?: return null
-        sendToServer(PacketIds.UI_BOOTSTRAP_REQUEST, UiBootstrapRequest(request_id = requestId).encode())
-        return requestId
-    }
+    fun sendUiBootstrapRequest(): Long? =
+        sendCorrelatedRequest(PacketIds.UI_BOOTSTRAP_REQUEST) { requestId -> UiBootstrapRequest(request_id = requestId).encode() }
 
     fun sendQueueRemoveRequest(track: TrackInfo): Long? {
         val sourceId = track.sourceId ?: return null
         if (sourceId.isBlank() || track.id.isBlank()) return null
-        val requestId = nextCorrelatedRequestId() ?: return null
-        sendToServer(
-            PacketIds.QUEUE_REMOVE_REQUEST,
-            QueueRemoveRequest(source_id = sourceId, track_id = track.id, request_id = requestId).encode(),
-        )
-        return requestId
+        return sendCorrelatedRequest(PacketIds.QUEUE_REMOVE_REQUEST) { requestId ->
+            QueueRemoveRequest(source_id = sourceId, track_id = track.id, request_id = requestId).encode()
+        }
     }
 
-    fun sendTrackSubmit(track: TrackInfo, mode: TrackAddMode = TrackAddMode.NORMAL): Long? {
-        val requestId = nextCorrelatedRequestId() ?: return null
-        sendToServer(
-            PacketIds.TRACK_SUBMIT,
+    fun sendTrackSubmit(track: TrackInfo, mode: TrackAddMode = TrackAddMode.NORMAL): Long? =
+        sendCorrelatedRequest(PacketIds.TRACK_SUBMIT) { requestId ->
             TrackSubmitRequest(
                 source_id = track.sourceId.orEmpty(),
                 track_id = track.id,
                 mode = mode.toProto(),
                 request_id = requestId,
-            ).encode(),
-        )
-        return requestId
-    }
+            ).encode()
+        }
 
     fun sendTrackSubmit(entry: SelectionEntry, mode: TrackAddMode = TrackAddMode.NORMAL): Long? =
         entry.toDirectTrackSubmitTrack()?.let { track -> sendTrackSubmit(track, mode) }
 
-    fun sendIdentifierSubmit(identifier: String, mode: TrackAddMode): Long? {
-        val requestId = nextCorrelatedRequestId() ?: return null
-        sendToServer(
-            PacketIds.IDENTIFIER_SUBMIT,
-            IdentifierSubmitRequest(identifier = identifier, mode = mode.toProto(), request_id = requestId).encode(),
-        )
-        return requestId
-    }
+    fun sendIdentifierSubmit(identifier: String, mode: TrackAddMode): Long? =
+        sendCorrelatedRequest(PacketIds.IDENTIFIER_SUBMIT) { requestId ->
+            IdentifierSubmitRequest(identifier = identifier, mode = mode.toProto(), request_id = requestId).encode()
+        }
 
-    fun sendSelectionSubmit(entry: SelectionEntry, mode: TrackAddMode = TrackAddMode.NORMAL): Long? {
-        val requestId = nextCorrelatedRequestId() ?: return null
-        sendToServer(
-            PacketIds.SELECTION_SUBMIT,
+    fun sendSelectionSubmit(entry: SelectionEntry, mode: TrackAddMode = TrackAddMode.NORMAL): Long? =
+        sendCorrelatedRequest(PacketIds.SELECTION_SUBMIT) { requestId ->
             SelectionSubmitRequest(
                 source_id = entry.sourceId.orEmpty(),
                 selection_id = entry.selectionId,
                 mode = mode.toProto(),
                 request_id = requestId,
-            ).encode(),
-        )
-        return requestId
-    }
+            ).encode()
+        }
 
     fun sendPlaybackControl(action: PlaybackControlAction, positionMs: Long = 0L): Long? {
         logInvalidPlaybackControl(action, positionMs)
-        val requestId = nextCorrelatedRequestId() ?: return null
-        sendToServer(
-            PacketIds.PLAYBACK_CONTROL_REQUEST,
-            PlaybackControlRequest(action = action, position_ms = positionMs, request_id = requestId).encode(),
-        )
-        return requestId
+        return sendCorrelatedRequest(PacketIds.PLAYBACK_CONTROL_REQUEST) { requestId ->
+            PlaybackControlRequest(action = action, position_ms = positionMs, request_id = requestId).encode()
+        }
     }
 
-    fun sendContentFilterTrackAction(sourceId: String, trackId: String, note: String?, ban: Boolean): Long? {
-        val requestId = nextCorrelatedRequestId() ?: return null
-        sendToServer(
-            PacketIds.CONTENT_FILTER_ACTION_REQUEST,
+    fun sendContentFilterTrackAction(sourceId: String, trackId: String, note: String?, ban: Boolean): Long? =
+        sendCorrelatedRequest(PacketIds.CONTENT_FILTER_ACTION_REQUEST) { requestId ->
             ContentFilterActionRequest(
                 action = if (ban) {
                     ContentFilterActionProto.CONTENT_FILTER_ACTION_BAN
@@ -946,10 +917,8 @@ class ClientPlaybackRuntime(
                 value_id = trackId,
                 note = note.orEmpty(),
                 request_id = requestId,
-            ).encode(),
-        )
-        return requestId
-    }
+            ).encode()
+        }
 
     fun cacheSearchState(state: CachedSearchState?) {
         cachedSearchState = state
@@ -1050,8 +1019,25 @@ class ClientPlaybackRuntime(
         return frames[0]
     }
 
-    private fun sendToServer(packetId: PacketId, payload: ByteArray, protocolVersion: Int = activeProtocolVersion) {
-        platform.sendToServer(packetId, wrapClientPayload(payload, protocolVersion))
+    private fun trySendToServer(
+        packetId: PacketId,
+        protocolVersion: Int = activeProtocolVersion,
+        framed: Boolean = true,
+        payloadFactory: () -> ByteArray,
+    ): Exception? = try {
+        val payload = payloadFactory()
+        platform.sendToServer(packetId, if (framed) wrapClientPayload(payload, protocolVersion) else payload)
+        null
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        logger.warn("{} failed to send packet {}: {}", platform.name, packetId, e.message, e)
+        e
+    }
+
+    private fun sendCorrelatedRequest(packetId: PacketId, payloadFactory: (Long) -> ByteArray): Long? {
+        val requestId = nextCorrelatedRequestId() ?: return null
+        return if (trySendToServer(packetId) { payloadFactory(requestId) } == null) requestId else null
     }
 
     private fun sendHandshake(
@@ -1076,7 +1062,7 @@ class ClientPlaybackRuntime(
             client_send_monotonic = now,
         ).encode()
         // Handshake packet is sent unframed so legacy v2 servers can decode it directly and negotiate downgrade.
-        platform.sendToServer(PacketIds.CLIENT_HANDSHAKE, handshakeBytes)
+        if (trySendToServer(PacketIds.CLIENT_HANDSHAKE, protocolVersion, framed = false) { handshakeBytes } != null) return
         logger.info(
             "{} client handshake sent (locale={}, initialState={}, mod={}, protocol={})",
             platform.name,
@@ -1835,12 +1821,9 @@ class ClientPlaybackRuntime(
     ): Deferred<T>? {
         val requestId = nextCorrelatedRequestId() ?: return null
         val deferred = registry.register(requestId)
-        try {
-            sendToServer(packetId, payloadFactory(requestId))
-        } catch (e: Throwable) {
+        trySendToServer(packetId) { payloadFactory(requestId) }?.let { failure ->
             registry.remove(requestId)
-            deferred.completeExceptionally(e)
-            throw e
+            deferred.completeExceptionally(ClientRequestException("Failed to send packet $packetId.", failure))
         }
         return deferred
     }

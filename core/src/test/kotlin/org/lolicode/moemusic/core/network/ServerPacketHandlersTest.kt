@@ -145,6 +145,19 @@ class ServerPacketHandlersTest {
         assertEquals(1, handled.get())
     }
 
+    @Test
+    fun `decoder failure is dropped without invoking the handler`() {
+        val user = TestUser(displayName = "MalformedPacketPlayer", id = UUID.randomUUID())
+        var handled = false
+        registry.register(PacketIds.CLIENT_HANDSHAKE, { throw IllegalArgumentException("malformed") }) { _, _ ->
+            handled = true
+        }
+
+        registry.dispatch(PacketIds.CLIENT_HANDSHAKE, byteArrayOf(), user)
+
+        assertEquals(false, handled)
+    }
+
     private class TestSessionBridge : ServerPacketSessionBridge {
         val outdatedNotificationCount = AtomicInteger(0)
         val lastReportedProtocolVersion = AtomicInteger(-1)

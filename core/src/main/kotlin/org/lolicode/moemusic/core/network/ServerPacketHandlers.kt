@@ -1,9 +1,6 @@
 package org.lolicode.moemusic.core.network
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import org.lolicode.moemusic.api.FilterBlockException
 import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.api.MoeMusicUser
@@ -20,6 +17,7 @@ import org.lolicode.moemusic.core.permission.PermissionNodes
 import org.lolicode.moemusic.core.playback.TimeSyncHandler
 import org.lolicode.moemusic.core.plugin.PluginManager
 import org.lolicode.moemusic.core.protocol.MoeMusicProtocol
+import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
 import org.lolicode.moemusic.core.protocol.PacketRegistry
 import org.lolicode.moemusic.core.protocol.ProtocolViewMapper
@@ -56,7 +54,6 @@ class ServerPacketHandlers(
 
     private val logger = LoggerFactory.getLogger(ServerPacketHandlers::class.java)
     private val timeSyncHandler = TimeSyncHandler()
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun registerAll(registry: PacketRegistry) {
         // CLIENT_HANDSHAKE — registers the user's locale plus initial playback participation.
@@ -75,7 +72,7 @@ class ServerPacketHandlers(
                     accepted_state = msg.initial_state,
                     reject_reason = ServerWelcomeRejectReason.SERVER_WELCOME_REJECT_PROTOCOL_MISMATCH,
                 )
-                channel.sendToClient(sender, PacketIds.SERVER_WELCOME, welcome.encode())
+                sendToClient(sender, PacketIds.SERVER_WELCOME, welcome.encode())
                 logger.warn(
                     "Rejected client handshake from {} (mod={}, protocol={} serverProtocol={})",
                     sender.displayName,
@@ -133,13 +130,13 @@ class ServerPacketHandlers(
                 sources = sources,
                 default_source_id = defaultSourceId,
             )
-            channel.sendToClient(user, PacketIds.SERVER_WELCOME, welcome.encode())
+            sendToClient(user, PacketIds.SERVER_WELCOME, welcome.encode())
             if (initialParticipation == UserSessionRegistry.Participation.ACTIVE) {
                 // If the controller was auto-paused while no clients were connected, resume now.
                 // This restores the exact position + restarts the advance timer for remaining time.
                 ServerRuntimeCoordinator.ensureNativeAudienceLease()
                 ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()?.let { snapshot ->
-                    channel.sendToClient(
+                    sendToClient(
                         user,
                         PacketIds.PLAYBACK_SNAPSHOT_PUSH,
                         PlaybackSnapshotPush(
@@ -166,14 +163,14 @@ class ServerPacketHandlers(
                     logger.info("Client participation changed: {} -> ACTIVE", user.displayName)
                     ServerRuntimeCoordinator.ensureNativeAudienceLease()
                     ServerRuntimeCoordinator.playbackController.buildPlaybackSnapshot()?.let { snapshot ->
-                        channel.sendToClient(
-                            user,
-                            PacketIds.PLAYBACK_SNAPSHOT_PUSH,
-                            PlaybackSnapshotPush(
-                                snapshot = snapshot,
-                                reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_CATCH_UP,
-                            ).encode(),
-                        )
+                    sendToClient(
+                        user,
+                        PacketIds.PLAYBACK_SNAPSHOT_PUSH,
+                        PlaybackSnapshotPush(
+                            snapshot = snapshot,
+                            reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_CATCH_UP,
+                        ).encode(),
+                    )
                     }
                 }
 
@@ -191,7 +188,7 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             val response = timeSyncHandler.handleSyncRequest(msg)
-            channel.sendToClient(sender, PacketIds.SYNC_RESPONSE, response.encode())
+            sendToClient(sender, PacketIds.SYNC_RESPONSE, response.encode())
             logger.debug("SyncRequest from {} → responded (clientSend={})", sender.displayName, msg.client_send_monotonic)
         }
 
@@ -217,7 +214,7 @@ class ServerPacketHandlers(
                     request_id = msg.request_id,
                 )
             }
-            channel.sendToClient(sender, PacketIds.UI_BOOTSTRAP_RESPONSE, response.encode())
+            sendToClient(sender, PacketIds.UI_BOOTSTRAP_RESPONSE, response.encode())
             logger.debug(
                 "UiBootstrapResponse → {}: {} tracks failure='{}' hasSubmitDuplicatePermission={}",
                 sender.displayName,
@@ -242,7 +239,7 @@ class ServerPacketHandlers(
                     msg.track_id,
                     msg.mode,
                 )
-                channel.sendToClient(
+                sendToClient(
                     sender,
                     PacketIds.TRACK_SUBMIT_RESPONSE,
                     TrackSubmitResponse(
@@ -254,7 +251,7 @@ class ServerPacketHandlers(
             }
             val mode = msg.mode.toTrackAddMode()
             logger.debug("TrackSubmit from {}: source={}, id={}", sender.displayName, msg.source_id, msg.track_id)
-            scope.launch {
+            ServerRuntimeCoordinator.launchServerSessionTask {
                 val response = try {
                     val outcome = ServerRuntimeCoordinator.userActionService.submitBySourceAndId(
                         sourceId = msg.source_id,
@@ -268,6 +265,8 @@ class ServerPacketHandlers(
                         success = render(sender, successMessage(outcome.track, outcome.result)),
                         request_id = msg.request_id,
                     )
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     logHandledFailure("TrackSubmit", sender, e)
                     TrackSubmitResponse(
@@ -276,7 +275,7 @@ class ServerPacketHandlers(
                         request_id = msg.request_id,
                     )
                 }
-                channel.sendToClient(sender, PacketIds.TRACK_SUBMIT_RESPONSE, response.encode())
+                sendToClient(sender, PacketIds.TRACK_SUBMIT_RESPONSE, response.encode())
                 if (response.failure.isBlank()) {
                     logger.info(
                         "Track submit accepted from {}: source={} id={} title='{}' mode={} resultMessage='{}'",
@@ -313,7 +312,7 @@ class ServerPacketHandlers(
                     msg.selection_id,
                     msg.mode,
                 )
-                channel.sendToClient(
+                sendToClient(
                     sender,
                     PacketIds.SELECTION_SUBMIT_RESPONSE,
                     SelectionSubmitResponse(
@@ -325,7 +324,7 @@ class ServerPacketHandlers(
             }
 
             val mode = msg.mode.toTrackAddMode()
-            scope.launch {
+            ServerRuntimeCoordinator.launchServerSessionTask {
                 val response = try {
                     val canBypass = senderHasFilterBypass(sender)
                     val canSeeDetail = senderHasFilterManage(sender)
@@ -350,6 +349,8 @@ class ServerPacketHandlers(
                             request_id = msg.request_id,
                         )
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     logHandledFailure("SelectionSubmit", sender, e)
                     SelectionSubmitResponse(
@@ -357,7 +358,7 @@ class ServerPacketHandlers(
                         request_id = msg.request_id,
                     )
                 }
-                channel.sendToClient(sender, PacketIds.SELECTION_SUBMIT_RESPONSE, response.encode())
+                sendToClient(sender, PacketIds.SELECTION_SUBMIT_RESPONSE, response.encode())
                 when {
                     response.failure.isNotBlank() -> logger.info(
                         "Selection submit rejected for {}: source={} selection={} mode={} reason='{}'",
@@ -395,7 +396,7 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             val mode = msg.mode.toTrackAddMode()
-            scope.launch {
+            ServerRuntimeCoordinator.launchServerSessionTask {
                 val response = try {
                     val canBypass = senderHasFilterBypass(sender)
                     val canSeeDetail = senderHasFilterManage(sender)
@@ -419,6 +420,8 @@ class ServerPacketHandlers(
                             request_id = msg.request_id,
                         )
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     logHandledFailure("IdentifierSubmit", sender, e)
                     IdentifierSubmitResponse(
@@ -426,7 +429,7 @@ class ServerPacketHandlers(
                         request_id = msg.request_id,
                     )
                 }
-                channel.sendToClient(sender, PacketIds.IDENTIFIER_SUBMIT_RESPONSE, response.encode())
+                sendToClient(sender, PacketIds.IDENTIFIER_SUBMIT_RESPONSE, response.encode())
                 logger.debug("IdentifierSubmit from {} handled for identifier='{}'", sender.displayName, msg.identifier)
                 when {
                     response.failure.isNotBlank() -> logger.info(
@@ -467,7 +470,7 @@ class ServerPacketHandlers(
                 offset = msg.offset,
             )
             logger.debug("SearchRequest from {}: query='{}' limit={} offset={}", sender.displayName, query.query, query.limit, query.offset)
-            scope.launch {
+            ServerRuntimeCoordinator.launchServerSessionTask {
                 val response = try {
                     val outcome = ServerRuntimeCoordinator.userActionService.search(query, sender)
                     val canBypass = senderHasFilterBypass(sender)
@@ -484,6 +487,8 @@ class ServerPacketHandlers(
                         has_more = outcome.hasMore,
                         request_id = msg.request_id,
                     )
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     logHandledFailure("SearchRequest", sender, e)
                     SearchResponse(
@@ -495,7 +500,7 @@ class ServerPacketHandlers(
                         request_id = msg.request_id,
                     )
                 }
-                channel.sendToClient(sender, PacketIds.SEARCH_RESPONSE, response.encode())
+                sendToClient(sender, PacketIds.SEARCH_RESPONSE, response.encode())
                 logger.debug("SearchResponse → {}: {} results failure='{}'", sender.displayName, response.entries.size, response.failure)
             }
         }
@@ -520,7 +525,7 @@ class ServerPacketHandlers(
                     request_id = msg.request_id,
                 )
             }
-            channel.sendToClient(sender, PacketIds.QUEUE_RESPONSE, response.encode())
+            sendToClient(sender, PacketIds.QUEUE_RESPONSE, response.encode())
             logger.debug("QueueResponse → {}: {} tracks failure='{}'", sender.displayName, response.tracks.size, response.failure)
         }
 
@@ -562,7 +567,7 @@ class ServerPacketHandlers(
                     request_id = msg.request_id,
                 )
             }
-            channel.sendToClient(sender, PacketIds.QUEUE_REMOVE_RESPONSE, response.encode())
+            sendToClient(sender, PacketIds.QUEUE_REMOVE_RESPONSE, response.encode())
             logger.info(
                 "Queue remove from {}: source={} trackId={} result={}",
                 sender.displayName,
@@ -596,7 +601,7 @@ class ServerPacketHandlers(
                     request_id = msg.request_id,
                 )
             }
-            channel.sendToClient(sender, PacketIds.PLAYBACK_CONTROL_RESPONSE, response.encode())
+            sendToClient(sender, PacketIds.PLAYBACK_CONTROL_RESPONSE, response.encode())
             logger.info(
                 "Playback control from {}: action={} posMs={} result={}",
                 sender.displayName,
@@ -625,7 +630,7 @@ class ServerPacketHandlers(
                     msg.source_id,
                     msg.value_id,
                 )
-                channel.sendToClient(
+                sendToClient(
                     sender,
                     PacketIds.CONTENT_FILTER_ACTION_RESPONSE,
                     ContentFilterActionResponse(
@@ -634,7 +639,7 @@ class ServerPacketHandlers(
                         source_id = msg.source_id,
                         value_id = msg.value_id,
                         request_id = msg.request_id,
-                    ).encode()
+                    ).encode(),
                 )
                 return@register
             }
@@ -651,7 +656,7 @@ class ServerPacketHandlers(
                     sourceId,
                     valueId,
                 )
-                channel.sendToClient(
+                sendToClient(
                     sender,
                     PacketIds.CONTENT_FILTER_ACTION_RESPONSE,
                     ContentFilterActionResponse(
@@ -660,7 +665,7 @@ class ServerPacketHandlers(
                         source_id = sourceId,
                         value_id = valueId,
                         request_id = msg.request_id,
-                    ).encode()
+                    ).encode(),
                 )
                 return@register
             }
@@ -716,7 +721,7 @@ class ServerPacketHandlers(
                     request_id = msg.request_id,
                 )
             }
-            channel.sendToClient(sender, PacketIds.CONTENT_FILTER_ACTION_RESPONSE, response.encode())
+            sendToClient(sender, PacketIds.CONTENT_FILTER_ACTION_RESPONSE, response.encode())
             logger.info(
                 "Content filter action from {}: action={} target={} source={} value={} result={}",
                 sender.displayName,
@@ -726,6 +731,14 @@ class ServerPacketHandlers(
                 valueId,
                 if (response.failure.isBlank()) "OK blockedNow=${response.blocked_now}" else "REJECTED '${response.failure}'",
             )
+        }
+    }
+
+    private fun sendToClient(user: MoeMusicUser, packetId: PacketId, payload: ByteArray) {
+        try {
+            this.channel.sendToClient(user, packetId, payload)
+        } catch (e: Exception) {
+            logger.error("Failed to send packet {} to {}: {}", packetId, user.displayName, e.message, e)
         }
     }
 

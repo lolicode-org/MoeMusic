@@ -2,7 +2,10 @@ package org.lolicode.moemusic.core.runtime
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.lolicode.moemusic.api.service.IMediaProbeService
 import org.lolicode.moemusic.api.service.IPermissionService
 import org.lolicode.moemusic.api.service.IUserActionService
@@ -93,6 +96,10 @@ object ServerRuntimeCoordinator {
     private var nativeAudienceLease: PlaybackAudienceLease? = null
 
     private val serverScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    /** Cancels packet-triggered background work before each server session unloads. */
+    @Volatile
+    private var serverSessionScope: CoroutineScope = newServerSessionScope()
     private var runtimeAdapter: ServerRuntimeAdapter = NoopAdapter
     private var autoplayConfig: AutoplayConfig? = null
 
@@ -112,6 +119,22 @@ object ServerRuntimeCoordinator {
     var serverSessionActive: Boolean = false
         private set
 
+    internal fun launchServerSessionTask(block: suspend CoroutineScope.() -> Unit): Job =
+        serverSessionScope.launch(block = block)
+
+    private fun resetServerSessionScope() {
+        val oldScope = serverSessionScope
+        serverSessionScope = newServerSessionScope()
+        oldScope.cancel()
+    }
+
+    private fun cancelServerSessionTasks() {
+        serverSessionScope.cancel()
+    }
+
+    private fun newServerSessionScope(): CoroutineScope =
+        CoroutineScope(Dispatchers.IO + SupervisorJob())
+
     fun serverInit(
         channel: NetworkChannel,
         configDir: Path,
@@ -122,6 +145,7 @@ object ServerRuntimeCoordinator {
             requestRateLimiter: RequestRateLimiter,
         ) -> ServerPluginServices,
     ) {
+        resetServerSessionScope()
         this.channel = channel
         this.configDir = configDir
         runtimeAdapter = adapter
@@ -143,6 +167,7 @@ object ServerRuntimeCoordinator {
     }
 
     fun serverShutdown(finalRuntime: Boolean) {
+        cancelServerSessionTasks()
         if (serverSessionActive) {
             PluginManager.dispatchServerSessionUnload()
             clearServerSessionState()

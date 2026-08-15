@@ -88,12 +88,14 @@ private class CapturingChannel : NetworkChannel {
 
     val broadcasts = CopyOnWriteArrayList<Packet>()
     val clientPackets = CopyOnWriteArrayList<Pair<MoeMusicUser, Packet>>()
+    var throwOnBroadcast = false
 
     override fun sendToServer(packetId: PacketId, payload: ByteArray) = Unit
     override fun sendToClient(user: MoeMusicUser, packetId: PacketId, payload: ByteArray) {
         clientPackets += user to Packet(packetId, payload)
     }
     override fun sendToAllClients(packetId: PacketId, payload: ByteArray) {
+        if (throwOnBroadcast) throw IllegalStateException("network closed")
         broadcasts += Packet(packetId, payload)
     }
 }
@@ -579,6 +581,17 @@ class ServerPlaybackControllerTest {
         val decoded = StateUpdate.ADAPTER.decode(pkt.payload)
         assertEquals(PlaybackStateProto.PAUSED, decoded.state)
         assertTrue(ctrl.currentContext?.state is PlaybackState.Paused)
+    }
+
+    @Test
+    fun `broadcast failure does not block playback state transitions`() {
+        val (ctrl, channel) = freshController()
+        channel.throwOnBroadcast = true
+
+        ctrl.play(SAMPLE_TRACK, SAMPLE_TRACK.directPlayback())
+        ctrl.pause()
+
+        assertIs<PlaybackState.Paused>(ctrl.currentContext?.state)
     }
 
     @Test

@@ -648,27 +648,41 @@ class ClientPlaybackRuntimeTest {
     }
 
     @Test
-    fun `C2S request packets are framed but reject chunking when payload exceeds single frame limit`() {
+    fun `C2S request packets are framed but reject chunking without leaking pending requests`() {
         val harness = harness()
         harness.acceptWelcome()
 
-        // 1. Normal C2S request is sent framed
+        // Normal C2S requests remain framed.
         harness.runtime.sendPlaybackControl(PlaybackControlAction.PAUSE)
         val normalPacket = harness.platform.sentPackets.last { it.packetId == PacketIds.PLAYBACK_CONTROL_REQUEST }.payload
         assertTrue(normalPacket[0] == FramedPayloadCodec.FLAG_RAW || normalPacket[0] == FramedPayloadCodec.FLAG_COMPRESSED)
 
-        // 2. Oversized C2S request (exceeding single frame limit even with compression) must fail immediately without sending chunks
+        // Oversized C2S requests complete the request exceptionally instead of escaping the caller.
         val randomBytes = ByteArray(40 * 1024).also { java.util.Random(42).nextBytes(it) }
         val oversizedQuery = String(randomBytes, Charsets.ISO_8859_1)
-        assertFailsWith<IllegalArgumentException> {
-            harness.runtime.beginSearchRequest(query = oversizedQuery, sourceId = "youtube", limit = 20, offset = 0)
+        val rejected = assertNotNull(harness.runtime.beginSearchRequest(query = oversizedQuery, sourceId = "youtube", limit = 20, offset = 0))
+        assertFailsWith<ClientRequestException> {
+            runBlocking { rejected.await() }
         }
 
-        // 3. Normal request after failure must succeed and not be blocked by leaked pending state
+        // A normal request after failure succeeds and is not blocked by stale pending state.
         val validDeferred = harness.runtime.beginSearchRequest(query = "valid query", sourceId = "youtube", limit = 20, offset = 0)
         assertNotNull(validDeferred)
         val searchReqPacket = harness.platform.sentPackets.last { it.packetId == PacketIds.SEARCH_REQUEST }.payload
         assertTrue(searchReqPacket[0] == FramedPayloadCodec.FLAG_RAW || searchReqPacket[0] == FramedPayloadCodec.FLAG_COMPRESSED)
+    }
+
+    @Test
+    fun `client packet send failures return failed requests without escaping`() = runBlocking {
+        val harness = harness()
+        harness.acceptWelcome()
+        harness.platform.sendFailure = IllegalStateException("network closed")
+
+        assertNull(harness.runtime.sendSearchRequest("query"))
+        val request = assertNotNull(harness.runtime.beginSearchRequest("query", "youtube", 20, 0))
+        val failure = assertFailsWith<ClientRequestException> { request.await() }
+
+        assertIs<IllegalStateException>(failure.cause)
     }
 
     private fun harness(
@@ -769,6 +783,7 @@ class ClientPlaybackRuntimeTest {
         var connected = true
         var stoppedBlockedSounds = false
         var config = ClientConfig(globalInstancePlaybackLock = false)
+        var sendFailure: Exception? = null
 
         override fun hasConnection(): Boolean = connected
 
@@ -779,6 +794,7 @@ class ClientPlaybackRuntimeTest {
         override fun clientConfig(): ClientConfig = config
 
         override fun sendToServer(packetId: PacketId, payload: ByteArray) {
+            sendFailure?.let { throw it }
             sentPackets += SentPacket(packetId, payload)
         }
 

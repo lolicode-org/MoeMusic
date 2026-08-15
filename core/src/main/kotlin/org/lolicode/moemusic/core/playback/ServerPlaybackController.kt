@@ -15,6 +15,7 @@ import org.lolicode.moemusic.api.model.*
 import org.lolicode.moemusic.core.error.UserFacingErrors
 import org.lolicode.moemusic.core.event.CoreEvents
 import org.lolicode.moemusic.core.transport.NetworkChannel
+import org.lolicode.moemusic.core.protocol.PacketId
 import org.lolicode.moemusic.core.protocol.PacketIds
 import org.lolicode.moemusic.core.protocol.proto.*
 import org.lolicode.moemusic.core.plugin.PluginManager
@@ -263,7 +264,7 @@ class ServerPlaybackController(
             ),
             reason = PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK,
         )
-        channel.sendToAllClients(PacketIds.PLAYBACK_SNAPSHOT_PUSH, msg.encode())
+        broadcast(PacketIds.PLAYBACK_SNAPSHOT_PUSH, msg.encode())
         currentContext = TrackContext(
             track = finalTrack,
             playback = playback,
@@ -328,7 +329,7 @@ class ServerPlaybackController(
             position_ms = positionMs,
             position_anchor_server_monotonic = 0L,
         )
-        channel.sendToAllClients(PacketIds.STATE_UPDATE, msg.encode())
+        broadcast(PacketIds.STATE_UPDATE, msg.encode())
         currentContext = ctx.copy(state = PlaybackState.Paused(positionMs))
         eventBus.fire(
             OnPlaybackPaused(
@@ -398,7 +399,7 @@ class ServerPlaybackController(
             position_anchor_server_monotonic = anchorServerMonotonic,
             playback = refreshReadyContext.playback.toProto(),
         )
-        channel.sendToAllClients(PacketIds.STATE_UPDATE, msg.encode())
+        broadcast(PacketIds.STATE_UPDATE, msg.encode())
         currentContext = refreshReadyContext.copy(
             state = PlaybackState.Playing(pausePos),
             serverStartMonotonic = newStart,
@@ -458,7 +459,7 @@ class ServerPlaybackController(
             position_anchor_server_monotonic = anchorServerMonotonic,
             playback = if (isPlaying) ctx.playback.toProto() else null,
         )
-        channel.sendToAllClients(PacketIds.STATE_UPDATE, msg.encode())
+        broadcast(PacketIds.STATE_UPDATE, msg.encode())
         val newState =
             if (isPlaying) PlaybackState.Playing(normalizedPositionMs) else PlaybackState.Paused(normalizedPositionMs)
         currentContext = ctx.copy(
@@ -721,6 +722,14 @@ class ServerPlaybackController(
         return true
     }
 
+    private fun broadcast(packetId: PacketId, payload: ByteArray) {
+        try {
+            this.channel.sendToAllClients(packetId, payload)
+        } catch (e: Exception) {
+            logger.error("Failed to broadcast packet {}: {}", packetId, e.message, e)
+        }
+    }
+
     private fun stop(manual: Boolean) {
         val stoppedTrack = currentContext?.track ?: return
         cancelAdvanceJob()
@@ -736,7 +745,7 @@ class ServerPlaybackController(
             position_ms = 0L,
             position_anchor_server_monotonic = 0L,
         )
-        channel.sendToAllClients(PacketIds.STATE_UPDATE, msg.encode())
+        broadcast(PacketIds.STATE_UPDATE, msg.encode())
         currentContext = null
         currentTrackSource = null
         clearCurrentPlaybackRefreshState()

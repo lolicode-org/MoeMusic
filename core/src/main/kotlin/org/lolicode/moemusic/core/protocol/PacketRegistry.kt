@@ -47,8 +47,8 @@ class PacketRegistry {
     /**
      * Decode [raw] bytes and invoke the registered handler for [id].
      *
-     * Decoding and handler exceptions are caught, logged, and swallowed so that one
-     * bad packet does not disconnect the player or crash the server.
+     * Decoder failures are dropped at debug level; handler exceptions are logged at error level.
+     * Neither may disconnect the player or crash the server.
      *
      * @param id     Identifies which handler to invoke.
      * @param raw    Wire-encoded protobuf bytes.
@@ -69,8 +69,18 @@ class PacketRegistry {
             logger.debug("PacketRegistry: no handler for {}, dropping packet", id)
             return
         }
+        val message = try {
+            entry.decoder(raw)
+        } catch (e: Exception) {
+            logger.debug(
+                "PacketRegistry: dropping malformed {} from {}: {}",
+                id,
+                sender?.displayName ?: "server",
+                e.message,
+            )
+            return
+        }
         try {
-            val message = entry.decoder(raw)
             entry.handler(message, sender)
         } catch (e: Exception) {
             logger.error("PacketRegistry: error handling packet {} from {}: {}", id, sender?.displayName ?: "server", e.message, e)

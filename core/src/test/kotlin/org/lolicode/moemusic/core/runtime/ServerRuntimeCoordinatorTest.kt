@@ -1,5 +1,9 @@
 package org.lolicode.moemusic.core.runtime
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import org.lolicode.moemusic.api.MoeMusicApi
 import org.lolicode.moemusic.api.MoeMusicUser
@@ -35,6 +39,31 @@ class ServerRuntimeCoordinatorTest {
     fun resetStateAfterTest() {
         ServerRuntimeCoordinator.serverShutdown(finalRuntime = true)
         resetPluginTestState()
+    }
+
+    @Test
+    fun `server shutdown cancels session packet tasks`() = runBlocking {
+        val configDir = Files.createTempDirectory("moemusic-session-task-cancel")
+        try {
+            ServerRuntimeCoordinator.serverInit(
+                channel = NoopNetworkChannel,
+                configDir = configDir,
+                pluginServicesFactory = { _, _, _ -> testPluginServices },
+            )
+            val started = CompletableDeferred<Unit>()
+            val task = ServerRuntimeCoordinator.launchServerSessionTask {
+                started.complete(Unit)
+                awaitCancellation()
+            }
+
+            withTimeout(3_000) { started.await() }
+            ServerRuntimeCoordinator.serverShutdown(finalRuntime = false)
+            withTimeout(3_000) { task.join() }
+
+            assertTrue(task.isCancelled)
+        } finally {
+            configDir.toFile().deleteRecursively()
+        }
     }
 
     @Test

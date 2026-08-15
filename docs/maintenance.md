@@ -97,6 +97,7 @@ Plugin lifecycle has runtime and session layers:
 - [onServerSessionLoad](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt#L103) / [onServerSessionUnload](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt#L112): once per concrete Minecraft server session.
 - [onClientRuntimeLoad](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt#L109) / [onClientRuntimeUnload](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt#L118): once per client runtime.
 - [OnClientConnected](../api/src/main/kotlin/org/lolicode/moemusic/api/event/Events.kt#L197) / [OnClientDisconnected](../api/src/main/kotlin/org/lolicode/moemusic/api/event/Events.kt#L206): current client connection scope; disconnect fires before the final local session/playback snapshot is cleared.
+- Packet-triggered background work is scoped to the concrete server session and cancelled before session unload; do not put it on a runtime-wide coroutine scope.
 
 There is no hot reload guarantee. Config reloads should notify config listeners rather than rerunning plugin lifecycle callbacks, because lifecycle callbacks may register long-lived sources and event handlers.
 
