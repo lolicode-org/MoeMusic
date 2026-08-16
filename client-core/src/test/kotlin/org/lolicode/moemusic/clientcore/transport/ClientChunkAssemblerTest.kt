@@ -118,11 +118,11 @@ class ClientChunkAssemblerTest {
     }
 
     @Test
-    fun `process successfully reassembles max 1MB incompressible payload across 35 chunks`() {
+    fun `process successfully reassembles max 2MB incompressible payload across 69 chunks`() {
         val assembler = ClientChunkAssembler()
-        val payload = ByteArray(FramedPayloadCodec.MAX_ASSEMBLED_BYTES).also { Random(123).nextBytes(it) }
+        val payload = ByteArray(FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES).also { Random(123).nextBytes(it) }
         val frames = FramedPayloadCodec.encode(payload, transferId = 10)
-        assertEquals(35, frames.size)
+        assertEquals(69, frames.size)
 
         for (i in 0 until frames.size - 1) {
             assertNull(assembler.process(frames[i]))
@@ -263,10 +263,10 @@ class ClientChunkAssemblerTest {
     }
 
     @Test
-    fun `process rejects raw chunk when totalBytes exceeds MAX_ASSEMBLED_BYTES`() {
+    fun `process rejects raw chunk when totalBytes exceeds MAX_RAW_PAYLOAD_BYTES`() {
         val assembler = ClientChunkAssembler()
-        val oversizedTotalBytes = FramedPayloadCodec.MAX_ASSEMBLED_BYTES + 1000
-        val totalChunks: Short = 35
+        val oversizedTotalBytes = FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES + 1000
+        val totalChunks: Short = 70
         val buf = java.nio.ByteBuffer.allocate(FramedPayloadCodec.CHUNK_HEADER_SIZE + FramedPayloadCodec.CHUNK_PAYLOAD_SIZE)
         buf.put(FramedPayloadCodec.FLAG_CHUNK_RAW)
         buf.putShort(99.toShort()) // transferId
@@ -298,5 +298,44 @@ class ClientChunkAssemblerTest {
         val oversized = ByteArray(FramedPayloadCodec.MAX_LEGACY_S2C_PAYLOAD_BYTES + 1) { 0x7F }
 
         assertNull(assembler.process(oversized))
+    }
+
+    @Test
+    fun `process successfully reassembles and decompresses 2MB multi-chunk compressed payload`() {
+        val assembler = ClientChunkAssembler()
+        val words = listOf("alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet")
+        val random = Random(42)
+        val sb = java.io.ByteArrayOutputStream(FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES)
+        val wordBytes = words.map { "$it ".toByteArray() }
+        while (sb.size() < FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES) {
+            val chunk = wordBytes[random.nextInt(wordBytes.size)]
+            val toWrite = minOf(chunk.size, FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES - sb.size())
+            sb.write(chunk, 0, toWrite)
+        }
+        val payload = sb.toByteArray()
+        val frames = FramedPayloadCodec.encode(payload, transferId = 55)
+        assertTrue(frames.size > 1)
+        assertEquals(FramedPayloadCodec.FLAG_CHUNK_COMPRESSED, frames[0][0])
+
+        for (i in 0 until frames.size - 1) {
+            assertNull(assembler.process(frames[i]))
+        }
+
+        val reassembled = assembler.process(frames.last())
+        assertNotNull(reassembled)
+        assertArrayEquals(payload, reassembled)
+    }
+
+    @Test
+    fun `process successfully decompresses 2MB single-frame compressed payload`() {
+        val assembler = ClientChunkAssembler()
+        val repetitive2MB = ByteArray(FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES) { 0 }
+        val frames = FramedPayloadCodec.encode(repetitive2MB)
+        assertEquals(1, frames.size)
+        assertEquals(FramedPayloadCodec.FLAG_COMPRESSED, frames[0][0])
+
+        val reassembled = assembler.process(frames.first())
+        assertNotNull(reassembled)
+        assertArrayEquals(repetitive2MB, reassembled)
     }
 }

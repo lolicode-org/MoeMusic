@@ -25,11 +25,17 @@ object FramedPayloadCodec {
     /** Maximum payload size per chunk (30 KB), leaving safe margin below Spigot's 32,766-byte limit. */
     const val CHUNK_PAYLOAD_SIZE = 30 * 1024
 
-    /** Maximum number of chunks allowed per transfer (max 35 * 30 KB >= 1 MB). */
-    const val MAX_CHUNKS = 35
+    /** Maximum number of chunks allowed per transfer (max 70 * 30 KB = 2,150,400 B >= 2 MB). */
+    const val MAX_CHUNKS = 70
 
-    /** Absolute maximum reassembled payload size (1 MB). */
-    const val MAX_ASSEMBLED_BYTES = 1024 * 1024
+    /** Absolute maximum reassembled/raw S2C payload size (2 MB). */
+    const val MAX_RAW_PAYLOAD_BYTES = 2 * 1024 * 1024
+
+    /** Legacy alias for [MAX_RAW_PAYLOAD_BYTES] (2 MB). */
+    const val MAX_ASSEMBLED_BYTES = MAX_RAW_PAYLOAD_BYTES
+
+    /** Maximum raw client-to-server payload (64 KB) to bound server memory and protect against decompression bombs. */
+    const val MAX_RAW_C2S_PAYLOAD_BYTES = 64 * 1024
 
     /** Header size for chunked frames: Flag (1B) + TransferId (2B) + ChunkIndex (2B) + TotalChunks (2B) + TotalBytes (4B) = 11B. */
     const val CHUNK_HEADER_SIZE = 1 + 2 + 2 + 2 + 4
@@ -37,8 +43,8 @@ object FramedPayloadCodec {
     /** Maximum unframed client-to-server payload supported by every platform transport. */
     const val MAX_LEGACY_C2S_PAYLOAD_BYTES = 32_766
 
-    /** Maximum unframed server-to-client payload; preserves the existing 1 MiB limit. */
-    const val MAX_LEGACY_S2C_PAYLOAD_BYTES = MAX_ASSEMBLED_BYTES
+    /** Maximum unframed server-to-client payload; preserves Vanilla Minecraft's 1 MiB CustomPayloadPacket limit. */
+    const val MAX_LEGACY_S2C_PAYLOAD_BYTES = 1024 * 1024
 
     /** Maximum encoded size of a single framed payload. */
     const val MAX_SINGLE_FRAME_BYTES = 1 + CHUNK_PAYLOAD_SIZE
@@ -46,7 +52,7 @@ object FramedPayloadCodec {
     /** Maximum encoded size of a chunk frame. */
     const val MAX_CHUNK_FRAME_BYTES = CHUNK_HEADER_SIZE + CHUNK_PAYLOAD_SIZE
 
-    /** Maximum compressed payload bytes that can be represented across chunk frames (35 * 30 KB). */
+    /** Maximum payload bytes that can be represented across chunk frames (70 * 30 KB = 2,150,400 B). */
     const val MAX_COMPRESSED_CHUNK_BYTES = MAX_CHUNKS * CHUNK_PAYLOAD_SIZE
 
     /** Payload byte threshold below which compression is skipped. */
@@ -83,7 +89,7 @@ object FramedPayloadCodec {
     /**
      * Encodes a raw Protobuf byte array into one or more transport frames.
      *
-     * @param payload Raw Protobuf bytes to encode.
+     * @param payload Raw Protobuf bytes to encode (up to [MAX_RAW_PAYLOAD_BYTES]).
      * @param transferId Optional transfer identifier for multi-part frames (allocated only when chunking is needed).
      * @return List of 1 or more frames, each <= [CHUNK_PAYLOAD_SIZE] + [CHUNK_HEADER_SIZE].
      */
@@ -91,8 +97,8 @@ object FramedPayloadCodec {
         payload: ByteArray,
         transferId: Short? = null,
     ): List<ByteArray> {
-        require(payload.size <= MAX_ASSEMBLED_BYTES) {
-            "Payload size ${payload.size} exceeds maximum assembled bytes $MAX_ASSEMBLED_BYTES"
+        require(payload.size <= MAX_RAW_PAYLOAD_BYTES) {
+            "Payload size ${payload.size} exceeds maximum raw payload bytes $MAX_RAW_PAYLOAD_BYTES"
         }
 
         val dataToSend = selectEncodedPayload(payload)
@@ -133,10 +139,18 @@ object FramedPayloadCodec {
         return chunks
     }
 
-    /** Encodes a v3 client-to-server payload without allocating chunk frames. */
-    fun encodeSingle(payload: ByteArray): ByteArray {
-        require(payload.size <= MAX_ASSEMBLED_BYTES) {
-            "Payload size ${payload.size} exceeds maximum assembled bytes $MAX_ASSEMBLED_BYTES"
+    /**
+     * Encodes a v3 client-to-server payload without allocating chunk frames.
+     *
+     * @param payload Raw Protobuf bytes to encode (default capped at [MAX_RAW_C2S_PAYLOAD_BYTES]).
+     * @param maxRawBytes Maximum allowed uncompressed payload size.
+     */
+    fun encodeSingle(
+        payload: ByteArray,
+        maxRawBytes: Int = MAX_RAW_C2S_PAYLOAD_BYTES,
+    ): ByteArray {
+        require(payload.size <= maxRawBytes) {
+            "Payload size ${payload.size} exceeds maximum raw payload bytes $maxRawBytes"
         }
 
         val dataToSend = selectEncodedPayload(payload)
@@ -160,9 +174,14 @@ object FramedPayloadCodec {
     /**
      * Decodes a single unfragmented frame ([FLAG_RAW] or [FLAG_COMPRESSED]).
      *
+     * @param frame Raw single frame.
+     * @param maxDecompressedBytes Maximum allowed decompressed payload bytes.
      * @throws IllegalArgumentException if the frame is empty, malformed, or is a chunked frame ([FLAG_CHUNK_RAW] or [FLAG_CHUNK_COMPRESSED]).
      */
-    fun decodeSingle(frame: ByteArray): ByteArray {
+    fun decodeSingle(
+        frame: ByteArray,
+        maxDecompressedBytes: Int = MAX_RAW_PAYLOAD_BYTES,
+    ): ByteArray {
         require(frame.isNotEmpty()) { "Cannot decode empty framed payload" }
         require(frame.size <= MAX_SINGLE_FRAME_BYTES) {
             "Single frame size ${frame.size} exceeds maximum $MAX_SINGLE_FRAME_BYTES"
@@ -175,7 +194,7 @@ object FramedPayloadCodec {
             }
 
             FLAG_COMPRESSED -> {
-                decompress(frame, 1, frame.size - 1)
+                decompress(frame, 1, frame.size - 1, maxDecompressedBytes = maxDecompressedBytes)
             }
 
             FLAG_CHUNK_RAW, FLAG_CHUNK_COMPRESSED -> {
@@ -191,14 +210,14 @@ object FramedPayloadCodec {
     /**
      * Unwraps an inbound C2S payload on the server.
      *
-     * - If [FLAG_RAW] or [FLAG_COMPRESSED]: decodes and returns raw Protobuf bytes.
+     * - If [FLAG_RAW] or [FLAG_COMPRESSED]: decodes and returns raw Protobuf bytes (bounded by [MAX_RAW_C2S_PAYLOAD_BYTES]).
      * - If [FLAG_CHUNK_RAW] or [FLAG_CHUNK_COMPRESSED]: throws [IllegalArgumentException] (chunked C2S frames are forbidden).
-     * - Otherwise: treated as legacy un-framed Wire Protobuf bytes.
+     * - Otherwise: treated as legacy un-framed Wire Protobuf bytes (bounded by [MAX_LEGACY_C2S_PAYLOAD_BYTES]).
      */
     fun unwrapServerInbound(raw: ByteArray): ByteArray {
         if (raw.isEmpty()) return raw
         return when (raw[0]) {
-            FLAG_RAW, FLAG_COMPRESSED -> decodeSingle(raw)
+            FLAG_RAW, FLAG_COMPRESSED -> decodeSingle(raw, maxDecompressedBytes = MAX_RAW_C2S_PAYLOAD_BYTES)
             FLAG_CHUNK_RAW, FLAG_CHUNK_COMPRESSED -> throw IllegalArgumentException("Unexpected chunked frame in C2S packet")
             else -> {
                 require(raw.size <= MAX_LEGACY_C2S_PAYLOAD_BYTES) {
@@ -242,7 +261,7 @@ object FramedPayloadCodec {
         offset: Int = 0,
         length: Int = data.size,
         expectedSize: Int = -1,
-        maxDecompressedBytes: Int = MAX_ASSEMBLED_BYTES,
+        maxDecompressedBytes: Int = MAX_RAW_PAYLOAD_BYTES,
     ): ByteArray {
         val inflater = inflaterCache.get()
         inflater.reset()

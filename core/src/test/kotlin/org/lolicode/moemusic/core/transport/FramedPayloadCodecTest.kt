@@ -114,13 +114,12 @@ class FramedPayloadCodecTest {
     }
 
     @Test
-    fun `max advertised chunked payload of 1MB produces exactly 35 chunks and succeeds`() {
-        val maxPayload = ByteArray(FramedPayloadCodec.MAX_ASSEMBLED_BYTES).also {
+    fun `max advertised chunked payload of 2MB produces exactly 69 chunks and succeeds`() {
+        val maxPayload = ByteArray(FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES).also {
             java.util.Random(123).nextBytes(it)
         }
         val frames = FramedPayloadCodec.encode(maxPayload)
-        assertEquals(FramedPayloadCodec.MAX_CHUNKS, frames.size)
-        assertEquals(35, frames.size)
+        assertEquals(69, frames.size)
     }
 
     @Test
@@ -145,9 +144,9 @@ class FramedPayloadCodecTest {
     }
 
     @Test
-    fun `encode immediately rejects compressible payload exceeding MAX_ASSEMBLED_BYTES even if compressed size is small`() {
-        // 2 MB of zeros would compress to a tiny payload, but must be rejected before single-frame return
-        val oversizedCompressible = ByteArray(2 * FramedPayloadCodec.MAX_ASSEMBLED_BYTES) { 0 }
+    fun `encode immediately rejects compressible payload exceeding MAX_RAW_PAYLOAD_BYTES even if compressed size is small`() {
+        // 4 MB of zeros would compress to a tiny payload, but must be rejected before single-frame return
+        val oversizedCompressible = ByteArray(2 * FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES) { 0 }
 
         assertThrows<IllegalArgumentException> {
             FramedPayloadCodec.encode(oversizedCompressible)
@@ -177,6 +176,28 @@ class FramedPayloadCodecTest {
     }
 
     @Test
+    fun `encodeSingle rejects payload exceeding MAX_RAW_C2S_PAYLOAD_BYTES`() {
+        val oversized = ByteArray(FramedPayloadCodec.MAX_RAW_C2S_PAYLOAD_BYTES + 1) { 0 }
+
+        assertThrows<IllegalArgumentException> {
+            FramedPayloadCodec.encodeSingle(oversized)
+        }
+    }
+
+    @Test
+    fun `unwrapServerInbound rejects C2S payload decompressing beyond MAX_RAW_C2S_PAYLOAD_BYTES`() {
+        val bombSource = ByteArray(FramedPayloadCodec.MAX_RAW_C2S_PAYLOAD_BYTES + 1) { 0 }
+        val compressed = FramedPayloadCodec.compress(bombSource)
+        val frame = ByteArray(1 + compressed.size)
+        frame[0] = FramedPayloadCodec.FLAG_COMPRESSED
+        System.arraycopy(compressed, 0, frame, 1, compressed.size)
+
+        assertThrows<IllegalArgumentException> {
+            FramedPayloadCodec.unwrapServerInbound(frame)
+        }
+    }
+
+    @Test
     fun `decodeSingle rejects oversized raw and compressed frames before decoding`() {
         val oversizedRaw = ByteArray(FramedPayloadCodec.MAX_SINGLE_FRAME_BYTES + 1).also {
             it[0] = FramedPayloadCodec.FLAG_RAW
@@ -190,9 +211,9 @@ class FramedPayloadCodecTest {
     }
 
     @Test
-    fun `decompression accepts exactly 1 MiB and rejects one byte beyond`() {
-        val exact = ByteArray(FramedPayloadCodec.MAX_ASSEMBLED_BYTES) { 0 }
-        val oversized = ByteArray(FramedPayloadCodec.MAX_ASSEMBLED_BYTES + 1) { 0 }
+    fun `decompression accepts exactly 2 MiB and rejects one byte beyond`() {
+        val exact = ByteArray(FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES) { 0 }
+        val oversized = ByteArray(FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES + 1) { 0 }
 
         assertArrayEquals(exact, FramedPayloadCodec.decompress(FramedPayloadCodec.compress(exact)))
         assertThrows<IllegalArgumentException> {

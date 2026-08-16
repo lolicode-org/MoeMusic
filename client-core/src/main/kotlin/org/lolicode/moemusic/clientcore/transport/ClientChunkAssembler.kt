@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Client-side buffer manager for reassembling multi-part chunk frames.
  *
  * Thread-safe. Automatically enforces:
- * - Max payload size ([FramedPayloadCodec.MAX_ASSEMBLED_BYTES])
+ * - Max payload size ([FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES])
  * - Max chunk count ([FramedPayloadCodec.MAX_CHUNKS])
  * - TTL expiration ([ttlNanos])
  * - Max concurrent transfers ([maxConcurrentTransfers])
@@ -48,7 +48,7 @@ class ClientChunkAssembler(
         val flag = frame[0]
         if (flag == FramedPayloadCodec.FLAG_RAW || flag == FramedPayloadCodec.FLAG_COMPRESSED) {
             return try {
-                FramedPayloadCodec.decodeSingle(frame)
+                FramedPayloadCodec.decodeSingle(frame, maxDecompressedBytes = FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES)
             } catch (e: Exception) {
                 logger.error("Failed to decode single S2C framed payload: {}", e.message)
                 null
@@ -78,7 +78,7 @@ class ClientChunkAssembler(
         val maxAllowedBytes = if (isCompressed) {
             FramedPayloadCodec.MAX_COMPRESSED_CHUNK_BYTES
         } else {
-            FramedPayloadCodec.MAX_ASSEMBLED_BYTES
+            FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES
         }
 
         if (totalBytes !in 1..maxAllowedBytes ||
@@ -165,7 +165,12 @@ class ClientChunkAssembler(
 
                 return if (transfer.isCompressed) {
                     try {
-                        FramedPayloadCodec.decompress(assembled, 0, assembled.size)
+                        FramedPayloadCodec.decompress(
+                            assembled,
+                            0,
+                            assembled.size,
+                            maxDecompressedBytes = FramedPayloadCodec.MAX_RAW_PAYLOAD_BYTES,
+                        )
                     } catch (e: Exception) {
                         logger.error("Failed to decompress assembled chunk payload (transferId={}): {}", transferId, e.message)
                         null
@@ -207,7 +212,7 @@ class ClientChunkAssembler(
      * background timer. An orphaned partial transfer that never receives further chunks therefore keeps its
      * slot until the next [process] call or [clear] on disconnect. This is acceptable because memory is hard-bounded
      * by [maxConcurrentTransfers] (default 4) × [FramedPayloadCodec.MAX_COMPRESSED_CHUNK_BYTES] per transfer
-     * (~1 MB), and [clear] is invoked on every connect/disconnect cycle, so no unbounded accumulation is possible.
+     * (~2.1 MB), and [clear] is invoked on every connect/disconnect cycle, so no unbounded accumulation is possible.
      */
     private fun evictExpired(nowNanos: Long) {
         transfers.entries.removeIf { (_, transfer) ->
