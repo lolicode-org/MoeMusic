@@ -96,4 +96,24 @@ public interface IClientRequestService {
         note: String? = null,
         ban: Boolean,
     ): ClientContentFilterActionResult
+
+    /** Request clearing tracks from the user queue on the connected server. */
+    public suspend fun clearQueue(
+        scope: QueueClearScope = QueueClearScope.SELF,
+        targetUserId: String? = null,
+    ): ClientQueueClearResult = ClientQueueClearResult(0)
 }
+
+/** Scope for client queue clear requests. */
+public enum class QueueClearScope {
+    ALL,
+    SELF,
+    USER,
+}
+
+/** Result of a client queue clear request. */
+public data class ClientQueueClearResult(
+    val removedCount: Int,
+    val successMessage: String? = null,
+    val failureMessage: String? = null,
+)

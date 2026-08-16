@@ -127,6 +127,31 @@ class UserActionServiceImpl(
         }
     }
 
+    override fun clearQueue(
+        targetUserId: UUID?,
+        targetUserName: String?,
+        requester: MoeMusicUser?,
+    ): QueueClearOutcome {
+        if (targetUserId == null && targetUserName != null && targetUserName.isBlank()) {
+            return QueueClearOutcome(0, LocalizedText.key("error.moemusic.queue.clear_invalid_target"))
+        }
+        val normalizedTargetName = targetUserName?.trim()?.ifEmpty { null }
+        val isTargetingSelf = (targetUserId != null && requester != null && targetUserId == requester.id) ||
+                (normalizedTargetName != null && requester != null && normalizedTargetName.equals(requester.displayName, ignoreCase = true))
+
+        val hasQueueControl = requester == null || permissionService.has(MoeMusicPermission.QUEUE_CONTROL, requester)
+        if (!isTargetingSelf && !hasQueueControl) {
+            return QueueClearOutcome(0, LocalizedText.key("error.moemusic.permission.queue_control"))
+        }
+
+        return playbackController.clearQueue(
+            targetUserId = targetUserId,
+            targetUserName = normalizedTargetName,
+            requester = requester,
+            bypassOwnership = hasQueueControl,
+        )
+    }
+
     override fun controlPlayback(
         action: PlaybackAction,
         requester: MoeMusicUser?,

@@ -5,6 +5,7 @@ import org.lolicode.moemusic.api.AlreadyQueuedException
 import org.lolicode.moemusic.api.service.IPlaybackController
 import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.api.MoeMusicUser
+import org.lolicode.moemusic.api.service.QueueClearOutcome
 import org.lolicode.moemusic.api.service.QueueRemoveResult
 import org.lolicode.moemusic.api.TrackUnavailableException
 import org.lolicode.moemusic.api.UserFacingException
@@ -239,6 +240,40 @@ class ServerPlaybackController(
             TrackQueue.UserQueueRemovalResult.NOT_FOUND -> QueueRemoveResult.NOT_FOUND
             TrackQueue.UserQueueRemovalResult.FORBIDDEN -> QueueRemoveResult.FORBIDDEN
         }
+    }
+
+    override fun clearQueue(
+        targetUserId: UUID?,
+        targetUserName: String?,
+        requester: MoeMusicUser?,
+        bypassOwnership: Boolean,
+    ): QueueClearOutcome {
+        val details = queue.clearUserQueue(
+            targetUserId = targetUserId,
+            targetUserName = targetUserName,
+            requesterId = requester?.id,
+            bypassOwnership = bypassOwnership,
+        )
+        if (details.removedCount > 0) {
+            eventBus.fire(
+                OnQueueCleared(
+                    removedTracks = details.removedTracks,
+                    requester = requester,
+                    targetUserId = targetUserId,
+                    targetUserName = targetUserName,
+                    bypassOwnership = bypassOwnership,
+                )
+            )
+        }
+        logger.info(
+            "Queue clear: requester={} bypass={} targetUserId={} targetUserName={} removedCount={}",
+            requester?.displayName ?: "<server>",
+            bypassOwnership,
+            targetUserId?.toString().orEmpty(),
+            targetUserName.orEmpty(),
+            details.removedCount,
+        )
+        return QueueClearOutcome(removedCount = details.removedCount)
     }
 
     private fun playInternal(

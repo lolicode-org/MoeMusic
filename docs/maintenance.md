@@ -220,7 +220,7 @@ This prevents share links from being probed as raw media files before source-spe
 
 The wire submission format sends `(source_id, track_id, mode)`. The server must not trust client-provided track metadata.
 
-Queue removal targets unique queue item instances via `queue_entry_id` (with fallback to `(source_id, track_id)` prioritizing the requester's owned track instance when permissions require it). Interactive chat buttons (`[✕]`) execute `/music remove --entry <queue_entry_id>` to guarantee that historical chat lines do not suffer from index drift when prior tracks advance or get removed.
+Queue removal targets unique queue item instances via `queue_entry_id` (with fallback to `(source_id, track_id)` prioritizing the requester's owned track instance when permissions require it). Interactive chat buttons (`[✕]`) execute `/music remove --entry <queue_entry_id>` to guarantee that historical chat lines do not suffer from index drift when prior tracks advance or get removed. Queue clearing (`/music clear`, `/music queue clear`, `IUserActionService.clearQueue`) allows players to clear their own pending tracks without affecting others. Privileged operators with `moemusic.moderation.queue_control` can clear tracks requested by specific players/selectors or clear the entire playlist via `--all`. Clearing the queue only removes pending tracks from the waiting queue and never interrupts or modifies the currently playing track.
 
 ## Client Shared Runtime
 

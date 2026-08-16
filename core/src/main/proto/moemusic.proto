@@ -247,6 +247,21 @@ message QueueRemoveRequest {
   string queue_entry_id = 4;
 }
 
+enum QueueClearScopeProto {
+  QUEUE_CLEAR_SCOPE_UNSPECIFIED = 0;
+  QUEUE_CLEAR_SCOPE_ALL = 1;
+  QUEUE_CLEAR_SCOPE_SELF = 2;
+  QUEUE_CLEAR_SCOPE_USER = 3;
+}
+
+/** Client requests clearing tracks from the user queue. */
+message QueueClearRequest {
+  int64 request_id = 1;
+  QueueClearScopeProto scope = 2;
+  /** Optional target user ID (UUID or username) when scope is USER. */
+  string target_user_id = 3;
+}
+
 /** Client requests a playback control action. */
 message PlaybackControlRequest {
   int64 request_id = 1;
@@ -477,6 +492,18 @@ message QueueRemoveResponse {
   int64 request_id = 1;
   /** Non-empty when an error occurred. Empty means success. */
   string failure = 2;
+}
+
+/** Server's response to a QueueClearRequest. */
+message QueueClearResponse {
+  /** Echoed from the originating QueueClearRequest. */
+  int64 request_id = 1;
+  /** Number of tracks removed. */
+  int32 removed_count = 2;
+  /** Non-empty when an error occurred. Empty means success. */
+  string failure = 3;
+  /** Optional success / informational feedback for GUI-driven actions. */
+  string success = 4;
 }
 
 /** Server's response to a PlaybackControlRequest. */

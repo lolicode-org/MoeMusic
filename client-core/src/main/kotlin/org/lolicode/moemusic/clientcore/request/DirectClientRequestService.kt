@@ -18,6 +18,7 @@ interface ClientRequestTransport {
     fun beginSearchRequest(query: String, sourceId: String, limit: Int, offset: Int): Deferred<SearchResponse>?
     fun beginQueueRequest(limit: Int = 0, offset: Int = 0): Deferred<QueueResponse>?
     fun beginQueueRemoveRequest(sourceId: String, trackId: String, queueEntryId: String? = null): Deferred<QueueRemoveResponse>?
+    fun beginQueueClearRequest(scope: QueueClearScopeProto, targetUserId: String? = null): Deferred<QueueClearResponse>?
     fun beginTrackSubmitRequest(track: TrackInfo, mode: TrackAddMode): Deferred<TrackSubmitResponse>?
     fun beginTrackSubmitRequest(entry: SelectionEntry, mode: TrackAddMode): Deferred<TrackSubmitResponse>?
     fun beginIdentifierSubmitRequest(identifier: String, mode: TrackAddMode): Deferred<IdentifierSubmitResponse>?
@@ -236,6 +237,25 @@ class DirectClientRequestService(
             sourceId = response.source_id.ifEmpty { sourceId },
             valueId = response.value_id.ifEmpty { valueId },
             blockedNow = response.blocked_now,
+            successMessage = response.success.ifEmpty { null },
+            failureMessage = response.failure.ifEmpty { null },
+        )
+    }
+
+    override suspend fun clearQueue(
+        scope: QueueClearScope,
+        targetUserId: String?,
+    ): ClientQueueClearResult {
+        val protoScope = when (scope) {
+            QueueClearScope.ALL -> QueueClearScopeProto.QUEUE_CLEAR_SCOPE_ALL
+            QueueClearScope.SELF -> QueueClearScopeProto.QUEUE_CLEAR_SCOPE_SELF
+            QueueClearScope.USER -> QueueClearScopeProto.QUEUE_CLEAR_SCOPE_USER
+        }
+        val response = awaitResponse {
+            transport.beginQueueClearRequest(protoScope, targetUserId)
+        }
+        return ClientQueueClearResult(
+            removedCount = response.removed_count,
             successMessage = response.success.ifEmpty { null },
             failureMessage = response.failure.ifEmpty { null },
         )

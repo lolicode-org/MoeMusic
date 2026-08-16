@@ -247,4 +247,59 @@ class TrackQueue {
             )
         }
     }
+
+    /**
+     * Clear tracks from the user queue matching the specified target criteria.
+     *
+     * @param targetUserId Optional user UUID filter.
+     * @param targetUserName Optional user display name filter.
+     * @param requesterId User ID of the caller.
+     * @param bypassOwnership If true, removes all matching tracks regardless of ownership.
+     */
+    fun clearUserQueue(
+        targetUserId: UUID? = null,
+        targetUserName: String? = null,
+        requesterId: UUID? = null,
+        bypassOwnership: Boolean = false,
+    ): UserQueueClearDetails {
+        synchronized(queueLock) {
+            if (targetUserId == null && targetUserName != null && targetUserName.isBlank()) {
+                return UserQueueClearDetails(emptyList())
+            }
+            if (targetUserId == null && targetUserName == null && !bypassOwnership) {
+                return UserQueueClearDetails(emptyList())
+            }
+            val snapshot = userQueue.toList()
+            val toRemove = ArrayList<QueuedTrack>()
+            val toKeep = ArrayList<QueuedTrack>()
+
+            val trimmedTargetName = targetUserName?.trim()
+            for (item in snapshot) {
+                val matchesTarget = when {
+                    targetUserId != null -> item.enqueuedBy == targetUserId
+                    trimmedTargetName != null -> item.track.submittedByUserName.equals(trimmedTargetName, ignoreCase = true)
+                    else -> true // all
+                }
+                if (matchesTarget) {
+                    if (!bypassOwnership && requesterId != null && item.enqueuedBy != requesterId) {
+                        toKeep.add(item)
+                    } else {
+                        toRemove.add(item)
+                    }
+                } else {
+                    toKeep.add(item)
+                }
+            }
+
+            userQueue.clear()
+            toKeep.forEach { userQueue.addLast(it) }
+            return UserQueueClearDetails(toRemove.map { it.track })
+        }
+    }
+}
+
+data class UserQueueClearDetails(
+    val removedTracks: List<TrackInfo>,
+) {
+    val removedCount: Int get() = removedTracks.size
 }

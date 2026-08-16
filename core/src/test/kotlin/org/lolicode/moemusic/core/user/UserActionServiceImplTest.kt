@@ -283,6 +283,105 @@ class UserActionServiceImplTest {
     }
 
     @Test
+    fun `clearQueue allows self clearing without queue control permission`() {
+        val playbackController = RecordingPlaybackController().apply {
+            nextClearOutcome = QueueClearOutcome(removedCount = 3)
+        }
+        val user = FakeUser(id = UUID.randomUUID())
+        val service = UserActionServiceImpl(
+            permissionService = FakePermissionService(
+                hasHandler = { _, _ -> false }
+            ),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+        )
+
+        val outcome = service.clearQueue(targetUserId = user.id, requester = user)
+
+        assertEquals(3, outcome.removedCount)
+        assertNull(outcome.failure)
+        assertEquals(user.id, playbackController.lastClearTargetUserId)
+        assertEquals(user, playbackController.lastClearRequester)
+        assertFalse(playbackController.lastClearBypassOwnership)
+    }
+
+    @Test
+    fun `clearQueue rejects clearing other user or all when lacking queue control permission`() {
+        val playbackController = RecordingPlaybackController()
+        val user = FakeUser(id = UUID.randomUUID())
+        val otherUser = UUID.randomUUID()
+        val service = UserActionServiceImpl(
+            permissionService = FakePermissionService(
+                hasHandler = { _, _ -> false }
+            ),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+        )
+
+        // Targeting other user
+        val userOutcome = service.clearQueue(targetUserId = otherUser, requester = user)
+        assertEquals(0, userOutcome.removedCount)
+        assertEquals("error.moemusic.permission.queue_control", (userOutcome.failure as? LocalizedText.Key)?.key)
+
+        // Targeting all
+        val allOutcome = service.clearQueue(targetUserId = null, requester = user)
+        assertEquals(0, allOutcome.removedCount)
+        assertEquals("error.moemusic.permission.queue_control", (allOutcome.failure as? LocalizedText.Key)?.key)
+    }
+
+    @Test
+    fun `clearQueue permits clearing all and other user when having queue control permission`() {
+        val playbackController = RecordingPlaybackController().apply {
+            nextClearOutcome = QueueClearOutcome(removedCount = 5)
+        }
+        val user = FakeUser(id = UUID.randomUUID())
+        val otherUser = UUID.randomUUID()
+        val service = UserActionServiceImpl(
+            permissionService = FakePermissionService(
+                hasHandler = { permission, _ -> permission == MoeMusicPermission.QUEUE_CONTROL }
+            ),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+        )
+
+        val outcome = service.clearQueue(targetUserId = otherUser, requester = user)
+        assertEquals(5, outcome.removedCount)
+        assertNull(outcome.failure)
+        assertEquals(otherUser, playbackController.lastClearTargetUserId)
+        assertTrue(playbackController.lastClearBypassOwnership)
+    }
+
+    @Test
+    fun `clearQueue rejects blank targetUserName when targetUserId is null`() {
+        val playbackController = RecordingPlaybackController()
+        val user = FakeUser(id = UUID.randomUUID())
+        val service = UserActionServiceImpl(
+            permissionService = FakePermissionService(
+                hasHandler = { permission, _ -> permission == MoeMusicPermission.QUEUE_CONTROL }
+            ),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+        )
+
+        val outcome = service.clearQueue(targetUserId = null, targetUserName = "   ", requester = user)
+        assertEquals(0, outcome.removedCount)
+        assertEquals("error.moemusic.queue.clear_invalid_target", (outcome.failure as? LocalizedText.Key)?.key)
+        assertNull(playbackController.lastClearTargetUserId)
+    }
+
+    @Test
     fun `identifier submit uses trusted source-resolved submission path`() = runBlocking {
         configureRateLimit(searchRequests = 10, submitRequests = 10)
         val user = FakeUser()
@@ -379,9 +478,10 @@ class UserActionServiceImplTest {
         }
     }
 
-    private class FakeUser : MoeMusicUser() {
-        override val displayName: String = "TestUser"
-        override val id: UUID = UUID.fromString("00000000-0000-0000-0000-000000000123")
+    private class FakeUser(
+        override val id: UUID = UUID.fromString("00000000-0000-0000-0000-000000000123"),
+        override val displayName: String = "TestUser",
+    ) : MoeMusicUser() {
         override val locale: String = "en_us"
         override fun hasPermission(permission: String, defaultLevel: Int): Boolean = false
     }
@@ -412,6 +512,25 @@ class UserActionServiceImplTest {
             lastRemoveRequester = requester
             lastRemoveBypassOwnership = bypassOwnership
             return nextRemoveQueuedTrackResult
+        }
+
+        var lastClearTargetUserId: UUID? = null
+        var lastClearTargetUserName: String? = null
+        var lastClearRequester: MoeMusicUser? = null
+        var lastClearBypassOwnership: Boolean = false
+        var nextClearOutcome: QueueClearOutcome = QueueClearOutcome(removedCount = 0)
+
+        override fun clearQueue(
+            targetUserId: UUID?,
+            targetUserName: String?,
+            requester: MoeMusicUser?,
+            bypassOwnership: Boolean,
+        ): QueueClearOutcome {
+            lastClearTargetUserId = targetUserId
+            lastClearTargetUserName = targetUserName
+            lastClearRequester = requester
+            lastClearBypassOwnership = bypassOwnership
+            return nextClearOutcome
         }
     }
 

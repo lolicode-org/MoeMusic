@@ -72,6 +72,7 @@ interface ClientPlaybackRuntimeListener {
     fun onSelectionPageResponse(response: SelectionPageResponse) {}
     fun onQueueResponse(response: QueueResponse) {}
     fun onQueueRemoveResponse(response: QueueRemoveResponse) {}
+    fun onQueueClearResponse(response: QueueClearResponse) {}
     fun onPlaybackControlResponse(response: PlaybackControlResponse) {}
     fun onContentFilterActionResponse(response: ContentFilterActionResponse) {}
     fun onLocalPlaybackBlocked(message: String) {}
@@ -158,6 +159,7 @@ class ClientPlaybackRuntime(
     private val pendingSelectionSubmitResponses = PendingRequestRegistry<SelectionSubmitResponse>()
     private val pendingSelectionPageResponses = PendingRequestRegistry<SelectionPageResponse>()
     private val pendingQueueRemoveResponses = PendingRequestRegistry<QueueRemoveResponse>()
+    private val pendingQueueClearResponses = PendingRequestRegistry<QueueClearResponse>()
     private val pendingPlaybackControlResponses = PendingRequestRegistry<PlaybackControlResponse>()
     private val pendingContentFilterActionResponses = PendingRequestRegistry<ContentFilterActionResponse>()
 
@@ -208,6 +210,9 @@ class ClientPlaybackRuntime(
 
     @Volatile
     private var latestQueueRemoveResponseRequestId: Long = 0L
+
+    @Volatile
+    private var latestQueueClearResponseRequestId: Long = 0L
 
     @Volatile
     private var latestPlaybackControlResponseRequestId: Long = 0L
@@ -282,6 +287,10 @@ class ClientPlaybackRuntime(
 
     @Volatile
     var lastQueueRemoveResponse: QueueRemoveResponse? = null
+        private set
+
+    @Volatile
+    var lastQueueClearResponse: QueueClearResponse? = null
         private set
 
     @Volatile
@@ -455,6 +464,7 @@ class ClientPlaybackRuntime(
             PacketIds.SELECTION_PAGE_RESPONSE -> handleSelectionPageResponse(SelectionPageResponse.ADAPTER.decode(completePayload))
             PacketIds.QUEUE_RESPONSE -> handleQueueResponse(QueueResponse.ADAPTER.decode(completePayload))
             PacketIds.QUEUE_REMOVE_RESPONSE -> handleQueueRemoveResponse(QueueRemoveResponse.ADAPTER.decode(completePayload))
+            PacketIds.QUEUE_CLEAR_RESPONSE -> handleQueueClearResponse(QueueClearResponse.ADAPTER.decode(completePayload))
             PacketIds.PLAYBACK_CONTROL_RESPONSE -> handlePlaybackControlResponse(PlaybackControlResponse.ADAPTER.decode(completePayload))
             PacketIds.CONTENT_FILTER_ACTION_RESPONSE ->
                 handleContentFilterActionResponse(ContentFilterActionResponse.ADAPTER.decode(completePayload))
@@ -835,6 +845,17 @@ class ClientPlaybackRuntime(
         listener.onQueueRemoveResponse(msg)
     }
 
+    fun handleQueueClearResponse(msg: QueueClearResponse) {
+        if (!canHandleDirectResponses("QueueClearResponse")) return
+        logger.debug("{} QueueClearResponse: removedCount={} failure='{}' success='{}'", platform.name, msg.removed_count, msg.failure, msg.success)
+        pendingQueueClearResponses.complete(msg.request_id, msg)
+        if (msg.request_id == 0L || msg.request_id >= latestQueueClearResponseRequestId) {
+            latestQueueClearResponseRequestId = msg.request_id
+            lastQueueClearResponse = msg
+        }
+        listener.onQueueClearResponse(msg)
+    }
+
     fun handlePlaybackControlResponse(msg: PlaybackControlResponse) {
         if (!canHandleDirectResponses("PlaybackControlResponse")) return
         if (msg.failure.isNotEmpty()) {
@@ -917,6 +938,15 @@ class ClientPlaybackRuntime(
         }
     }
 
+    fun sendQueueClearRequest(scope: QueueClearScopeProto, targetUserId: String? = null): Long? =
+        sendCorrelatedRequest(PacketIds.QUEUE_CLEAR_REQUEST) { requestId ->
+            QueueClearRequest(
+                scope = scope,
+                target_user_id = targetUserId.orEmpty(),
+                request_id = requestId,
+            ).encode()
+        }
+
     fun sendTrackSubmit(track: TrackInfo, mode: TrackAddMode = TrackAddMode.NORMAL): Long? =
         sendCorrelatedRequest(PacketIds.TRACK_SUBMIT) { requestId ->
             TrackSubmitRequest(
@@ -984,6 +1014,7 @@ class ClientPlaybackRuntime(
         latestUiBootstrapResponseRequestId = 0L
         latestTrackSubmitResponseRequestId = 0L
         latestQueueRemoveResponseRequestId = 0L
+        latestQueueClearResponseRequestId = 0L
         latestPlaybackControlResponseRequestId = 0L
         latestContentFilterActionResponseRequestId = 0L
         serverClockOffset = 0L
@@ -999,6 +1030,7 @@ class ClientPlaybackRuntime(
         lastUiBootstrapResponse = null
         lastTrackSubmitResponse = null
         lastQueueRemoveResponse = null
+        lastQueueClearResponse = null
         lastPlaybackControlResponse = null
         lastContentFilterActionResponse = null
         lastLocalPlaybackBlockedMessage = null
@@ -1863,6 +1895,7 @@ class ClientPlaybackRuntime(
         pendingSelectionSubmitResponses.failAll(cause)
         pendingSelectionPageResponses.failAll(cause)
         pendingQueueRemoveResponses.failAll(cause)
+        pendingQueueClearResponses.failAll(cause)
         pendingPlaybackControlResponses.failAll(cause)
         pendingContentFilterActionResponses.failAll(cause)
     }
@@ -1916,6 +1949,18 @@ class ClientPlaybackRuntime(
             ).encode()
         }
     }
+
+    override fun beginQueueClearRequest(
+        scope: QueueClearScopeProto,
+        targetUserId: String?,
+    ): Deferred<QueueClearResponse>? =
+        beginCorrelatedRequest(pendingQueueClearResponses, PacketIds.QUEUE_CLEAR_REQUEST) { requestId ->
+            QueueClearRequest(
+                scope = scope,
+                target_user_id = targetUserId.orEmpty(),
+                request_id = requestId,
+            ).encode()
+        }
 
     override fun beginTrackSubmitRequest(track: TrackInfo, mode: TrackAddMode): Deferred<TrackSubmitResponse>? =
         beginCorrelatedRequest(pendingTrackSubmitResponses, PacketIds.TRACK_SUBMIT) { requestId ->

@@ -8,6 +8,7 @@ import org.lolicode.moemusic.api.SearchableMusicSource
 import org.lolicode.moemusic.api.model.*
 import org.lolicode.moemusic.api.service.IdentifierSubmitOutcome
 import org.lolicode.moemusic.api.service.PlaybackAction
+import org.lolicode.moemusic.api.service.QueueClearOutcome
 import org.lolicode.moemusic.api.service.QueueRemoveResult
 import org.lolicode.moemusic.api.service.SelectionSubmitOutcome
 import org.lolicode.moemusic.core.config.ModConfigManager
@@ -727,6 +728,86 @@ class ServerPacketHandlers(
                 msg.source_id,
                 msg.track_id,
                 if (response.failure.isBlank()) "REMOVED" else "REJECTED '${response.failure}'",
+            )
+        }
+
+        // QUEUE_CLEAR_REQUEST — clear tracks from user queue via packet (GUI-driven)
+        registry.register(
+            PacketIds.QUEUE_CLEAR_REQUEST,
+            { QueueClearRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
+        ) { msg, sender ->
+            if (sender == null) return@register
+            val response = try {
+                val outcome = when (msg.scope) {
+                    QueueClearScopeProto.QUEUE_CLEAR_SCOPE_ALL -> {
+                        ServerRuntimeCoordinator.userActionService.clearQueue(
+                            targetUserId = null,
+                            targetUserName = null,
+                            requester = sender,
+                        )
+                    }
+                    QueueClearScopeProto.QUEUE_CLEAR_SCOPE_SELF -> {
+                        ServerRuntimeCoordinator.userActionService.clearQueue(
+                            targetUserId = sender.id,
+                            targetUserName = null,
+                            requester = sender,
+                        )
+                    }
+                    QueueClearScopeProto.QUEUE_CLEAR_SCOPE_USER -> {
+                        val trimmedTarget = msg.target_user_id.trim()
+                        if (trimmedTarget.isBlank()) {
+                            QueueClearOutcome(0, LocalizedText.key("error.moemusic.queue.clear_invalid_target"))
+                        } else {
+                            val targetUuid = runCatching { UUID.fromString(trimmedTarget) }.getOrNull()
+                            val targetName = if (targetUuid == null) trimmedTarget else null
+                            ServerRuntimeCoordinator.userActionService.clearQueue(
+                                targetUserId = targetUuid,
+                                targetUserName = targetName,
+                                requester = sender,
+                            )
+                        }
+                    }
+                    else -> {
+                        QueueClearOutcome(0, LocalizedText.key("error.moemusic.queue.clear_invalid_target"))
+                    }
+                }
+                val failure = outcome.failure?.let { render(sender, it) }.orEmpty()
+                val success = if (failure.isBlank()) {
+                    if (outcome.removedCount == 0) {
+                        render(sender, LocalizedText.key("action.moemusic.queue.cleared_none"))
+                    } else {
+                        when (msg.scope) {
+                            QueueClearScopeProto.QUEUE_CLEAR_SCOPE_ALL ->
+                                render(sender, LocalizedText.key("action.moemusic.queue.cleared_all", outcome.removedCount.toString()))
+                            QueueClearScopeProto.QUEUE_CLEAR_SCOPE_SELF ->
+                                render(sender, LocalizedText.key("action.moemusic.queue.cleared_self", outcome.removedCount.toString()))
+                            QueueClearScopeProto.QUEUE_CLEAR_SCOPE_USER ->
+                                render(sender, LocalizedText.key("action.moemusic.queue.cleared_user", outcome.removedCount.toString(), msg.target_user_id.trim()))
+                            else -> ""
+                        }
+                    }
+                } else ""
+                QueueClearResponse(
+                    request_id = msg.request_id,
+                    removed_count = outcome.removedCount,
+                    failure = failure,
+                    success = success,
+                )
+            } catch (e: Exception) {
+                logHandledFailure("QueueClearRequest", sender, e)
+                QueueClearResponse(
+                    failure = render(sender, UserFacingErrors.classify(e)),
+                    request_id = msg.request_id,
+                )
+            }
+            sendToClient(sender, PacketIds.QUEUE_CLEAR_RESPONSE, response.encode())
+            logger.info(
+                "Queue clear from {}: scope={} target={} removedCount={} result={}",
+                sender.displayName,
+                msg.scope,
+                msg.target_user_id,
+                response.removed_count,
+                if (response.failure.isBlank()) "SUCCESS" else "REJECTED '${response.failure}'",
             )
         }
 

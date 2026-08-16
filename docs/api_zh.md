@@ -249,7 +249,7 @@ MoeMusic 核心会自动对公共字段进行过滤检查，音源无需自己�
 
 [IClientPlaybackService](../api/src/main/kotlin/org/lolicode/moemusic/api/client/IClientPlaybackService.kt) 暴露了本地播放状态快照、搜索音源目录、当前参与状态、可用性问题、配置音量、实际有效音量、每个服务器的播放启用状态以及临时音量覆盖等功能。音量值统一使用 `0..100` 的整数百分比表示。临时音量覆盖仅在当前运行时生效，且只能用于衰减或限制音量，无法将实际输出音量提升到配置的音量基准之上。
 
-[IClientRequestService](../api/src/main/kotlin/org/lolicode/moemusic/api/client/IClientRequestService.kt) 提供了客户端向服务端发送的强类型请求接口，包括：搜索、播放队列快照、点歌、提交选中项、提交原始标识符、播放控制、从队列移除曲目以及内容过滤规则变更等。当遇到网络连接不兼容、未完成握手或请求超时等情况时，这些方法可能会抛出 `ClientRequestException`。
+[IClientRequestService](../api/src/main/kotlin/org/lolicode/moemusic/api/client/IClientRequestService.kt) 提供了客户端向服务端发送的强类型请求接口，包括：搜索、播放队列快照、点歌、提交选中项、提交原始标识符、播放控制、从队列移除曲目、清空/清理队列以及内容过滤规则变更等。当遇到网络连接不兼容、未完成握手或请求超时等情况时，这些方法可能会抛出 `ClientRequestException`。
 
 ## 接口包参考
 

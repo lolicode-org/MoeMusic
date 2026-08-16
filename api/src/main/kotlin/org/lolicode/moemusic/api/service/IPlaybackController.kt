@@ -8,6 +8,7 @@ import org.lolicode.moemusic.api.model.TrackInfo
 import org.lolicode.moemusic.api.plugin.Plugin
 import org.lolicode.moemusic.api.plugin.ServerRuntimeContext
 import org.lolicode.moemusic.api.plugin.ServerSessionContext
+import java.util.UUID
 
 /**
  * High-level playback controller interface exposed to plugins.
@@ -99,4 +100,22 @@ public interface IPlaybackController {
         requester: MoeMusicUser? = null,
         bypassOwnership: Boolean = false,
     ): QueueRemoveResult = removeQueuedTrack(sourceId, trackId, requester, bypassOwnership)
+
+    /**
+     * Clear all tracks or tracks from a specific user from the user queue.
+     *
+     * This is the raw queue clearing path. [bypassOwnership] is not permission-checked here.
+     *
+     * @param targetUserId Optional user UUID filter. If null and [targetUserName] is null, clears all tracks.
+     * @param targetUserName Optional user display name filter for offline players.
+     * @param requester Optional user performing the clear.
+     * @param bypassOwnership If true, ignores ownership and clears all matched tracks regardless of [requester].
+     * @return Outcome detailing the number of tracks removed.
+     */
+    public fun clearQueue(
+        targetUserId: UUID? = null,
+        targetUserName: String? = null,
+        requester: MoeMusicUser? = null,
+        bypassOwnership: Boolean = false,
+    ): QueueClearOutcome = QueueClearOutcome(0)
 }

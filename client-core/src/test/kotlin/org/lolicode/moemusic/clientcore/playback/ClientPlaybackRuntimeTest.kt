@@ -731,6 +731,48 @@ class ClientPlaybackRuntimeTest {
         assertEquals("entry-uuid-5678", decoded.queue_entry_id)
     }
 
+    @Test
+    fun `beginQueueClearRequest encodes payload properly`() {
+        val harness = harness()
+        harness.acceptWelcome()
+
+        val deferred = harness.runtime.beginQueueClearRequest(
+            scope = QueueClearScopeProto.QUEUE_CLEAR_SCOPE_USER,
+            targetUserId = "user-123",
+        )
+        assertNotNull(deferred)
+
+        val decoded = harness.platform.decodeLast(PacketIds.QUEUE_CLEAR_REQUEST, QueueClearRequest.ADAPTER::decode)
+        assertEquals(QueueClearScopeProto.QUEUE_CLEAR_SCOPE_USER, decoded.scope)
+        assertEquals("user-123", decoded.target_user_id)
+    }
+
+    @Test
+    fun `handleQueueClearResponse completes pending deferred and notifies listener`() {
+        val harness = harness()
+        harness.acceptWelcome()
+
+        val deferred = harness.runtime.beginQueueClearRequest(
+            scope = QueueClearScopeProto.QUEUE_CLEAR_SCOPE_ALL,
+            targetUserId = null,
+        )
+        assertNotNull(deferred)
+        val decoded = harness.platform.decodeLast(PacketIds.QUEUE_CLEAR_REQUEST, QueueClearRequest.ADAPTER::decode)
+
+        val response = QueueClearResponse(
+            removed_count = 4,
+            success = "Cleared 4 tracks",
+            failure = "",
+            request_id = decoded.request_id,
+        )
+        harness.runtime.handleQueueClearResponse(response)
+
+        assertTrue(deferred.isCompleted)
+        assertEquals(4, deferred.getCompleted().removed_count)
+        assertEquals(listOf(response), harness.listener.queueClearResponses)
+        assertEquals(response, harness.runtime.lastQueueClearResponse)
+    }
+
     private fun harness(
         localPlaybackRetryDelaysMs: List<Long> = listOf(750L, 1_500L),
         autoSkipOnFinalFailure: Boolean = false,
@@ -777,6 +819,7 @@ class ClientPlaybackRuntimeTest {
         val acceptedCatalogs = mutableListOf<SearchSourceCatalog>()
         val searchResponses = mutableListOf<SearchResponse>()
         val uiBootstrapResponses = mutableListOf<UiBootstrapResponse>()
+        val queueClearResponses = mutableListOf<QueueClearResponse>()
         val localPlaybackRetryingMessages = mutableListOf<String>()
         val localPlaybackFailedMessages = mutableListOf<String>()
         var snapshotsApplied = 0
@@ -796,6 +839,10 @@ class ClientPlaybackRuntimeTest {
 
         override fun onUiBootstrapResponse(response: UiBootstrapResponse) {
             uiBootstrapResponses += response
+        }
+
+        override fun onQueueClearResponse(response: QueueClearResponse) {
+            queueClearResponses += response
         }
 
         override fun onPlaybackSnapshotApplied() {

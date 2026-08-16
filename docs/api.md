@@ -386,7 +386,7 @@ Client plugins receive [ClientRuntimeContext](../api/src/main/kotlin/org/lolicod
 
 [IClientPlaybackService](../api/src/main/kotlin/org/lolicode/moemusic/api/client/IClientPlaybackService.kt) exposes local playback state, search source catalog, participation state, configured/effective volume, per-server playback enablement, and transient volume overrides. Volume is stored as an integer percent. Transient overrides are runtime-only and attenuation-oriented; they never raise playback above the configured volume.
 
-[IClientRequestService](../api/src/main/kotlin/org/lolicode/moemusic/api/client/IClientRequestService.kt) exposes typed client-to-server requests for search, queue snapshots, submission, selection, identifier submission, playback control, queue removal, and content-filter mutations. These methods can fail with `ClientRequestException` when there is no compatible connection, the handshake is missing, or the request times out.
+[IClientRequestService](../api/src/main/kotlin/org/lolicode/moemusic/api/client/IClientRequestService.kt) exposes typed client-to-server requests for search, queue snapshots, submission, selection, identifier submission, playback control, queue removal, queue clearing, and content-filter mutations. These methods can fail with `ClientRequestException` when there is no compatible connection, the handshake is missing, or the request times out.
 
 ## API Package Reference
 

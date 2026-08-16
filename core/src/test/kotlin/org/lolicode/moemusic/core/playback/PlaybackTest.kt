@@ -372,6 +372,93 @@ class TrackQueueTest {
     }
 
     @Test
+    fun `clearUserQueue clears only requested user tracks for self`() {
+        val queue = TrackQueue()
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        queue.enqueueUser(SAMPLE_TRACK.copy { id = "t1"; title = "T1" }, enqueuedBy = user1)
+        queue.enqueueUser(SAMPLE_TRACK.copy { id = "t2"; title = "T2" }, enqueuedBy = user2)
+        queue.enqueueUser(SAMPLE_TRACK.copy { id = "t3"; title = "T3" }, enqueuedBy = user1)
+
+        val outcome = queue.clearUserQueue(targetUserId = user1, targetUserName = null, requesterId = user1, bypassOwnership = false)
+        assertEquals(2, outcome.removedCount)
+        assertEquals(listOf("t1", "t3"), outcome.removedTracks.map { it.id })
+        val remaining = queue.userQueueSnapshot()
+        assertEquals(1, remaining.size)
+        assertEquals("t2", remaining[0].id)
+    }
+
+    @Test
+    fun `clearUserQueue clears all tracks when target is null and bypass is true`() {
+        val queue = TrackQueue()
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        val mod = UUID.randomUUID()
+        queue.enqueueUser(SAMPLE_TRACK.copy { id = "t1"; title = "T1" }, enqueuedBy = user1)
+        queue.enqueueUser(SAMPLE_TRACK.copy { id = "t2"; title = "T2" }, enqueuedBy = user2)
+
+        val outcome = queue.clearUserQueue(targetUserId = null, targetUserName = null, requesterId = mod, bypassOwnership = true)
+        assertEquals(2, outcome.removedCount)
+        assertTrue(queue.userQueueSnapshot().isEmpty())
+    }
+
+    @Test
+    fun `clearUserQueue rejects clearing all tracks when bypass is false`() {
+        val queue = TrackQueue()
+        val user1 = UUID.randomUUID()
+        queue.enqueueUser(SAMPLE_TRACK.copy { id = "t1"; title = "T1" }, enqueuedBy = user1)
+
+        val outcome = queue.clearUserQueue(targetUserId = null, targetUserName = null, requesterId = user1, bypassOwnership = false)
+        assertEquals(0, outcome.removedCount)
+        assertEquals(1, queue.userQueueSnapshot().size)
+    }
+
+    @Test
+    fun `clearUserQueue rejects clearing another users tracks without bypass`() {
+        val queue = TrackQueue()
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        queue.enqueueUser(SAMPLE_TRACK.copy { id = "t1"; title = "T1" }, enqueuedBy = user2)
+
+        val outcome = queue.clearUserQueue(targetUserId = user2, targetUserName = null, requesterId = user1, bypassOwnership = false)
+        assertEquals(0, outcome.removedCount)
+        assertEquals(1, queue.userQueueSnapshot().size)
+    }
+
+    @Test
+    fun `clearUserQueue matches offline player by targetUserName`() {
+        val queue = TrackQueue()
+        val mod = UUID.randomUUID()
+        val track = SAMPLE_TRACK.copy {
+            id = "offline-t1"
+            title = "Offline Track"
+            submittedByUserName = "OfflineUser"
+        }
+        queue.enqueueUser(track)
+
+        val outcome = queue.clearUserQueue(targetUserId = null, targetUserName = "offlineuser", requesterId = mod, bypassOwnership = true)
+        assertEquals(1, outcome.removedCount)
+        assertEquals("offline-t1", outcome.removedTracks[0].id)
+        assertTrue(queue.userQueueSnapshot().isEmpty())
+    }
+
+    @Test
+    fun `clearUserQueue does not clear tracks when targetUserName is blank even if bypass is true`() {
+        val queue = TrackQueue()
+        val mod = UUID.randomUUID()
+        val track = SAMPLE_TRACK.copy {
+            id = "offline-t1"
+            title = "Offline Track"
+            submittedByUserName = "OfflineUser"
+        }
+        queue.enqueueUser(track)
+
+        val outcome = queue.clearUserQueue(targetUserId = null, targetUserName = "   ", requesterId = mod, bypassOwnership = true)
+        assertEquals(0, outcome.removedCount)
+        assertEquals(1, queue.userQueueSnapshot().size)
+    }
+
+    @Test
     fun `autoplay manager notifies when initial async deck becomes available`() {
         val queue = TrackQueue()
         val latch = CountDownLatch(1)
@@ -857,6 +944,58 @@ class ServerPlaybackControllerTest {
         assertEquals("queued-1", removed.track.id)
         assertEquals(SAMPLE_PLAYER, removed.requester)
         assertEquals(false, removed.bypassOwnership)
+    }
+
+    @Test
+    fun `clearQueue emits OnQueueCleared event and preserves currently playing track`() {
+        val user1 = object : MoeMusicUser() {
+            override val displayName: String = "User1"
+            override val id: UUID = UUID.randomUUID()
+            override val locale: String = "en_us"
+            override fun hasPermission(permission: String, defaultLevel: Int): Boolean = false
+        }
+        val queue = TrackQueue().apply {
+            enqueueUser(SAMPLE_TRACK.copy { id = "q-1"; title = "Queued 1" }, enqueuedBy = user1.id)
+            enqueueUser(SAMPLE_TRACK.copy { id = "q-2"; title = "Queued 2" }, enqueuedBy = user1.id)
+        }
+        var clearedEvent: OnQueueCleared? = null
+        val eventBus = EventBusImpl().apply {
+            subscribe(OnQueueCleared::class.java) { clearedEvent = it }
+        }
+        val ctrl = ServerPlaybackController(
+            channel = CapturingChannel(),
+            queue = queue,
+            eventBus = eventBus,
+        )
+
+        withSampleSource {
+            val playingTrack = SAMPLE_TRACK.copy { id = "playing-now"; title = "Currently Playing" }
+            ctrl.play(playingTrack, playingTrack.directPlayback())
+            assertTrue(ctrl.currentContext?.state is PlaybackState.Playing)
+
+            val outcome = ctrl.clearQueue(
+                targetUserId = user1.id,
+                requester = user1,
+                bypassOwnership = false,
+            )
+
+            assertEquals(2, outcome.removedCount)
+            assertNull(outcome.failure)
+            assertTrue(queue.userQueueSnapshot().isEmpty())
+
+            // Playing track remains active and unaffected
+            val current = assertNotNull(ctrl.currentContext)
+            assertEquals("playing-now", current.track.id)
+            assertTrue(current.state is PlaybackState.Playing)
+
+            // Event verification
+            val evt = assertNotNull(clearedEvent)
+            assertEquals(2, evt.removedTracks.size)
+            assertEquals(listOf("q-1", "q-2"), evt.removedTracks.map { it.id })
+            assertEquals(user1, evt.requester)
+            assertEquals(user1.id, evt.targetUserId)
+            assertFalse(evt.bypassOwnership)
+        }
     }
 
     @Test

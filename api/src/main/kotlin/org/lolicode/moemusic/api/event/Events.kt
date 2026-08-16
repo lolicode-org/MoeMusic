@@ -4,6 +4,7 @@ import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.api.MoeMusicUser
 import org.lolicode.moemusic.api.model.*
 import org.lolicode.moemusic.api.service.IdentifierResolutionOutcome
+import java.util.UUID
 
 /**
  * Playback participation state of a connected MoeMusic-capable client.
@@ -151,6 +152,19 @@ public data class OnTrackSubmitted(
 public data class OnQueueTrackRemoved(
     val track: TrackInfo,
     val requester: MoeMusicUser?,
+    val bypassOwnership: Boolean,
+)
+
+/**
+ * Fired on the server after tracks are removed by a queue clear operation.
+ * Read-only host-produced event. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
+public data class OnQueueCleared(
+    val removedTracks: List<TrackInfo>,
+    val requester: MoeMusicUser?,
+    val targetUserId: UUID?,
+    val targetUserName: String?,
     val bypassOwnership: Boolean,
 )
 

@@ -9,6 +9,8 @@ import org.lolicode.moemusic.api.model.TrackAddResult
 import org.lolicode.moemusic.api.model.TrackInfo
 import org.lolicode.moemusic.api.model.SelectionEntry
 
+import java.util.UUID
+
 /** Outcome of resolving and submitting a raw identifier through [IUserActionService]. */
 public sealed interface IdentifierSubmitOutcome {
     /**
@@ -61,6 +63,16 @@ public value class QueueRemoveResult private constructor(public val id: String) 
  */
 public data class QueueRemoveOutcome(
     val result: QueueRemoveResult,
+    val failure: LocalizedText? = null,
+)
+
+/**
+ * Queue clear outcome from [IUserActionService.clearQueue] and [IPlaybackController.clearQueue].
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
+public data class QueueClearOutcome(
+    val removedCount: Int,
     val failure: LocalizedText? = null,
 )
 
@@ -149,6 +161,18 @@ public interface IUserActionService {
         queueEntryId: String?,
         requester: MoeMusicUser? = null,
     ): QueueRemoveOutcome = removeQueuedTrack(sourceId, trackId, requester)
+
+    /**
+     * Checked queue clear path.
+     *
+     * Clearing all tracks or tracks from another user requires [org.lolicode.moemusic.api.permission.MoeMusicPermission.QUEUE_CONTROL].
+     * Clearing tracks submitted by [requester] is always allowed.
+     */
+    public fun clearQueue(
+        targetUserId: UUID? = null,
+        targetUserName: String? = null,
+        requester: MoeMusicUser? = null,
+    ): QueueClearOutcome = QueueClearOutcome(0)
 
     /** Checked playback control path. */
     public fun controlPlayback(
