@@ -156,8 +156,9 @@ class TrackQueueTest {
         queue.autoplaySupplier = { autoplay }
         queue.enqueueUser(userTrack)
 
-        assertEquals(userTrack, queue.nextTrack()?.track, "User track should come first")
-        assertEquals(autoplay, queue.nextTrack()?.track, "Autoplay track should come second via supplier")
+        val next = queue.nextTrack()?.track
+        assertEquals(userTrack.id, next?.id, "User track should come first")
+        assertEquals(autoplay.id, queue.nextTrack()?.track?.id, "Autoplay track should come second via supplier")
     }
 
     @Test
@@ -186,7 +187,7 @@ class TrackQueueTest {
 
         assertTrue(queue.enqueueUserIfAbsent(queued))
         assertFalse(queue.enqueueUserIfAbsent(duplicate))
-        assertEquals(listOf(queued), queue.userQueueSnapshot())
+        assertEquals(listOf(queued.id), queue.userQueueSnapshot().map { it.id })
     }
 
     @Test
@@ -257,7 +258,117 @@ class TrackQueueTest {
             TrackQueue.UserQueueRemovalResult.REMOVED,
             queue.removeUserTrack(sourceId = "beta", trackId = "shared", requesterId = null, bypassOwnership = true),
         )
-        assertEquals(listOf(first), queue.userQueueSnapshot())
+        assertEquals(listOf(first.id), queue.userQueueSnapshot().map { it.id })
+    }
+
+    @Test
+    fun `enqueueUser stamps unique queueEntryId when missing`() {
+        val queue = TrackQueue()
+        val track1 = SAMPLE_TRACK.copy { id = "t1" }
+        val track2 = SAMPLE_TRACK.copy { id = "t2" }
+        queue.enqueueUser(track1)
+        queue.enqueueUser(track2)
+
+        val snapshot = queue.userQueueSnapshot()
+        assertEquals(2, snapshot.size)
+        assertNotNull(snapshot[0].queueEntryId)
+        assertNotNull(snapshot[1].queueEntryId)
+        assertNotEquals(snapshot[0].queueEntryId, snapshot[1].queueEntryId)
+    }
+
+    @Test
+    fun `enqueueUserIfAbsent restamps caller supplied queueEntryId`() {
+        val queue = TrackQueue()
+        val supplied = SAMPLE_TRACK.copy { id = "conditional-entry"; queueEntryId = "caller-supplied" }
+
+        assertTrue(queue.enqueueUserIfAbsent(supplied))
+        assertNotEquals("caller-supplied", queue.userQueueSnapshot().single().queueEntryId)
+    }
+
+    @Test
+    fun `removeUserTrack with queueEntryId removes exact instance among duplicates`() {
+        val queue = TrackQueue()
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        val track1 = SAMPLE_TRACK.copy {
+            id = "duplicate-track"
+            title = "Submission 1"
+            queueEntryId = "caller-supplied"
+        }
+        val track2 = SAMPLE_TRACK.copy {
+            id = "duplicate-track"
+            title = "Submission 2"
+            queueEntryId = "caller-supplied"
+        }
+        queue.enqueueUser(track1, enqueuedBy = user1)
+        queue.enqueueUser(track2, enqueuedBy = user2)
+
+        val snapshot = queue.userQueueSnapshot()
+        val entry1 = snapshot[0].queueEntryId!!
+        val entry2 = snapshot[1].queueEntryId!!
+
+        // User 2 removes their own track via queueEntryId
+        val details = queue.removeUserTrackDetailed(
+            sourceId = SAMPLE_SOURCE_ID,
+            trackId = "duplicate-track",
+            queueEntryId = entry2,
+            requesterId = user2,
+            bypassOwnership = false,
+        )
+        assertEquals(TrackQueue.UserQueueRemovalResult.REMOVED, details.result)
+        assertEquals("Submission 2", details.removedTrack?.title)
+
+        val remaining = queue.userQueueSnapshot()
+        assertEquals(1, remaining.size)
+        assertEquals(entry1, remaining[0].queueEntryId)
+        assertEquals("Submission 1", remaining[0].title)
+    }
+
+    @Test
+    fun `removeUserTrack without queueEntryId prefers requesters own instance when duplicates exist`() {
+        val queue = TrackQueue()
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        val track1 = SAMPLE_TRACK.copy { id = "duplicate-track"; title = "User 1 Track" }
+        val track2 = SAMPLE_TRACK.copy { id = "duplicate-track"; title = "User 2 Track" }
+        queue.enqueueUser(track1, enqueuedBy = user1)
+        queue.enqueueUser(track2, enqueuedBy = user2)
+
+        // User 2 removes without queueEntryId, non-bypass: should target track2 (User 2's own track) instead of failing on track1
+        val details = queue.removeUserTrackDetailed(
+            sourceId = SAMPLE_SOURCE_ID,
+            trackId = "duplicate-track",
+            queueEntryId = null,
+            requesterId = user2,
+            bypassOwnership = false,
+        )
+        assertEquals(TrackQueue.UserQueueRemovalResult.REMOVED, details.result)
+        assertEquals("User 2 Track", details.removedTrack?.title)
+
+        val remaining = queue.userQueueSnapshot()
+        assertEquals(1, remaining.size)
+        assertEquals("User 1 Track", remaining[0].title)
+    }
+
+    @Test
+    fun `removeUserTrack with queueEntryId rejects removal when non-moderator targets another users entry`() {
+        val queue = TrackQueue()
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        val track1 = SAMPLE_TRACK.copy { id = "track-1" }
+        queue.enqueueUser(track1, enqueuedBy = user1)
+
+        val entry1 = queue.userQueueSnapshot()[0].queueEntryId!!
+
+        val details = queue.removeUserTrackDetailed(
+            sourceId = SAMPLE_SOURCE_ID,
+            trackId = "track-1",
+            queueEntryId = entry1,
+            requesterId = user2,
+            bypassOwnership = false,
+        )
+        assertEquals(TrackQueue.UserQueueRemovalResult.FORBIDDEN, details.result)
+        assertEquals(1, queue.userQueueSnapshot().size)
     }
 
     @Test

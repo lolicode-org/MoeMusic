@@ -191,10 +191,27 @@ class ServerPlaybackController(
         trackId: String,
         requester: MoeMusicUser?,
         bypassOwnership: Boolean,
+    ): QueueRemoveResult = removeQueuedTrackInternal(sourceId, trackId, null, requester, bypassOwnership)
+
+    override fun removeQueuedTrackByEntryId(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+        requester: MoeMusicUser?,
+        bypassOwnership: Boolean,
+    ): QueueRemoveResult = removeQueuedTrackInternal(sourceId, trackId, queueEntryId, requester, bypassOwnership)
+
+    private fun removeQueuedTrackInternal(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+        requester: MoeMusicUser?,
+        bypassOwnership: Boolean,
     ): QueueRemoveResult {
         val details = queue.removeUserTrackDetailed(
             sourceId = sourceId,
             trackId = trackId,
+            queueEntryId = queueEntryId,
             requesterId = requester?.id,
             bypassOwnership = bypassOwnership,
         )
@@ -208,11 +225,12 @@ class ServerPlaybackController(
             )
         }
         logger.info(
-            "Queue removal: requester={} bypass={} source={} trackId={} result={} title='{}'",
+            "Queue removal: requester={} bypass={} source={} trackId={} queueEntryId={} result={} title='{}'",
             requester?.displayName ?: "<server>",
             bypassOwnership,
             sourceId,
             trackId,
+            queueEntryId.orEmpty(),
             details.result,
             details.removedTrack?.title.orEmpty(),
         )
@@ -997,6 +1015,7 @@ fun TrackInfo.toProto(): TrackInfoProto = TrackInfoProto(
     // In this case, localization is done by core network response mapping for the recipient.
     // So just omit it here for safe
     unavailable_reason = "",
+    queue_entry_id = queueEntryId.orEmpty(),
 )
 
 /** Convert API [SelectionEntry] to proto [SelectionEntryProto]. */
@@ -1038,6 +1057,7 @@ fun TrackInfoProto.toApi(): TrackInfo {
         unavailableReason = proto.unavailable_reason.ifEmpty { null }?.let(LocalizedText::plain)
         lyricsFetched = false
         loudness = proto.loudness?.toApi()
+        queueEntryId = proto.queue_entry_id.ifEmpty { null }
     }
 }
 

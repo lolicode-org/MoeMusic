@@ -220,7 +220,7 @@ This prevents share links from being probed as raw media files before source-spe
 
 The wire submission format sends `(source_id, track_id, mode)`. The server must not trust client-provided track metadata.
 
-Queue removal should target stable track identity, not visible display order: use `(source_id, track_id)` for packets and commands.
+Queue removal targets unique queue item instances via `queue_entry_id` (with fallback to `(source_id, track_id)` prioritizing the requester's owned track instance when permissions require it). Interactive chat buttons (`[✕]`) execute `/music remove --entry <queue_entry_id>` to guarantee that historical chat lines do not suffer from index drift when prior tracks advance or get removed.
 
 ## Client Shared Runtime
 

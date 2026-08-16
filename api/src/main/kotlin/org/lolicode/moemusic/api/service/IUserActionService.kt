@@ -142,6 +142,14 @@ public interface IUserActionService {
         requester: MoeMusicUser? = null,
     ): QueueRemoveOutcome
 
+    /** Checked queue removal path by queue entry ID, with stable-identity fallback. */
+    public fun removeQueuedTrackByEntryId(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+        requester: MoeMusicUser? = null,
+    ): QueueRemoveOutcome = removeQueuedTrack(sourceId, trackId, requester)
+
     /** Checked playback control path. */
     public fun controlPlayback(
         action: PlaybackAction,

@@ -73,6 +73,7 @@ public sealed interface TrackInfo {
     public val secondaryLyricLrc: String? get() = null
     public val lyricsFetched: Boolean get() = false
     public val loudness: LoudnessInfo? get() = null
+    public val queueEntryId: String? get() = null
     // Add new optional fields here as `public val foo: T get() = default` and mirror them in
     // [TrackInfoBuilder]. Additive — keeps binary compatibility.
 
@@ -100,6 +101,7 @@ public class TrackInfoBuilder internal constructor(
     public var secondaryLyricLrc: String? = null
     public var lyricsFetched: Boolean = false
     public var loudness: LoudnessInfo? = null
+    public var queueEntryId: String? = null
     // Add new optional fields here as `public var foo: T = default`.
 
     public fun build(): TrackInfo = TrackInfoImpl(
@@ -117,6 +119,7 @@ public class TrackInfoBuilder internal constructor(
         secondaryLyricLrc = secondaryLyricLrc,
         lyricsFetched = lyricsFetched,
         loudness = loudness,
+        queueEntryId = queueEntryId,
     )
 }
 
@@ -153,6 +156,7 @@ internal data class TrackInfoImpl(
     override val secondaryLyricLrc: String?,
     override val lyricsFetched: Boolean,
     override val loudness: LoudnessInfo?,
+    override val queueEntryId: String?,
 ) : TrackInfo {
     override fun toBuilder(): TrackInfoBuilder = TrackInfoBuilder(id, title, artists, durationMs).also {
         it.coverUrl = coverUrl
@@ -165,6 +169,7 @@ internal data class TrackInfoImpl(
         it.secondaryLyricLrc = secondaryLyricLrc
         it.lyricsFetched = lyricsFetched
         it.loudness = loudness
+        it.queueEntryId = queueEntryId
     }
 }
 
@@ -181,6 +186,7 @@ public val TrackInfo.artistDisplay: String
 public fun TrackInfo.mergePreservingRuntimeMetadata(refreshed: TrackInfo): TrackInfo {
     val existing = this
     return refreshed.copy {
+        queueEntryId = existing.queueEntryId ?: refreshed.queueEntryId
         submittedByUserName = refreshed.submittedByUserName ?: existing.submittedByUserName
         artists = refreshed.artists.ifEmpty { existing.artists }
         loudness = existing.loudness.mergedWith(refreshed.loudness)

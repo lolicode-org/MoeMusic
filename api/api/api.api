@@ -597,6 +597,7 @@ public abstract interface class org/lolicode/moemusic/api/client/IClientPlayback
 public abstract interface class org/lolicode/moemusic/api/client/IClientRequestService {
 	public abstract fun controlPlayback (Lorg/lolicode/moemusic/api/service/PlaybackAction;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun controlPlayback$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Lorg/lolicode/moemusic/api/service/PlaybackAction;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public fun removeQueuedTrack (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun removeQueuedTrack (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun requestFullQueue (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun requestQueue (IILkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -617,6 +618,7 @@ public abstract interface class org/lolicode/moemusic/api/client/IClientRequestS
 
 public final class org/lolicode/moemusic/api/client/IClientRequestService$DefaultImpls {
 	public static synthetic fun controlPlayback$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;Lorg/lolicode/moemusic/api/service/PlaybackAction;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static fun removeQueuedTrack (Lorg/lolicode/moemusic/api/client/IClientRequestService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static fun requestFullQueue (Lorg/lolicode/moemusic/api/client/IClientRequestService;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static fun requestQueue (Lorg/lolicode/moemusic/api/client/IClientRequestService;IILkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun requestQueue$default (Lorg/lolicode/moemusic/api/client/IClientRequestService;IILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
@@ -1633,6 +1635,7 @@ public abstract interface class org/lolicode/moemusic/api/model/TrackInfo {
 	public fun getLoudness ()Lorg/lolicode/moemusic/api/model/LoudnessInfo;
 	public fun getLyricLrc ()Ljava/lang/String;
 	public fun getLyricsFetched ()Z
+	public fun getQueueEntryId ()Ljava/lang/String;
 	public fun getSecondaryLyricLrc ()Ljava/lang/String;
 	public fun getSourceFilterVerdict ()Lorg/lolicode/moemusic/api/service/FilterVerdict;
 	public fun getSourceId ()Ljava/lang/String;
@@ -1648,6 +1651,7 @@ public final class org/lolicode/moemusic/api/model/TrackInfo$DefaultImpls {
 	public static fun getLoudness (Lorg/lolicode/moemusic/api/model/TrackInfo;)Lorg/lolicode/moemusic/api/model/LoudnessInfo;
 	public static fun getLyricLrc (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
 	public static fun getLyricsFetched (Lorg/lolicode/moemusic/api/model/TrackInfo;)Z
+	public static fun getQueueEntryId (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
 	public static fun getSecondaryLyricLrc (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
 	public static fun getSourceFilterVerdict (Lorg/lolicode/moemusic/api/model/TrackInfo;)Lorg/lolicode/moemusic/api/service/FilterVerdict;
 	public static fun getSourceId (Lorg/lolicode/moemusic/api/model/TrackInfo;)Ljava/lang/String;
@@ -1665,6 +1669,7 @@ public final class org/lolicode/moemusic/api/model/TrackInfoBuilder {
 	public final fun getLoudness ()Lorg/lolicode/moemusic/api/model/LoudnessInfo;
 	public final fun getLyricLrc ()Ljava/lang/String;
 	public final fun getLyricsFetched ()Z
+	public final fun getQueueEntryId ()Ljava/lang/String;
 	public final fun getSecondaryLyricLrc ()Ljava/lang/String;
 	public final fun getSourceFilterVerdict ()Lorg/lolicode/moemusic/api/service/FilterVerdict;
 	public final fun getSourceId ()Ljava/lang/String;
@@ -1679,6 +1684,7 @@ public final class org/lolicode/moemusic/api/model/TrackInfoBuilder {
 	public final fun setLoudness (Lorg/lolicode/moemusic/api/model/LoudnessInfo;)V
 	public final fun setLyricLrc (Ljava/lang/String;)V
 	public final fun setLyricsFetched (Z)V
+	public final fun setQueueEntryId (Ljava/lang/String;)V
 	public final fun setSecondaryLyricLrc (Ljava/lang/String;)V
 	public final fun setSourceFilterVerdict (Lorg/lolicode/moemusic/api/service/FilterVerdict;)V
 	public final fun setSourceId (Ljava/lang/String;)V
@@ -1972,6 +1978,8 @@ public abstract interface class org/lolicode/moemusic/api/service/IPlaybackContr
 	public abstract fun play (Lorg/lolicode/moemusic/api/model/TrackInfo;Lorg/lolicode/moemusic/api/model/PlaybackResource;)V
 	public abstract fun removeQueuedTrack-JJReU1U (Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;Z)Ljava/lang/String;
 	public static synthetic fun removeQueuedTrack-JJReU1U$default (Lorg/lolicode/moemusic/api/service/IPlaybackController;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ZILjava/lang/Object;)Ljava/lang/String;
+	public fun removeQueuedTrackByEntryId-WcZGWuw (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;Z)Ljava/lang/String;
+	public static synthetic fun removeQueuedTrackByEntryId-WcZGWuw$default (Lorg/lolicode/moemusic/api/service/IPlaybackController;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ZILjava/lang/Object;)Ljava/lang/String;
 	public abstract fun resume ()V
 	public abstract fun seek (J)V
 	public abstract fun skip ()V
@@ -1981,6 +1989,8 @@ public abstract interface class org/lolicode/moemusic/api/service/IPlaybackContr
 
 public final class org/lolicode/moemusic/api/service/IPlaybackController$DefaultImpls {
 	public static synthetic fun removeQueuedTrack-JJReU1U$default (Lorg/lolicode/moemusic/api/service/IPlaybackController;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ZILjava/lang/Object;)Ljava/lang/String;
+	public static fun removeQueuedTrackByEntryId-WcZGWuw (Lorg/lolicode/moemusic/api/service/IPlaybackController;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;Z)Ljava/lang/String;
+	public static synthetic fun removeQueuedTrackByEntryId-WcZGWuw$default (Lorg/lolicode/moemusic/api/service/IPlaybackController;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ZILjava/lang/Object;)Ljava/lang/String;
 }
 
 public abstract interface class org/lolicode/moemusic/api/service/IRateLimitService {
@@ -2020,6 +2030,8 @@ public abstract interface class org/lolicode/moemusic/api/service/IUserActionSer
 	public static synthetic fun controlPlayback$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Lorg/lolicode/moemusic/api/service/PlaybackAction;Lorg/lolicode/moemusic/api/MoeMusicUser;JILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/PlaybackActionOutcome;
 	public abstract fun removeQueuedTrack (Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
 	public static synthetic fun removeQueuedTrack$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
+	public fun removeQueuedTrackByEntryId (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
+	public static synthetic fun removeQueuedTrackByEntryId$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
 	public abstract fun search (Lorg/lolicode/moemusic/api/model/SearchQuery;Lorg/lolicode/moemusic/api/MoeMusicUser;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun search$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Lorg/lolicode/moemusic/api/model/SearchQuery;Lorg/lolicode/moemusic/api/MoeMusicUser;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun submitBySelection (Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -2035,6 +2047,8 @@ public abstract interface class org/lolicode/moemusic/api/service/IUserActionSer
 public final class org/lolicode/moemusic/api/service/IUserActionService$DefaultImpls {
 	public static synthetic fun controlPlayback$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Lorg/lolicode/moemusic/api/service/PlaybackAction;Lorg/lolicode/moemusic/api/MoeMusicUser;JILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/PlaybackActionOutcome;
 	public static synthetic fun removeQueuedTrack$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
+	public static fun removeQueuedTrackByEntryId (Lorg/lolicode/moemusic/api/service/IUserActionService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
+	public static synthetic fun removeQueuedTrackByEntryId$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;ILjava/lang/Object;)Lorg/lolicode/moemusic/api/service/QueueRemoveOutcome;
 	public static synthetic fun search$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Lorg/lolicode/moemusic/api/model/SearchQuery;Lorg/lolicode/moemusic/api/MoeMusicUser;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun submitBySelection$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun submitBySourceAndId$default (Lorg/lolicode/moemusic/api/service/IUserActionService;Ljava/lang/String;Ljava/lang/String;Lorg/lolicode/moemusic/api/MoeMusicUser;Lorg/lolicode/moemusic/api/model/TrackAddMode;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;

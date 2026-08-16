@@ -85,4 +85,18 @@ public interface IPlaybackController {
         requester: MoeMusicUser? = null,
         bypassOwnership: Boolean = false,
     ): QueueRemoveResult
+
+    /**
+     * Remove a queued user-submitted track by [queueEntryId], falling back to `(sourceId, trackId)`
+     * when the ID is null or blank.
+     *
+     * This is the raw queue-removal path. [bypassOwnership] is not permission-checked here.
+     */
+    public fun removeQueuedTrackByEntryId(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+        requester: MoeMusicUser? = null,
+        bypassOwnership: Boolean = false,
+    ): QueueRemoveResult = removeQueuedTrack(sourceId, trackId, requester, bypassOwnership)
 }

@@ -55,6 +55,13 @@ public interface IClientRequestService {
     /** Request removal of a queued track by stable `(sourceId, trackId)` identity. */
     public suspend fun removeQueuedTrack(sourceId: String, trackId: String): ClientActionFeedback
 
+    /** Request removal of a queued track by exact [queueEntryId] with fallback to `(sourceId, trackId)`. */
+    public suspend fun removeQueuedTrack(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+    ): ClientActionFeedback = removeQueuedTrack(sourceId, trackId)
+
     /** Submit a track to the server by stable `(sourceId, trackId)` identity. */
     public suspend fun submitTrack(track: TrackInfo, mode: TrackAddMode = TrackAddMode.NORMAL): ClientTrackSubmitResult
 

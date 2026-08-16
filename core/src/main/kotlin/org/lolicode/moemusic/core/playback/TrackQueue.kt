@@ -1,6 +1,7 @@
 package org.lolicode.moemusic.core.playback
 
 import org.lolicode.moemusic.api.model.TrackInfo
+import org.lolicode.moemusic.api.model.copy
 import org.lolicode.moemusic.api.model.matchesQueueIdentity
 import java.util.UUID
 
@@ -43,6 +44,7 @@ class TrackQueue {
     private data class QueuedTrack(
         val track: TrackInfo,
         val enqueuedBy: UUID?,
+        val queueEntryId: String,
     )
 
     private val userQueue: ArrayDeque<QueuedTrack> = ArrayDeque()
@@ -58,14 +60,18 @@ class TrackQueue {
     /** Add a track to the user-submitted queue (highest priority). */
     fun enqueueUser(track: TrackInfo, enqueuedBy: UUID? = null) {
         synchronized(queueLock) {
-            userQueue.addLast(QueuedTrack(track, enqueuedBy))
+            val entryId = UUID.randomUUID().toString()
+            val stamped = track.copy { queueEntryId = entryId }
+            userQueue.addLast(QueuedTrack(stamped, enqueuedBy, entryId))
         }
     }
 
     /** Reinsert a previously dequeued user track at the front of the queue. */
     fun requeueUserFront(track: TrackInfo, enqueuedBy: UUID? = null) {
         synchronized(queueLock) {
-            userQueue.addFirst(QueuedTrack(track, enqueuedBy))
+            val entryId = track.queueEntryId ?: UUID.randomUUID().toString()
+            val stamped = if (track.queueEntryId == null) track.copy { queueEntryId = entryId } else track
+            userQueue.addFirst(QueuedTrack(stamped, enqueuedBy, entryId))
         }
     }
 
@@ -77,7 +83,9 @@ class TrackQueue {
      */
     fun enqueueUserIfAbsent(track: TrackInfo, enqueuedBy: UUID? = null): Boolean = synchronized(queueLock) {
         if (userQueue.any { it.track.matchesQueueIdentity(track) }) return@synchronized false
-        userQueue.addLast(QueuedTrack(track, enqueuedBy))
+        val entryId = UUID.randomUUID().toString()
+        val stamped = track.copy { queueEntryId = entryId }
+        userQueue.addLast(QueuedTrack(stamped, enqueuedBy, entryId))
         true
     }
 
@@ -174,7 +182,7 @@ class TrackQueue {
 
     /** Remove the first pending user-queue entry matching [sourceId] and [trackId]. */
     fun removeUserTrack(sourceId: String, trackId: String): Boolean =
-        removeUserTrackDetailed(sourceId, trackId, requesterId = null, bypassOwnership = true).result == UserQueueRemovalResult.REMOVED
+        removeUserTrackDetailed(sourceId, trackId, queueEntryId = null, requesterId = null, bypassOwnership = true).result == UserQueueRemovalResult.REMOVED
 
     /**
      * Remove the first pending user-queue entry matching [sourceId] and [trackId] only if
@@ -189,18 +197,39 @@ class TrackQueue {
         requesterId: UUID?,
         bypassOwnership: Boolean,
     ): UserQueueRemovalResult =
-        removeUserTrackDetailed(sourceId, trackId, requesterId, bypassOwnership).result
+        removeUserTrackDetailed(sourceId, trackId, queueEntryId = null, requesterId = requesterId, bypassOwnership = bypassOwnership).result
+
+    fun removeUserTrack(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+        requesterId: UUID?,
+        bypassOwnership: Boolean,
+    ): UserQueueRemovalResult =
+        removeUserTrackDetailed(sourceId, trackId, queueEntryId = queueEntryId, requesterId = requesterId, bypassOwnership = bypassOwnership).result
 
     fun removeUserTrackDetailed(
         sourceId: String,
         trackId: String,
-        requesterId: UUID?,
-        bypassOwnership: Boolean,
+        queueEntryId: String? = null,
+        requesterId: UUID? = null,
+        bypassOwnership: Boolean = false,
     ): UserQueueRemovalDetails {
         synchronized(queueLock) {
             val snapshot = userQueue.toList()
-            val removeIndex = snapshot.indexOfFirst { queuedTrack ->
-                queuedTrack.track.sourceId == sourceId && queuedTrack.track.id == trackId
+            val removeIndex = if (!queueEntryId.isNullOrBlank()) {
+                snapshot.indexOfFirst { it.queueEntryId == queueEntryId }
+            } else if (!bypassOwnership && requesterId != null) {
+                val ownIndex = snapshot.indexOfFirst {
+                    it.track.sourceId == sourceId && it.track.id == trackId && it.enqueuedBy == requesterId
+                }
+                if (ownIndex >= 0) ownIndex else snapshot.indexOfFirst {
+                    it.track.sourceId == sourceId && it.track.id == trackId
+                }
+            } else {
+                snapshot.indexOfFirst {
+                    it.track.sourceId == sourceId && it.track.id == trackId
+                }
             }
             if (removeIndex < 0) return UserQueueRemovalDetails(UserQueueRemovalResult.NOT_FOUND)
             val target = snapshot[removeIndex]

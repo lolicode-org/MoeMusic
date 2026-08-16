@@ -908,7 +908,12 @@ class ClientPlaybackRuntime(
         val sourceId = track.sourceId ?: return null
         if (sourceId.isBlank() || track.id.isBlank()) return null
         return sendCorrelatedRequest(PacketIds.QUEUE_REMOVE_REQUEST) { requestId ->
-            QueueRemoveRequest(source_id = sourceId, track_id = track.id, request_id = requestId).encode()
+            QueueRemoveRequest(
+                source_id = sourceId,
+                track_id = track.id,
+                queue_entry_id = track.queueEntryId.orEmpty(),
+                request_id = requestId,
+            ).encode()
         }
     }
 
@@ -1896,10 +1901,19 @@ class ClientPlaybackRuntime(
             SelectionPageRequest(session_id = sessionId, offset = offset, limit = limit, request_id = requestId).encode()
         }
 
-    override fun beginQueueRemoveRequest(sourceId: String, trackId: String): Deferred<QueueRemoveResponse>? {
+    override fun beginQueueRemoveRequest(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+    ): Deferred<QueueRemoveResponse>? {
         if (sourceId.isBlank() || trackId.isBlank()) return null
         return beginCorrelatedRequest(pendingQueueRemoveResponses, PacketIds.QUEUE_REMOVE_REQUEST) { requestId ->
-            QueueRemoveRequest(source_id = sourceId, track_id = trackId, request_id = requestId).encode()
+            QueueRemoveRequest(
+                source_id = sourceId,
+                track_id = trackId,
+                queue_entry_id = queueEntryId.orEmpty(),
+                request_id = requestId,
+            ).encode()
         }
     }
 

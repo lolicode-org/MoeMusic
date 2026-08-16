@@ -17,7 +17,7 @@ interface ClientRequestTransport {
     fun ensureDirectRequestSessionReady()
     fun beginSearchRequest(query: String, sourceId: String, limit: Int, offset: Int): Deferred<SearchResponse>?
     fun beginQueueRequest(limit: Int = 0, offset: Int = 0): Deferred<QueueResponse>?
-    fun beginQueueRemoveRequest(sourceId: String, trackId: String): Deferred<QueueRemoveResponse>?
+    fun beginQueueRemoveRequest(sourceId: String, trackId: String, queueEntryId: String? = null): Deferred<QueueRemoveResponse>?
     fun beginTrackSubmitRequest(track: TrackInfo, mode: TrackAddMode): Deferred<TrackSubmitResponse>?
     fun beginTrackSubmitRequest(entry: SelectionEntry, mode: TrackAddMode): Deferred<TrackSubmitResponse>?
     fun beginIdentifierSubmitRequest(identifier: String, mode: TrackAddMode): Deferred<IdentifierSubmitResponse>?
@@ -143,9 +143,16 @@ class DirectClientRequestService(
         )
     }
 
-    override suspend fun removeQueuedTrack(sourceId: String, trackId: String): ClientActionFeedback {
+    override suspend fun removeQueuedTrack(sourceId: String, trackId: String): ClientActionFeedback =
+        removeQueuedTrack(sourceId, trackId, null)
+
+    override suspend fun removeQueuedTrack(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+    ): ClientActionFeedback {
         val response = awaitResponse {
-            transport.beginQueueRemoveRequest(sourceId, trackId)
+            transport.beginQueueRemoveRequest(sourceId, trackId, queueEntryId)
         }
         return response.toActionFeedback()
     }

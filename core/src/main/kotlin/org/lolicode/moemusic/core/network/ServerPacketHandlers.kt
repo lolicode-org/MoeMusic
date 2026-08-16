@@ -674,20 +674,28 @@ class ServerPacketHandlers(
             )
         }
 
-        // QUEUE_REMOVE_REQUEST — remove a track from the user queue by (source_id, track_id)
+        // QUEUE_REMOVE_REQUEST — remove a track from the user queue by (source_id, track_id) or queue_entry_id
         registry.register(
             PacketIds.QUEUE_REMOVE_REQUEST,
             { QueueRemoveRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
-                when (
+                val removal = if (msg.queue_entry_id.isBlank()) {
                     ServerRuntimeCoordinator.userActionService.removeQueuedTrack(
                         sourceId = msg.source_id,
                         trackId = msg.track_id,
                         requester = sender,
-                    ).result
-                ) {
+                    )
+                } else {
+                    ServerRuntimeCoordinator.userActionService.removeQueuedTrackByEntryId(
+                        sourceId = msg.source_id,
+                        trackId = msg.track_id,
+                        queueEntryId = msg.queue_entry_id,
+                        requester = sender,
+                    )
+                }
+                when (removal.result) {
                     QueueRemoveResult.REMOVED -> QueueRemoveResponse(request_id = msg.request_id)
                     QueueRemoveResult.NOT_FOUND ->
                         QueueRemoveResponse(

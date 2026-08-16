@@ -89,9 +89,23 @@ class UserActionServiceImpl(
         sourceId: String,
         trackId: String,
         requester: MoeMusicUser?,
+    ): QueueRemoveOutcome = removeQueuedTrackInternal(sourceId, trackId, null, requester)
+
+    override fun removeQueuedTrackByEntryId(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+        requester: MoeMusicUser?,
+    ): QueueRemoveOutcome = removeQueuedTrackInternal(sourceId, trackId, queueEntryId, requester)
+
+    private fun removeQueuedTrackInternal(
+        sourceId: String,
+        trackId: String,
+        queueEntryId: String?,
+        requester: MoeMusicUser?,
     ): QueueRemoveOutcome {
         val bypassOwnership = requester == null || permissionService.has(MoeMusicPermission.QUEUE_CONTROL, requester)
-        return when (playbackController.removeQueuedTrack(sourceId, trackId, requester, bypassOwnership)) {
+        return when (playbackController.removeQueuedTrackByEntryId(sourceId, trackId, queueEntryId, requester, bypassOwnership)) {
             QueueRemoveResult.REMOVED -> QueueRemoveOutcome(QueueRemoveResult.REMOVED)
             QueueRemoveResult.NOT_FOUND ->
                 QueueRemoveOutcome(

@@ -702,6 +702,35 @@ class ClientPlaybackRuntimeTest {
         assertIs<IllegalStateException>(failure.cause)
     }
 
+    @Test
+    fun `sendQueueRemoveRequest encodes queue_entry_id when present`() {
+        val harness = harness()
+        harness.acceptWelcome()
+
+        val track = TrackInfo("track-1", "Track One", emptyList(), 120_000L) {
+            sourceId = "youtube"
+            queueEntryId = "entry-uuid-1234"
+        }
+
+        assertNotNull(harness.runtime.sendQueueRemoveRequest(track))
+        val decoded = harness.platform.decodeLast(PacketIds.QUEUE_REMOVE_REQUEST, QueueRemoveRequest.ADAPTER::decode)
+        assertEquals("youtube", decoded.source_id)
+        assertEquals("track-1", decoded.track_id)
+        assertEquals("entry-uuid-1234", decoded.queue_entry_id)
+    }
+
+    @Test
+    fun `beginQueueRemoveRequest encodes queue_entry_id in packet payload`() {
+        val harness = harness()
+        harness.acceptWelcome()
+
+        assertNotNull(harness.runtime.beginQueueRemoveRequest("youtube", "track-2", "entry-uuid-5678"))
+        val decoded = harness.platform.decodeLast(PacketIds.QUEUE_REMOVE_REQUEST, QueueRemoveRequest.ADAPTER::decode)
+        assertEquals("youtube", decoded.source_id)
+        assertEquals("track-2", decoded.track_id)
+        assertEquals("entry-uuid-5678", decoded.queue_entry_id)
+    }
+
     private fun harness(
         localPlaybackRetryDelaysMs: List<Long> = listOf(750L, 1_500L),
         autoSkipOnFinalFailure: Boolean = false,
