@@ -147,6 +147,10 @@ object UserSessionRegistry {
 
     fun localeFor(userId: UUID): String? = sessions[userId]?.locale ?: localeHints[userId]
 
+    fun activeSessions(): List<Session> =
+        sessions.values
+            .filter { it.participation == Participation.ACTIVE }
+
     fun activeUsers(): List<MoeMusicUser> =
         sessions.values
             .asSequence()

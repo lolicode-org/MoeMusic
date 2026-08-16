@@ -18,7 +18,7 @@ class FramedPayloadCodecTest {
 
     @Test
     fun `compressible payload is encoded as compressed single frame`() {
-        // Build a repetitive string > 128 bytes
+        // Build a repetitive string at least 512 bytes long
         val text = "MoeMusic Synchronized Lyrics Line Timestamp [00:12.345] Translation ".repeat(10)
         val payload = text.toByteArray()
         assertTrue(payload.size >= FramedPayloadCodec.COMPRESSION_THRESHOLD_BYTES)
@@ -30,6 +30,20 @@ class FramedPayloadCodecTest {
 
         val decoded = FramedPayloadCodec.decodeSingle(frames[0])
         assertArrayEquals(payload, decoded)
+    }
+
+    @Test
+    fun `compression starts at the 512-byte threshold`() {
+        val belowThreshold = ByteArray(511) { (it % 4).toByte() }
+        val atThreshold = ByteArray(512) { (it % 4).toByte() }
+
+        val rawFrame = FramedPayloadCodec.encodeSingle(belowThreshold)
+        val compressedFrame = FramedPayloadCodec.encodeSingle(atThreshold)
+
+        assertEquals(FramedPayloadCodec.FLAG_RAW, rawFrame[0])
+        assertEquals(FramedPayloadCodec.FLAG_COMPRESSED, compressedFrame[0])
+        assertArrayEquals(belowThreshold, FramedPayloadCodec.decodeSingle(rawFrame))
+        assertArrayEquals(atThreshold, FramedPayloadCodec.decodeSingle(compressedFrame))
     }
 
     @Test

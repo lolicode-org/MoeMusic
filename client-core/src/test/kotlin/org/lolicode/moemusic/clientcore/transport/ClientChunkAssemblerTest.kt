@@ -21,7 +21,7 @@ class ClientChunkAssemblerTest {
     @Test
     fun `process compressed frame returns decompressed payload immediately`() {
         val assembler = ClientChunkAssembler()
-        val payload = "MoeMusic Lyrics Test ".repeat(20).toByteArray()
+        val payload = "MoeMusic Lyrics Test ".repeat(30).toByteArray()
         val frame = FramedPayloadCodec.encode(payload).first()
         assertEquals(FramedPayloadCodec.FLAG_COMPRESSED, frame[0])
 

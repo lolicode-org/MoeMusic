@@ -50,7 +50,7 @@ object FramedPayloadCodec {
     const val MAX_COMPRESSED_CHUNK_BYTES = MAX_CHUNKS * CHUNK_PAYLOAD_SIZE
 
     /** Payload byte threshold below which compression is skipped. */
-    const val COMPRESSION_THRESHOLD_BYTES = 128
+    const val COMPRESSION_THRESHOLD_BYTES = 512
     /**
      * Next rotating transfer identifier, masked to 15 bits (0..32767) and wrapped on overflow.
      *
@@ -84,20 +84,20 @@ object FramedPayloadCodec {
      * Encodes a raw Protobuf byte array into one or more transport frames.
      *
      * @param payload Raw Protobuf bytes to encode.
-     * @param transferId Optional transfer identifier for multi-part frames (defaults to rotating short).
+     * @param transferId Optional transfer identifier for multi-part frames (allocated only when chunking is needed).
      * @return List of 1 or more frames, each <= [CHUNK_PAYLOAD_SIZE] + [CHUNK_HEADER_SIZE].
      */
     fun encode(
         payload: ByteArray,
-        transferId: Short = nextTransferId(),
+        transferId: Short? = null,
     ): List<ByteArray> {
         require(payload.size <= MAX_ASSEMBLED_BYTES) {
             "Payload size ${payload.size} exceeds maximum assembled bytes $MAX_ASSEMBLED_BYTES"
         }
 
-        val (dataToSend, useCompression) = selectEncodedPayload(payload)
+        val dataToSend = selectEncodedPayload(payload)
         if (dataToSend.size <= CHUNK_PAYLOAD_SIZE) {
-            val singleFlag = if (useCompression) FLAG_COMPRESSED else FLAG_RAW
+            val singleFlag = if (dataToSend !== payload) FLAG_COMPRESSED else FLAG_RAW
             val single = ByteArray(1 + dataToSend.size)
             single[0] = singleFlag
             System.arraycopy(dataToSend, 0, single, 1, dataToSend.size)
@@ -105,7 +105,7 @@ object FramedPayloadCodec {
         }
 
         // Payload exceeds chunk size: split into chunk frames (compressed if beneficial, raw otherwise)
-        val chunkFlag = if (useCompression) FLAG_CHUNK_COMPRESSED else FLAG_CHUNK_RAW
+        val chunkFlag = if (dataToSend !== payload) FLAG_CHUNK_COMPRESSED else FLAG_CHUNK_RAW
         val totalBytes = dataToSend.size
         require(totalBytes <= MAX_COMPRESSED_CHUNK_BYTES) {
             "Payload size $totalBytes exceeds maximum chunk capacity $MAX_COMPRESSED_CHUNK_BYTES"
@@ -115,6 +115,7 @@ object FramedPayloadCodec {
         require(totalChunks.toInt() in 1..MAX_CHUNKS) {
             "Total chunks $totalChunks exceeds maximum chunk count $MAX_CHUNKS"
         }
+        val actualTransferId = transferId ?: nextTransferId()
 
         val chunks = ArrayList<ByteArray>(totalChunks.toInt())
         for (i in 0 until totalChunks.toInt()) {
@@ -122,7 +123,7 @@ object FramedPayloadCodec {
             val len = minOf(CHUNK_PAYLOAD_SIZE, totalBytes - offset)
             val chunkBuf = ByteBuffer.allocate(CHUNK_HEADER_SIZE + len)
             chunkBuf.put(chunkFlag)
-            chunkBuf.putShort(transferId)
+            chunkBuf.putShort(actualTransferId)
             chunkBuf.putShort(i.toShort())
             chunkBuf.putShort(totalChunks)
             chunkBuf.putInt(totalBytes)
@@ -138,21 +139,22 @@ object FramedPayloadCodec {
             "Payload size ${payload.size} exceeds maximum assembled bytes $MAX_ASSEMBLED_BYTES"
         }
 
-        val (dataToSend, useCompression) = selectEncodedPayload(payload)
+        val dataToSend = selectEncodedPayload(payload)
         require(dataToSend.size <= CHUNK_PAYLOAD_SIZE) {
             "Encoded payload size ${dataToSend.size} exceeds single-frame payload limit $CHUNK_PAYLOAD_SIZE"
         }
 
         val frame = ByteArray(1 + dataToSend.size)
-        frame[0] = if (useCompression) FLAG_COMPRESSED else FLAG_RAW
+        frame[0] = if (dataToSend !== payload) FLAG_COMPRESSED else FLAG_RAW
         System.arraycopy(dataToSend, 0, frame, 1, dataToSend.size)
         return frame
     }
 
-    private fun selectEncodedPayload(payload: ByteArray): Pair<ByteArray, Boolean> {
-        val compressed = if (payload.size >= COMPRESSION_THRESHOLD_BYTES) compress(payload) else null
-        val useCompression = compressed != null && compressed.size < payload.size
-        return (if (useCompression) requireNotNull(compressed) else payload) to useCompression
+    private fun selectEncodedPayload(payload: ByteArray): ByteArray {
+        if (payload.size < COMPRESSION_THRESHOLD_BYTES) return payload
+
+        val compressed = compress(payload)
+        return compressed.takeIf { it.size < payload.size } ?: payload
     }
 
     /**
@@ -207,15 +209,20 @@ object FramedPayloadCodec {
         }
     }
 
+    private val deflaterCache = ThreadLocal.withInitial { Deflater(Deflater.BEST_SPEED) }
+    private val inflaterCache = ThreadLocal.withInitial { Inflater() }
+
     /**
      * Compress [data] using Deflate ([Deflater.BEST_SPEED]).
      */
     fun compress(data: ByteArray, offset: Int = 0, length: Int = data.size): ByteArray {
-        val deflater = Deflater(Deflater.BEST_SPEED)
+        val deflater = deflaterCache.get()
+        deflater.reset()
         try {
             deflater.setInput(data, offset, length)
             deflater.finish()
-            val output = ByteArrayOutputStream(minOf(length, 4096))
+            val initialCapacity = maxOf(4096, minOf(length, 65536))
+            val output = ByteArrayOutputStream(initialCapacity)
             val buffer = ByteArray(4096)
             while (!deflater.finished()) {
                 val count = deflater.deflate(buffer)
@@ -223,7 +230,7 @@ object FramedPayloadCodec {
             }
             return output.toByteArray()
         } finally {
-            deflater.end()
+            deflater.reset()
         }
     }
 
@@ -237,10 +244,15 @@ object FramedPayloadCodec {
         expectedSize: Int = -1,
         maxDecompressedBytes: Int = MAX_ASSEMBLED_BYTES,
     ): ByteArray {
-        val inflater = Inflater()
+        val inflater = inflaterCache.get()
+        inflater.reset()
         try {
             inflater.setInput(data, offset, length)
-            val initialCapacity = if (expectedSize > 0) expectedSize else minOf(length * 2, 4096)
+            val initialCapacity = if (expectedSize > 0) {
+                expectedSize
+            } else {
+                minOf(maxDecompressedBytes, maxOf(4096, length * 2))
+            }
             val output = ByteArrayOutputStream(initialCapacity)
             val buffer = ByteArray(4096)
             while (!inflater.finished()) {
@@ -269,7 +281,7 @@ object FramedPayloadCodec {
             }
             return output.toByteArray()
         } finally {
-            inflater.end()
+            inflater.reset()
         }
     }
 }

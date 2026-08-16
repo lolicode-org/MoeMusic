@@ -2,7 +2,6 @@ package org.lolicode.moemusic.clientcore.transport
 
 import org.lolicode.moemusic.core.transport.FramedPayloadCodec
 import org.slf4j.LoggerFactory
-import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -70,11 +69,10 @@ class ClientChunkAssembler(
             return null
         }
 
-        val buf = ByteBuffer.wrap(frame, 1, frame.size - 1)
-        val transferId = buf.short
-        val chunkIdx = buf.short.toInt()
-        val totalChunks = buf.short.toInt()
-        val totalBytes = buf.int
+        val transferId = readShort(frame, 1)
+        val chunkIdx = readUnsignedShort(frame, 3)
+        val totalChunks = readUnsignedShort(frame, 5)
+        val totalBytes = readInt(frame, 7)
         val isCompressed = flag == FramedPayloadCodec.FLAG_CHUNK_COMPRESSED
 
         val maxAllowedBytes = if (isCompressed) {
@@ -99,7 +97,7 @@ class ClientChunkAssembler(
 
         val expectedOffset = chunkIdx * FramedPayloadCodec.CHUNK_PAYLOAD_SIZE
         val expectedChunkLen = minOf(FramedPayloadCodec.CHUNK_PAYLOAD_SIZE, totalBytes - expectedOffset)
-        val chunkLen = buf.remaining()
+        val chunkLen = frame.size - FramedPayloadCodec.CHUNK_HEADER_SIZE
 
         if (chunkLen != expectedChunkLen || chunkLen <= 0 || expectedOffset + chunkLen > totalBytes) {
             logger.warn(
@@ -113,7 +111,6 @@ class ClientChunkAssembler(
 
         val now = System.nanoTime()
         val transfer = synchronized(transfers) {
-            evictExpired(now)
             val existing = transfers[transferId]
             if (existing != null) {
                 if (existing.totalChunks != totalChunks || existing.totalBytes != totalBytes || existing.isCompressed != isCompressed) {
@@ -122,6 +119,7 @@ class ClientChunkAssembler(
                 }
                 existing
             } else {
+                evictExpired(now)
                 if (transfers.size >= maxConcurrentTransfers) {
                     logger.warn("Dropping S2C chunk for transferId={} due to concurrent transfer limit", transferId)
                     return null
@@ -138,7 +136,7 @@ class ClientChunkAssembler(
                     return null
                 }
                 val chunkData = ByteArray(chunkLen)
-                buf.get(chunkData)
+                System.arraycopy(frame, FramedPayloadCodec.CHUNK_HEADER_SIZE, chunkData, 0, chunkLen)
                 transfer.chunks[chunkIdx] = chunkData
                 transfer.receivedBytes += chunkLen
                 transfer.receivedCount++
@@ -187,6 +185,20 @@ class ClientChunkAssembler(
             transfers.clear()
         }
     }
+
+    private fun readShort(frame: ByteArray, offset: Int): Short =
+        (((frame[offset].toInt() and 0xFF) shl 8) or
+            (frame[offset + 1].toInt() and 0xFF)).toShort()
+
+    private fun readUnsignedShort(frame: ByteArray, offset: Int): Int =
+        ((frame[offset].toInt() and 0xFF) shl 8) or
+            (frame[offset + 1].toInt() and 0xFF)
+
+    private fun readInt(frame: ByteArray, offset: Int): Int =
+        ((frame[offset].toInt() and 0xFF) shl 24) or
+            ((frame[offset + 1].toInt() and 0xFF) shl 16) or
+            ((frame[offset + 2].toInt() and 0xFF) shl 8) or
+            (frame[offset + 3].toInt() and 0xFF)
 
     /**
      * Evict transfers whose TTL has expired.
