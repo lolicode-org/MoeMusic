@@ -58,6 +58,10 @@ class ClientChunkAssembler(
 
         if (flag != FramedPayloadCodec.FLAG_CHUNK_RAW && flag != FramedPayloadCodec.FLAG_CHUNK_COMPRESSED) {
             // Legacy un-framed Wire Protobuf bytes
+            if (frame.size > FramedPayloadCodec.MAX_LEGACY_S2C_PAYLOAD_BYTES) {
+                logger.warn("Dropping oversized legacy S2C payload (size={})", frame.size)
+                return null
+            }
             return frame
         }
 

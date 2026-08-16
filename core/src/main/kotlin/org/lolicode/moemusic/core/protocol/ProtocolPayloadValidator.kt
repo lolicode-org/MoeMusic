@@ -15,7 +15,7 @@ object ProtocolPayloadValidator {
      * Validate an inbound client-to-server payload before decoding it.
      *
      * [declaredProtocolVersion] is null until the peer has completed a handshake. The handshake
-     * itself remains the one unframed negotiation packet and is accepted without a declaration.
+     * itself remains the one unframed negotiation packet and is bounded by the legacy C2S limit.
      */
     fun acceptsClientToServer(
         packetId: PacketId,
@@ -23,7 +23,8 @@ object ProtocolPayloadValidator {
         declaredProtocolVersion: Int?,
     ): Boolean {
         if (packetId == PacketIds.CLIENT_HANDSHAKE) {
-            return !FramedPayloadCodec.isFramed(payload)
+            return !FramedPayloadCodec.isFramed(payload) &&
+                payload.size <= FramedPayloadCodec.MAX_LEGACY_C2S_PAYLOAD_BYTES
         }
         val protocolVersion = declaredProtocolVersion ?: return false
         return matchesEstablishedProtocol(payload, protocolVersion, allowChunking = false)
@@ -43,7 +44,11 @@ object ProtocolPayloadValidator {
         serverSessionAccepted: Boolean,
     ): Boolean {
         if (packetId == PacketIds.SERVER_WELCOME && !serverSessionAccepted) {
-            return activeProtocolVersion >= 3 || !FramedPayloadCodec.isFramed(payload)
+            if (!FramedPayloadCodec.isFramed(payload)) {
+                return payload.size <= FramedPayloadCodec.MAX_LEGACY_S2C_PAYLOAD_BYTES
+            }
+            return activeProtocolVersion >= 3 &&
+                matchesEstablishedProtocol(payload, activeProtocolVersion, allowChunking = true)
         }
         if (!serverSessionAccepted) return false
         return matchesEstablishedProtocol(payload, activeProtocolVersion, allowChunking = true)
@@ -61,12 +66,19 @@ object ProtocolPayloadValidator {
         activeProtocolVersion: Int,
         serverSessionAccepted: Boolean,
     ): Boolean {
-        val framed = FramedPayloadCodec.isFramed(payload)
         if (serverSessionAccepted) {
             return matchesEstablishedProtocol(payload, activeProtocolVersion, allowChunking = true)
         }
-        if (!welcome.accepted) return !framed
-        return (activeProtocolVersion >= 3) == framed
+        if (!welcome.accepted) {
+            return !FramedPayloadCodec.isFramed(payload) &&
+                payload.size <= FramedPayloadCodec.MAX_LEGACY_S2C_PAYLOAD_BYTES
+        }
+        return if (activeProtocolVersion >= 3) {
+            matchesEstablishedProtocol(payload, activeProtocolVersion, allowChunking = true)
+        } else {
+            !FramedPayloadCodec.isFramed(payload) &&
+                payload.size <= FramedPayloadCodec.MAX_LEGACY_S2C_PAYLOAD_BYTES
+        }
     }
 
     /**
@@ -80,11 +92,20 @@ object ProtocolPayloadValidator {
         protocolVersion: Int,
         allowChunking: Boolean,
     ): Boolean {
-        val framed = FramedPayloadCodec.isFramed(payload)
         if (protocolVersion >= 3) {
-            if (!framed) return false
-            return allowChunking || !FramedPayloadCodec.isChunk(payload[0])
+            if (!FramedPayloadCodec.isFramed(payload)) return false
+            return if (FramedPayloadCodec.isChunk(payload[0])) {
+                allowChunking && payload.size <= FramedPayloadCodec.MAX_CHUNK_FRAME_BYTES
+            } else {
+                FramedPayloadCodec.isValidSingleFrame(payload)
+            }
         }
-        return !framed
+
+        return !FramedPayloadCodec.isFramed(payload) &&
+            payload.size <= if (allowChunking) {
+                FramedPayloadCodec.MAX_LEGACY_S2C_PAYLOAD_BYTES
+            } else {
+                FramedPayloadCodec.MAX_LEGACY_C2S_PAYLOAD_BYTES
+            }
     }
 }

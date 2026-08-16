@@ -277,4 +277,26 @@ class ClientChunkAssemblerTest {
 
         assertNull(assembler.process(buf.array()))
     }
+
+    @Test
+    fun `process drops oversized raw and compressed single frames`() {
+        val assembler = ClientChunkAssembler()
+        val oversizedRaw = ByteArray(FramedPayloadCodec.MAX_SINGLE_FRAME_BYTES + 1).also {
+            it[0] = FramedPayloadCodec.FLAG_RAW
+        }
+        val oversizedCompressed = ByteArray(FramedPayloadCodec.MAX_SINGLE_FRAME_BYTES + 1).also {
+            it[0] = FramedPayloadCodec.FLAG_COMPRESSED
+        }
+
+        assertNull(assembler.process(oversizedRaw))
+        assertNull(assembler.process(oversizedCompressed))
+    }
+
+    @Test
+    fun `process drops oversized legacy S2C payload`() {
+        val assembler = ClientChunkAssembler()
+        val oversized = ByteArray(FramedPayloadCodec.MAX_LEGACY_S2C_PAYLOAD_BYTES + 1) { 0x7F }
+
+        assertNull(assembler.process(oversized))
+    }
 }

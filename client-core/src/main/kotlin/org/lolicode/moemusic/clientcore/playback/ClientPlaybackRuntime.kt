@@ -1012,11 +1012,7 @@ class ClientPlaybackRuntime(
 
     private fun wrapClientPayload(payload: ByteArray, protocolVersion: Int = activeProtocolVersion): ByteArray {
         if (protocolVersion < 3) return payload
-        val frames = FramedPayloadCodec.encode(payload)
-        require(frames.size == 1 && !FramedPayloadCodec.isChunk(frames[0][0])) {
-            "C2S payload of ${payload.size} bytes cannot be sent in a single frame (C2S chunking is forbidden)"
-        }
-        return frames[0]
+        return FramedPayloadCodec.encodeSingle(payload)
     }
 
     private fun trySendToServer(
@@ -1026,7 +1022,14 @@ class ClientPlaybackRuntime(
         payloadFactory: () -> ByteArray,
     ): Exception? = try {
         val payload = payloadFactory()
-        platform.sendToServer(packetId, if (framed) wrapClientPayload(payload, protocolVersion) else payload)
+        val wirePayload = if (framed) wrapClientPayload(payload, protocolVersion) else payload
+        if (!FramedPayloadCodec.isFramed(wirePayload)) {
+            require(wirePayload.size <= FramedPayloadCodec.MAX_LEGACY_C2S_PAYLOAD_BYTES) {
+                "Unframed C2S payload size ${wirePayload.size} exceeds maximum " +
+                    FramedPayloadCodec.MAX_LEGACY_C2S_PAYLOAD_BYTES
+            }
+        }
+        platform.sendToServer(packetId, wirePayload)
         null
     } catch (e: CancellationException) {
         throw e

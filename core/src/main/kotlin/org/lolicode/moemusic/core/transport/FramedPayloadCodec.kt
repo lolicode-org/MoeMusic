@@ -31,15 +31,26 @@ object FramedPayloadCodec {
     /** Absolute maximum reassembled payload size (1 MB). */
     const val MAX_ASSEMBLED_BYTES = 1024 * 1024
 
+    /** Header size for chunked frames: Flag (1B) + TransferId (2B) + ChunkIndex (2B) + TotalChunks (2B) + TotalBytes (4B) = 11B. */
+    const val CHUNK_HEADER_SIZE = 1 + 2 + 2 + 2 + 4
+
+    /** Maximum unframed client-to-server payload supported by every platform transport. */
+    const val MAX_LEGACY_C2S_PAYLOAD_BYTES = 32_766
+
+    /** Maximum unframed server-to-client payload; preserves the existing 1 MiB limit. */
+    const val MAX_LEGACY_S2C_PAYLOAD_BYTES = MAX_ASSEMBLED_BYTES
+
+    /** Maximum encoded size of a single framed payload. */
+    const val MAX_SINGLE_FRAME_BYTES = 1 + CHUNK_PAYLOAD_SIZE
+
+    /** Maximum encoded size of a chunk frame. */
+    const val MAX_CHUNK_FRAME_BYTES = CHUNK_HEADER_SIZE + CHUNK_PAYLOAD_SIZE
+
     /** Maximum compressed payload bytes that can be represented across chunk frames (35 * 30 KB). */
     const val MAX_COMPRESSED_CHUNK_BYTES = MAX_CHUNKS * CHUNK_PAYLOAD_SIZE
 
     /** Payload byte threshold below which compression is skipped. */
     const val COMPRESSION_THRESHOLD_BYTES = 128
-
-    /** Header size for chunked frames: Flag (1B) + TransferId (2B) + ChunkIndex (2B) + TotalChunks (2B) + TotalBytes (4B) = 11B. */
-    const val CHUNK_HEADER_SIZE = 1 + 2 + 2 + 2 + 4
-
     /**
      * Next rotating transfer identifier, masked to 15 bits (0..32767) and wrapped on overflow.
      *
@@ -63,6 +74,11 @@ object FramedPayloadCodec {
 
     fun isChunk(flag: Byte): Boolean =
         flag == FLAG_CHUNK_RAW || flag == FLAG_CHUNK_COMPRESSED
+    /** Returns true when [frame] is a bounded raw or compressed single frame. */
+    fun isValidSingleFrame(frame: ByteArray): Boolean =
+        frame.isNotEmpty() &&
+            frame.size <= MAX_SINGLE_FRAME_BYTES &&
+            (frame[0] == FLAG_RAW || frame[0] == FLAG_COMPRESSED)
 
     /**
      * Encodes a raw Protobuf byte array into one or more transport frames.
@@ -79,13 +95,7 @@ object FramedPayloadCodec {
             "Payload size ${payload.size} exceeds maximum assembled bytes $MAX_ASSEMBLED_BYTES"
         }
 
-        val compressed = if (payload.size >= COMPRESSION_THRESHOLD_BYTES) {
-            compress(payload)
-        } else null
-
-        val useCompression = compressed != null && compressed.size < payload.size
-        val dataToSend = if (useCompression) requireNotNull(compressed) else payload
-
+        val (dataToSend, useCompression) = selectEncodedPayload(payload)
         if (dataToSend.size <= CHUNK_PAYLOAD_SIZE) {
             val singleFlag = if (useCompression) FLAG_COMPRESSED else FLAG_RAW
             val single = ByteArray(1 + dataToSend.size)
@@ -95,9 +105,8 @@ object FramedPayloadCodec {
         }
 
         // Payload exceeds chunk size: split into chunk frames (compressed if beneficial, raw otherwise)
-        val dataToChunk = dataToSend
         val chunkFlag = if (useCompression) FLAG_CHUNK_COMPRESSED else FLAG_CHUNK_RAW
-        val totalBytes = dataToChunk.size
+        val totalBytes = dataToSend.size
         require(totalBytes <= MAX_COMPRESSED_CHUNK_BYTES) {
             "Payload size $totalBytes exceeds maximum chunk capacity $MAX_COMPRESSED_CHUNK_BYTES"
         }
@@ -117,10 +126,33 @@ object FramedPayloadCodec {
             chunkBuf.putShort(i.toShort())
             chunkBuf.putShort(totalChunks)
             chunkBuf.putInt(totalBytes)
-            chunkBuf.put(dataToChunk, offset, len)
+            chunkBuf.put(dataToSend, offset, len)
             chunks.add(chunkBuf.array())
         }
         return chunks
+    }
+
+    /** Encodes a v3 client-to-server payload without allocating chunk frames. */
+    fun encodeSingle(payload: ByteArray): ByteArray {
+        require(payload.size <= MAX_ASSEMBLED_BYTES) {
+            "Payload size ${payload.size} exceeds maximum assembled bytes $MAX_ASSEMBLED_BYTES"
+        }
+
+        val (dataToSend, useCompression) = selectEncodedPayload(payload)
+        require(dataToSend.size <= CHUNK_PAYLOAD_SIZE) {
+            "Encoded payload size ${dataToSend.size} exceeds single-frame payload limit $CHUNK_PAYLOAD_SIZE"
+        }
+
+        val frame = ByteArray(1 + dataToSend.size)
+        frame[0] = if (useCompression) FLAG_COMPRESSED else FLAG_RAW
+        System.arraycopy(dataToSend, 0, frame, 1, dataToSend.size)
+        return frame
+    }
+
+    private fun selectEncodedPayload(payload: ByteArray): Pair<ByteArray, Boolean> {
+        val compressed = if (payload.size >= COMPRESSION_THRESHOLD_BYTES) compress(payload) else null
+        val useCompression = compressed != null && compressed.size < payload.size
+        return (if (useCompression) requireNotNull(compressed) else payload) to useCompression
     }
 
     /**
@@ -130,6 +162,9 @@ object FramedPayloadCodec {
      */
     fun decodeSingle(frame: ByteArray): ByteArray {
         require(frame.isNotEmpty()) { "Cannot decode empty framed payload" }
+        require(frame.size <= MAX_SINGLE_FRAME_BYTES) {
+            "Single frame size ${frame.size} exceeds maximum $MAX_SINGLE_FRAME_BYTES"
+        }
         return when (val flag = frame[0]) {
             FLAG_RAW -> {
                 val result = ByteArray(frame.size - 1)
@@ -163,7 +198,12 @@ object FramedPayloadCodec {
         return when (raw[0]) {
             FLAG_RAW, FLAG_COMPRESSED -> decodeSingle(raw)
             FLAG_CHUNK_RAW, FLAG_CHUNK_COMPRESSED -> throw IllegalArgumentException("Unexpected chunked frame in C2S packet")
-            else -> raw
+            else -> {
+                require(raw.size <= MAX_LEGACY_C2S_PAYLOAD_BYTES) {
+                    "Legacy C2S payload size ${raw.size} exceeds maximum $MAX_LEGACY_C2S_PAYLOAD_BYTES"
+                }
+                raw
+            }
         }
     }
 

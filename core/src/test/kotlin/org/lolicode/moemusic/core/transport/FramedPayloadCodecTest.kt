@@ -139,4 +139,61 @@ class FramedPayloadCodecTest {
             FramedPayloadCodec.encode(oversizedCompressible)
         }
     }
+
+    @Test
+    fun `encodeSingle compresses large repetitive payload into one bounded frame`() {
+        val payload = ByteArray(40 * 1024) { if (it % 2 == 0) 0 else 1 }
+
+        val frame = FramedPayloadCodec.encodeSingle(payload)
+
+        assertEquals(FramedPayloadCodec.FLAG_COMPRESSED, frame[0])
+        assertTrue(frame.size <= FramedPayloadCodec.MAX_SINGLE_FRAME_BYTES)
+        assertArrayEquals(payload, FramedPayloadCodec.decodeSingle(frame))
+    }
+
+    @Test
+    fun `encodeSingle rejects incompressible payload that would require chunks`() {
+        val payload = ByteArray(FramedPayloadCodec.CHUNK_PAYLOAD_SIZE + 1).also {
+            java.util.Random(42).nextBytes(it)
+        }
+
+        assertThrows<IllegalArgumentException> {
+            FramedPayloadCodec.encodeSingle(payload)
+        }
+    }
+
+    @Test
+    fun `decodeSingle rejects oversized raw and compressed frames before decoding`() {
+        val oversizedRaw = ByteArray(FramedPayloadCodec.MAX_SINGLE_FRAME_BYTES + 1).also {
+            it[0] = FramedPayloadCodec.FLAG_RAW
+        }
+        val oversizedCompressed = ByteArray(FramedPayloadCodec.MAX_SINGLE_FRAME_BYTES + 1).also {
+            it[0] = FramedPayloadCodec.FLAG_COMPRESSED
+        }
+
+        assertThrows<IllegalArgumentException> { FramedPayloadCodec.decodeSingle(oversizedRaw) }
+        assertThrows<IllegalArgumentException> { FramedPayloadCodec.decodeSingle(oversizedCompressed) }
+    }
+
+    @Test
+    fun `decompression accepts exactly 1 MiB and rejects one byte beyond`() {
+        val exact = ByteArray(FramedPayloadCodec.MAX_ASSEMBLED_BYTES) { 0 }
+        val oversized = ByteArray(FramedPayloadCodec.MAX_ASSEMBLED_BYTES + 1) { 0 }
+
+        assertArrayEquals(exact, FramedPayloadCodec.decompress(FramedPayloadCodec.compress(exact)))
+        assertThrows<IllegalArgumentException> {
+            FramedPayloadCodec.decompress(FramedPayloadCodec.compress(oversized))
+        }
+    }
+
+    @Test
+    fun `legacy C2S payload accepts exact ceiling and rejects one byte beyond`() {
+        val exact = ByteArray(FramedPayloadCodec.MAX_LEGACY_C2S_PAYLOAD_BYTES) { 0x7F }
+        val oversized = ByteArray(FramedPayloadCodec.MAX_LEGACY_C2S_PAYLOAD_BYTES + 1) { 0x7F }
+
+        assertArrayEquals(exact, FramedPayloadCodec.unwrapServerInbound(exact))
+        assertThrows<IllegalArgumentException> {
+            FramedPayloadCodec.unwrapServerInbound(oversized)
+        }
+    }
 }

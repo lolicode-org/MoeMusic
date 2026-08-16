@@ -658,20 +658,37 @@ class ClientPlaybackRuntimeTest {
         assertTrue(normalPacket[0] == FramedPayloadCodec.FLAG_RAW || normalPacket[0] == FramedPayloadCodec.FLAG_COMPRESSED)
 
         // Oversized C2S requests complete the request exceptionally instead of escaping the caller.
+        val searchPacketsBefore = harness.platform.sentPackets.count { it.packetId == PacketIds.SEARCH_REQUEST }
         val randomBytes = ByteArray(40 * 1024).also { java.util.Random(42).nextBytes(it) }
         val oversizedQuery = String(randomBytes, Charsets.ISO_8859_1)
         val rejected = assertNotNull(harness.runtime.beginSearchRequest(query = oversizedQuery, sourceId = "youtube", limit = 20, offset = 0))
         assertFailsWith<ClientRequestException> {
             runBlocking { rejected.await() }
         }
+        assertEquals(searchPacketsBefore, harness.platform.sentPackets.count { it.packetId == PacketIds.SEARCH_REQUEST })
 
         // A normal request after failure succeeds and is not blocked by stale pending state.
         val validDeferred = harness.runtime.beginSearchRequest(query = "valid query", sourceId = "youtube", limit = 20, offset = 0)
         assertNotNull(validDeferred)
         val searchReqPacket = harness.platform.sentPackets.last { it.packetId == PacketIds.SEARCH_REQUEST }.payload
         assertTrue(searchReqPacket[0] == FramedPayloadCodec.FLAG_RAW || searchReqPacket[0] == FramedPayloadCodec.FLAG_COMPRESSED)
+        assertEquals(searchPacketsBefore + 1, harness.platform.sentPackets.count { it.packetId == PacketIds.SEARCH_REQUEST })
     }
 
+    @Test
+    fun `large repetitive C2S request is compressed into one bounded frame`() {
+        val harness = harness()
+        harness.acceptWelcome()
+        val query = "MoeMusic synchronized lyrics ".repeat(2_000)
+        val logical = SearchRequest(query = query, source_id = "youtube", limit = 20, offset = 0, request_id = 1L).encode()
+        assertTrue(logical.size > FramedPayloadCodec.CHUNK_PAYLOAD_SIZE)
+
+        assertNotNull(harness.runtime.sendSearchRequest(query = query, sourceId = "youtube", limit = 20, offset = 0))
+        val frame = harness.platform.sentPackets.last { it.packetId == PacketIds.SEARCH_REQUEST }.payload
+        assertEquals(FramedPayloadCodec.FLAG_COMPRESSED, frame[0])
+        assertTrue(FramedPayloadCodec.isValidSingleFrame(frame))
+        assertTrue(frame.size <= FramedPayloadCodec.MAX_SINGLE_FRAME_BYTES)
+    }
     @Test
     fun `client packet send failures return failed requests without escaping`() = runBlocking {
         val harness = harness()
