@@ -1,7 +1,7 @@
 [versions]
 # MoeMusic module and compatibility versions.
-moemusic-api = "2.1.1"  # Used as maven artifact version for API modules.
-moemusic-api-compat = "2.1.0"  # Used in core for plugin compatibility checks.
+moemusic-api = "2.2.0"  # Used as maven artifact version for API modules.
+moemusic-api-compat = "2.2.0"  # Used in core for plugin compatibility checks.
 moemusic-protocol = "3"
 moemusic-core = "1.4.0"
 moemusic-client-core = "1.4.0"

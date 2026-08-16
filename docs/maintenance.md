@@ -284,6 +284,22 @@ Protocol version 3 introduces an in-band framing layer for established-session p
   - **Server Compatibility**: Servers accept handshake protocol versions from v2 through the current protocol version. For legacy v2 clients, servers partition broadcasts and send legacy unframed, uncompressed payloads capped at 1 MB ($1,048,576\text{ B}$) to respect Vanilla Minecraft's single-packet limit, with stripped optional fields (e.g. lyrics).
   - **Client Compatibility**: If a v3 client connects to a legacy v2 server and receives a handshake rejection with `server_protocol_version = 2`, the client automatically downgrades its active session to protocol v2, disables framing/compression, and re-initiates handshake transparently.
 
+### Queue and Selection Pagination (Protocol v3 & Commands)
+
+Protocol version 3 bounds queue and container selection responses over the network and in chat commands:
+
+- **Queue Pagination**:
+  - `QUEUE_REQUEST` and `UI_BOOTSTRAP_REQUEST` accept `limit` and `offset` query parameters. S2C `QUEUE_RESPONSE` and `UI_BOOTSTRAP_RESPONSE` return the slice of tracks along with `offset`, `total`, and `has_more` boolean.
+  - Server-side track queue slicing is performed via `TrackQueue.userQueueSlice(offset, limit)`.
+  - Client GUI seamlessly prefetches additional queue items when the user scrolls near the end of loaded results, and invalidates from offset 0 upon queue mutations (submission, track removal, advancement).
+- **Selection Session Management**:
+  - Container selection entries (e.g. album tracks, playlists) resolved by upstream plugins are buffered in server memory via `SelectionSessionManager`.
+  - `IDENTIFIER_SUBMIT_RESPONSE` and `SELECTION_SUBMIT_RESPONSE` return the initial slice of choices alongside an ephemeral `session_id`, `offset`, `total`, and `has_more`.
+  - Dedicated `SELECTION_PAGE_REQUEST` and `SELECTION_PAGE_RESPONSE` allow the client to paginate through remaining choices on demand.
+  - **Session Isolation & Lifecycles**: Sessions are strictly isolated by owner user UUID. A player or console cannot access another player's selection session unless they hold elevated moderation permissions (`QUEUE_CONTROL`). Sessions expire automatically after configured TTL (default 10 minutes) or upon player disconnect (`UserSessionRegistry.unregisterSession`).
+- **Command Pagination**:
+  - Chat commands `/music queue [page]`, `/music list [page]`, and `/music choices <sessionId> [page]` format results in standard pages (default 8 entries per page) with interactive clickable `< (page / total) >` navigation footers.
+
 ## Localization
 
 Shared `assets/moemusic/lang/*.json` bundles must be loaded independently of discovered plugins. Core rendering is used even when zero plugins are installed, so localization cannot depend on built-in plugin discovery.

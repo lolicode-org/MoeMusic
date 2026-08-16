@@ -114,7 +114,8 @@ class PluginManagerTest {
 
     private val testClientRequestService = object : IClientRequestService {
         override suspend fun search(query: SearchQuery): ClientSearchPage = error("unused")
-        override suspend fun requestQueue(): ClientQueueSnapshot = error("unused")
+        override suspend fun requestQueue(offset: Int, limit: Int): ClientQueueSnapshot = error("unused")
+        override suspend fun requestSelectionPage(sessionId: String, offset: Int, limit: Int): ClientSelectionPage = error("unused")
         override suspend fun removeQueuedTrack(sourceId: String, trackId: String): ClientActionFeedback = error("unused")
         override suspend fun submitTrack(track: TrackInfo, mode: TrackAddMode): ClientTrackSubmitResult = error("unused")
         override suspend fun submitIdentifier(identifier: String, mode: TrackAddMode): ClientIdentifierSubmitResult = error("unused")

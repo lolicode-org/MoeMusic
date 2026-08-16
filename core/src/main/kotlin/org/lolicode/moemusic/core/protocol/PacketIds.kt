@@ -58,6 +58,9 @@ object PacketIds {
     /** Client requests an exact content-filter rule mutation on the server. */
     val CONTENT_FILTER_ACTION_REQUEST = PacketId(NS, "content_filter_action_request")
 
+    /** Client requests a specific page of choices from an active selection session. */
+    val SELECTION_PAGE_REQUEST = PacketId(NS, "selection_page_request")
+
     // -------------------------------------------------------------------------
     // S→C (server to client)
     // -------------------------------------------------------------------------
@@ -83,6 +86,9 @@ object PacketIds {
     /** Server's response to a UiBootstrapRequest. */
     val UI_BOOTSTRAP_RESPONSE = PacketId(NS, "ui_bootstrap_response")
 
+    /** Server's response to a SelectionPageRequest. */
+    val SELECTION_PAGE_RESPONSE = PacketId(NS, "selection_page_response")
+
     /** Server's response to a QueueRemoveRequest. */
     val QUEUE_REMOVE_RESPONSE = PacketId(NS, "queue_remove_response")
 
@@ -94,9 +100,9 @@ object PacketIds {
 
     /** All registered IDs, in definition order — convenient for bulk registration. */
     val ALL: List<PacketId> = listOf(
-        CLIENT_HANDSHAKE, CLIENT_STATE_CHANGE, SYNC_REQUEST, TRACK_SUBMIT, IDENTIFIER_SUBMIT, SELECTION_SUBMIT, SEARCH_REQUEST,
+        CLIENT_HANDSHAKE, CLIENT_STATE_CHANGE, SYNC_REQUEST, TRACK_SUBMIT, IDENTIFIER_SUBMIT, SELECTION_SUBMIT, SELECTION_PAGE_REQUEST, SEARCH_REQUEST,
         QUEUE_REQUEST, UI_BOOTSTRAP_REQUEST, QUEUE_REMOVE_REQUEST, PLAYBACK_CONTROL_REQUEST, CONTENT_FILTER_ACTION_REQUEST,
-        TRACK_SUBMIT_RESPONSE, IDENTIFIER_SUBMIT_RESPONSE, SELECTION_SUBMIT_RESPONSE, SYNC_RESPONSE, SERVER_WELCOME, PLAYBACK_SNAPSHOT_PUSH, STATE_UPDATE,
+        TRACK_SUBMIT_RESPONSE, IDENTIFIER_SUBMIT_RESPONSE, SELECTION_SUBMIT_RESPONSE, SELECTION_PAGE_RESPONSE, SYNC_RESPONSE, SERVER_WELCOME, PLAYBACK_SNAPSHOT_PUSH, STATE_UPDATE,
         SEARCH_RESPONSE,
         QUEUE_RESPONSE, UI_BOOTSTRAP_RESPONSE, QUEUE_REMOVE_RESPONSE, PLAYBACK_CONTROL_RESPONSE, CONTENT_FILTER_ACTION_RESPONSE,
     )

@@ -7,6 +7,7 @@ import org.lolicode.moemusic.api.event.OnUserSessionEnded
 import org.lolicode.moemusic.api.event.OnUserParticipationChanged
 import org.lolicode.moemusic.core.event.CoreEvents
 import org.lolicode.moemusic.core.protocol.MoeMusicProtocol
+import org.lolicode.moemusic.core.source.SelectionSessionManager
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -124,6 +125,7 @@ object UserSessionRegistry {
 
     fun disconnect(userId: UUID): Session? {
         val removed = sessions.remove(userId)
+        SelectionSessionManager.clearUserSessions(userId)
         if (removed == null) {
             localeHints.remove(userId)
             return null
@@ -163,6 +165,7 @@ object UserSessionRegistry {
 
     fun clear() {
         sessions.keys.toList().forEach(::disconnect)
+        SelectionSessionManager.clear()
         localeHints.clear()
     }
 

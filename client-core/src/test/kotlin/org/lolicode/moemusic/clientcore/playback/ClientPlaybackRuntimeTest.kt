@@ -234,7 +234,7 @@ class ClientPlaybackRuntimeTest {
         assertSame(response, deferred.await())
         assertSame(response, harness.runtime.lastSearchResponse)
         assertSame(response, harness.listener.searchResponses.single())
-        val cached = assertNotNull(harness.runtime.cachedSearchState)
+        val cached = assertNotNull(harness.runtime.cachedSearchTabState)
         assertEquals("lofi", cached.query)
         assertEquals("youtube", cached.sourceId)
         assertEquals(1, cached.total)

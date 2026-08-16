@@ -90,6 +90,9 @@ public data class ClientSearchPage(
 public data class ClientQueueSnapshot(
     val tracks: List<TrackInfo>,
     val failureMessage: String? = null,
+    val offset: Int = 0,
+    val total: Int = tracks.size,
+    val hasMore: Boolean = false,
 )
 
 /**
@@ -115,6 +118,10 @@ public data class ClientIdentifierSubmitResult(
     val choices: List<SelectionEntry> = emptyList(),
     val successMessage: String? = null,
     val failureMessage: String? = null,
+    val offset: Int = 0,
+    val total: Int = choices.size,
+    val hasMore: Boolean = false,
+    val sessionId: String? = null,
 )
 
 /**
@@ -127,6 +134,24 @@ public data class ClientSelectionSubmitResult(
     val trackTitle: String? = null,
     val choices: List<SelectionEntry> = emptyList(),
     val successMessage: String? = null,
+    val failureMessage: String? = null,
+    val offset: Int = 0,
+    val total: Int = choices.size,
+    val hasMore: Boolean = false,
+    val sessionId: String? = null,
+)
+
+/**
+ * Client-side response for a selection choice page request.
+ * Read-only host-produced type. Do not construct, destructure, or copy.
+ * Appending fields is binary-safe for read-only consumers.
+ */
+public data class ClientSelectionPage(
+    val sessionId: String,
+    val choices: List<SelectionEntry> = emptyList(),
+    val offset: Int = 0,
+    val total: Int = choices.size,
+    val hasMore: Boolean = false,
     val failureMessage: String? = null,
 )
 

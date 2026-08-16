@@ -16,12 +16,13 @@ private const val DEFAULT_REQUEST_TIMEOUT_MS = 15_000L
 interface ClientRequestTransport {
     fun ensureDirectRequestSessionReady()
     fun beginSearchRequest(query: String, sourceId: String, limit: Int, offset: Int): Deferred<SearchResponse>?
-    fun beginQueueRequest(): Deferred<QueueResponse>?
+    fun beginQueueRequest(limit: Int = 0, offset: Int = 0): Deferred<QueueResponse>?
     fun beginQueueRemoveRequest(sourceId: String, trackId: String): Deferred<QueueRemoveResponse>?
     fun beginTrackSubmitRequest(track: TrackInfo, mode: TrackAddMode): Deferred<TrackSubmitResponse>?
     fun beginTrackSubmitRequest(entry: SelectionEntry, mode: TrackAddMode): Deferred<TrackSubmitResponse>?
     fun beginIdentifierSubmitRequest(identifier: String, mode: TrackAddMode): Deferred<IdentifierSubmitResponse>?
     fun beginSelectionSubmitRequest(entry: SelectionEntry, mode: TrackAddMode): Deferred<SelectionSubmitResponse>?
+    fun beginSelectionPageRequest(sessionId: String, offset: Int, limit: Int): Deferred<SelectionPageResponse>?
     fun beginPlaybackControlRequest(action: PlaybackControlAction, positionMs: Long): Deferred<PlaybackControlResponse>?
     fun beginContentFilterTrackActionRequest(
         sourceId: String,
@@ -52,11 +53,17 @@ class DirectClientRequestService(
                 offset = query.offset,
             )
         }
+        val entries = response.entries.map { it.toApi() }
+        val effectiveTotal = if (response.total == 0 && entries.isNotEmpty()) {
+            (response.offset + entries.size).coerceAtLeast(entries.size)
+        } else {
+            response.total
+        }
         return ClientSearchPage(
             result = SearchResult(
-                entries = response.entries.map { it.toApi() },
+                entries = entries,
                 sourceId = response.source_id,
-                total = response.total,
+                total = effectiveTotal,
             ) {
                 hasMore = response.has_more
             },
@@ -64,10 +71,74 @@ class DirectClientRequestService(
         )
     }
 
-    override suspend fun requestQueue(): ClientQueueSnapshot {
-        val response = awaitResponse(transport::beginQueueRequest)
+    companion object {
+        private const val MAX_UNPAGINATED_QUEUE_TRACKS = 1000
+        private const val MAX_UNPAGINATED_QUEUE_PAGES = 50
+    }
+
+    override suspend fun requestFullQueue(): ClientQueueSnapshot {
+        val firstPage = requestQueue(offset = 0, limit = 0)
+        if (!firstPage.hasMore || firstPage.tracks.isEmpty() || firstPage.failureMessage != null) {
+            return firstPage
+        }
+        val allTracks = firstPage.tracks.toMutableList()
+        var currentOffset = firstPage.tracks.size
+        var hasMore = firstPage.hasMore
+        var lastFailure = firstPage.failureMessage
+        var pagesFetched = 1
+
+        while (hasMore && allTracks.size < MAX_UNPAGINATED_QUEUE_TRACKS && pagesFetched < MAX_UNPAGINATED_QUEUE_PAGES) {
+            val page = requestQueue(offset = currentOffset, limit = 0)
+            pagesFetched++
+            if (page.tracks.isEmpty() || page.failureMessage != null) {
+                lastFailure = page.failureMessage
+                break
+            }
+            allTracks.addAll(page.tracks)
+            currentOffset += page.tracks.size
+            hasMore = page.hasMore
+        }
         return ClientQueueSnapshot(
-            tracks = response.tracks.map { it.toApi() },
+            tracks = allTracks,
+            offset = 0,
+            total = allTracks.size,
+            hasMore = false,
+            failureMessage = lastFailure,
+        )
+    }
+
+    @Deprecated("Use requestFullQueue()", ReplaceWith("requestFullQueue()"))
+    override suspend fun requestQueue(): ClientQueueSnapshot = requestFullQueue()
+
+    override suspend fun requestQueue(offset: Int, limit: Int): ClientQueueSnapshot {
+        val response = awaitResponse { transport.beginQueueRequest(limit = limit, offset = offset) }
+        val tracks = response.tracks.map { it.toApi() }
+        val effectiveTotal = if (response.total == 0 && tracks.isNotEmpty()) {
+            (response.offset + tracks.size).coerceAtLeast(tracks.size)
+        } else {
+            response.total
+        }
+        return ClientQueueSnapshot(
+            tracks = tracks,
+            offset = response.offset,
+            total = effectiveTotal,
+            hasMore = response.has_more,
+            failureMessage = response.failure.ifEmpty { null },
+        )
+    }
+
+    override suspend fun requestSelectionPage(
+        sessionId: String,
+        offset: Int,
+        limit: Int,
+    ): ClientSelectionPage {
+        val response = awaitResponse { transport.beginSelectionPageRequest(sessionId, offset, limit) }
+        return ClientSelectionPage(
+            sessionId = response.session_id.ifEmpty { sessionId },
+            choices = response.choices.map { it.toApi() },
+            offset = response.offset,
+            total = response.total,
+            hasMore = response.has_more,
             failureMessage = response.failure.ifEmpty { null },
         )
     }
@@ -202,23 +273,45 @@ class DirectClientRequestService(
             failureMessage = failure.ifEmpty { null },
         )
 
-    private fun IdentifierSubmitResponse.toClientResult(): ClientIdentifierSubmitResult =
-        ClientIdentifierSubmitResult(
+    private fun IdentifierSubmitResponse.toClientResult(): ClientIdentifierSubmitResult {
+        val mappedChoices = choices.map { it.toApi() }
+        val effectiveTotal = if (total == 0 && mappedChoices.isNotEmpty()) {
+            (offset + mappedChoices.size).coerceAtLeast(mappedChoices.size)
+        } else {
+            total
+        }
+        return ClientIdentifierSubmitResult(
             trackId = track_id.ifEmpty { null },
             trackTitle = track_title.ifEmpty { null },
-            choices = choices.map { it.toApi() },
+            choices = mappedChoices,
+            offset = offset,
+            total = effectiveTotal,
+            hasMore = has_more,
+            sessionId = session_id.ifEmpty { null },
             successMessage = success.ifEmpty { null },
             failureMessage = failure.ifEmpty { null },
         )
+    }
 
-    private fun SelectionSubmitResponse.toClientResult(): ClientSelectionSubmitResult =
-        ClientSelectionSubmitResult(
+    private fun SelectionSubmitResponse.toClientResult(): ClientSelectionSubmitResult {
+        val mappedChoices = choices.map { it.toApi() }
+        val effectiveTotal = if (total == 0 && mappedChoices.isNotEmpty()) {
+            (offset + mappedChoices.size).coerceAtLeast(mappedChoices.size)
+        } else {
+            total
+        }
+        return ClientSelectionSubmitResult(
             trackId = track_id.ifEmpty { null },
             trackTitle = track_title.ifEmpty { null },
-            choices = choices.map { it.toApi() },
+            choices = mappedChoices,
+            offset = offset,
+            total = effectiveTotal,
+            hasMore = has_more,
+            sessionId = session_id.ifEmpty { null },
             successMessage = success.ifEmpty { null },
             failureMessage = failure.ifEmpty { null },
         )
+    }
 
     private fun PlaybackAction.toProto(): PlaybackControlAction =
         when (this) {

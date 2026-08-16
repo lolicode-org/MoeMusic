@@ -188,6 +188,30 @@ data class MediaPolicyConfig(
     val maxSearchResultsPerPage: Int = 50,
 
     /**
+     * Hard server-side clamp for queue page size, regardless of what a client requests.
+     */
+    @SerialName("max_queue_results_per_page")
+    val maxQueueResultsPerPage: Int = 50,
+
+    /**
+     * Hard server-side clamp for selection choice page size, regardless of what a client requests.
+     */
+    @SerialName("max_selection_results_per_page")
+    val maxSelectionResultsPerPage: Int = 50,
+
+    /**
+     * Time-to-live for ephemeral server-side selection choice sessions, in minutes.
+     */
+    @SerialName("selection_session_ttl_minutes")
+    val selectionSessionTtlMinutes: Int = 10,
+
+    /**
+     * Maximum number of active cached selection choice sessions retained in memory across the server.
+     */
+    @SerialName("max_active_selection_sessions")
+    val maxActiveSelectionSessions: Int = 100,
+
+    /**
      * Lightweight per-player request rate limits applied before expensive upstream I/O.
      */
     @SerialName("rate_limit")
@@ -197,6 +221,10 @@ data class MediaPolicyConfig(
         firewall = firewall.normalized(),
         maxPlayerTrackDurationSeconds = maxPlayerTrackDurationSeconds.coerceIn(1, 604_800),
         maxSearchResultsPerPage = maxSearchResultsPerPage.coerceIn(1, 200),
+        maxQueueResultsPerPage = maxQueueResultsPerPage.coerceIn(1, 200),
+        maxSelectionResultsPerPage = maxSelectionResultsPerPage.coerceIn(1, 200),
+        selectionSessionTtlMinutes = selectionSessionTtlMinutes.coerceIn(1, 60),
+        maxActiveSelectionSessions = maxActiveSelectionSessions.coerceIn(1, 1000),
         rateLimit = rateLimit.normalized(),
     )
 }

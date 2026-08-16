@@ -18,8 +18,39 @@ public interface IClientRequestService {
     /** Issue a routed search request to the connected server. */
     public suspend fun search(query: SearchQuery): ClientSearchPage
 
-    /** Request the current authoritative user queue from the connected server. */
+    /**
+     * Request the complete authoritative user queue from the connected server.
+     *
+     * In paginated environments, this transparently fetches and merges all available pages.
+     *
+     * It has a default implementation to avoid ABI breakage, but new implementations should *always* override this method.
+     */
+    public suspend fun requestFullQueue(): ClientQueueSnapshot = requestQueue()
+
+    /**
+     * Request the full authoritative user queue from the connected server.
+     *
+     * @deprecated Prefer using [requestFullQueue] for an explicit complete snapshot, or [requestQueue(offset, limit)] for paginated access.
+     */
+    @Deprecated(
+        message = "Use requestFullQueue() for full snapshot or requestQueue(offset, limit) for pagination.",
+        replaceWith = ReplaceWith("requestFullQueue()"),
+    )
     public suspend fun requestQueue(): ClientQueueSnapshot
+
+    /**
+     * Request a paginated slice of the authoritative user queue from the connected server.
+     *
+     * It has a default implementation to avoid ABI breakage, but new implementations should *always* override this method.
+     */
+    public suspend fun requestQueue(offset: Int = 0, limit: Int = 0): ClientQueueSnapshot = requestQueue()
+
+    /** Request a page of choices from an active selection session on the connected server. */
+    public suspend fun requestSelectionPage(
+        sessionId: String,
+        offset: Int = 0,
+        limit: Int = 0,
+    ): ClientSelectionPage = throw UnsupportedOperationException("requestSelectionPage is not supported")
 
     /** Request removal of a queued track by stable `(sourceId, trackId)` identity. */
     public suspend fun removeQueuedTrack(sourceId: String, trackId: String): ClientActionFeedback

@@ -69,6 +69,7 @@ interface ClientPlaybackRuntimeListener {
     fun onTrackSubmitResponse(response: TrackSubmitResponse) {}
     fun onIdentifierSubmitResponse(response: IdentifierSubmitResponse) {}
     fun onSelectionSubmitResponse(response: SelectionSubmitResponse) {}
+    fun onSelectionPageResponse(response: SelectionPageResponse) {}
     fun onQueueResponse(response: QueueResponse) {}
     fun onQueueRemoveResponse(response: QueueRemoveResponse) {}
     fun onPlaybackControlResponse(response: PlaybackControlResponse) {}
@@ -155,6 +156,7 @@ class ClientPlaybackRuntime(
     private val pendingTrackSubmitResponses = PendingRequestRegistry<TrackSubmitResponse>()
     private val pendingIdentifierSubmitResponses = PendingRequestRegistry<IdentifierSubmitResponse>()
     private val pendingSelectionSubmitResponses = PendingRequestRegistry<SelectionSubmitResponse>()
+    private val pendingSelectionPageResponses = PendingRequestRegistry<SelectionPageResponse>()
     private val pendingQueueRemoveResponses = PendingRequestRegistry<QueueRemoveResponse>()
     private val pendingPlaybackControlResponses = PendingRequestRegistry<PlaybackControlResponse>()
     private val pendingContentFilterActionResponses = PendingRequestRegistry<ContentFilterActionResponse>()
@@ -214,6 +216,9 @@ class ClientPlaybackRuntime(
     private var latestContentFilterActionResponseRequestId: Long = 0L
 
     @Volatile
+    private var latestSelectionPageResponseRequestId: Long = 0L
+
+    @Volatile
     var serverClockOffset: Long = 0L
         private set
 
@@ -229,7 +234,11 @@ class ClientPlaybackRuntime(
         private set
 
     @Volatile
-    var cachedSearchState: CachedSearchState? = null
+    var lastSelectionPageResponse: SelectionPageResponse? = null
+        private set
+
+    @Volatile
+    var cachedSearchTabState: CachedSearchTabState? = null
         private set
 
     @Volatile
@@ -443,6 +452,7 @@ class ClientPlaybackRuntime(
             PacketIds.TRACK_SUBMIT_RESPONSE -> handleTrackSubmitResponse(TrackSubmitResponse.ADAPTER.decode(completePayload))
             PacketIds.IDENTIFIER_SUBMIT_RESPONSE -> handleIdentifierSubmitResponse(IdentifierSubmitResponse.ADAPTER.decode(completePayload))
             PacketIds.SELECTION_SUBMIT_RESPONSE -> handleSelectionSubmitResponse(SelectionSubmitResponse.ADAPTER.decode(completePayload))
+            PacketIds.SELECTION_PAGE_RESPONSE -> handleSelectionPageResponse(SelectionPageResponse.ADAPTER.decode(completePayload))
             PacketIds.QUEUE_RESPONSE -> handleQueueResponse(QueueResponse.ADAPTER.decode(completePayload))
             PacketIds.QUEUE_REMOVE_RESPONSE -> handleQueueRemoveResponse(QueueRemoveResponse.ADAPTER.decode(completePayload))
             PacketIds.PLAYBACK_CONTROL_RESPONSE -> handlePlaybackControlResponse(PlaybackControlResponse.ADAPTER.decode(completePayload))
@@ -476,6 +486,10 @@ class ClientPlaybackRuntime(
             return
         }
         val fromSyncState = msg.reason != PlaybackSnapshotPushReason.PLAYBACK_SNAPSHOT_PUSH_REASON_NEW_TRACK
+        if (!fromSyncState) {
+            lastQueueResponse = null
+            lastUiBootstrapResponse = null
+        }
         applyPlaybackSnapshot(snapshot, fromSyncState = fromSyncState)
         listener.onPlaybackSnapshotApplied()
     }
@@ -716,8 +730,8 @@ class ClientPlaybackRuntime(
         if (msg.request_id == 0L || msg.request_id >= latestSearchResponseRequestId) {
             latestSearchResponseRequestId = msg.request_id
             lastSearchResponse = msg
-            if (msg.offset == 0 || cachedSearchState?.query != msg.query || cachedSearchState?.sourceId != msg.source_id) {
-                cachedSearchState = CachedSearchState(
+            if (msg.offset == 0 || cachedSearchTabState?.query != msg.query || cachedSearchTabState?.sourceId != msg.source_id) {
+                cachedSearchTabState = CachedSearchTabState(
                     query = msg.query,
                     sourceId = msg.source_id,
                     entries = msg.entries.map { it.toApi() },
@@ -777,6 +791,26 @@ class ClientPlaybackRuntime(
         }
         pendingSelectionSubmitResponses.complete(msg.request_id, msg)
         listener.onSelectionSubmitResponse(msg)
+    }
+
+    fun handleSelectionPageResponse(msg: SelectionPageResponse) {
+        if (!canHandleDirectResponses("SelectionPageResponse")) return
+        logger.debug(
+            "{} SelectionPageResponse: session={} {} choices (offset={}, total={}, hasMore={}) failure='{}'",
+            platform.name,
+            msg.session_id,
+            msg.choices.size,
+            msg.offset,
+            msg.total,
+            msg.has_more,
+            msg.failure,
+        )
+        pendingSelectionPageResponses.complete(msg.request_id, msg)
+        if (msg.request_id == 0L || msg.request_id >= latestSelectionPageResponseRequestId) {
+            latestSelectionPageResponseRequestId = msg.request_id
+            lastSelectionPageResponse = msg
+        }
+        listener.onSelectionPageResponse(msg)
     }
 
     fun handleQueueResponse(msg: QueueResponse) {
@@ -855,11 +889,20 @@ class ClientPlaybackRuntime(
             SearchRequest(query = query, source_id = sourceId, limit = limit, offset = offset, request_id = requestId).encode()
         }
 
-    fun sendQueueRequest(): Long? =
-        sendCorrelatedRequest(PacketIds.QUEUE_REQUEST) { requestId -> QueueRequest(request_id = requestId).encode() }
+    fun sendQueueRequest(limit: Int = 20, offset: Int = 0): Long? =
+        sendCorrelatedRequest(PacketIds.QUEUE_REQUEST) { requestId ->
+            QueueRequest(limit = limit, offset = offset, request_id = requestId).encode()
+        }
 
-    fun sendUiBootstrapRequest(): Long? =
-        sendCorrelatedRequest(PacketIds.UI_BOOTSTRAP_REQUEST) { requestId -> UiBootstrapRequest(request_id = requestId).encode() }
+    fun sendUiBootstrapRequest(queueLimit: Int = 20): Long? =
+        sendCorrelatedRequest(PacketIds.UI_BOOTSTRAP_REQUEST) { requestId ->
+            UiBootstrapRequest(queue_limit = queueLimit, request_id = requestId).encode()
+        }
+
+    fun sendSelectionPageRequest(sessionId: String, offset: Int = 0, limit: Int = 20): Long? =
+        sendCorrelatedRequest(PacketIds.SELECTION_PAGE_REQUEST) { requestId ->
+            SelectionPageRequest(session_id = sessionId, offset = offset, limit = limit, request_id = requestId).encode()
+        }
 
     fun sendQueueRemoveRequest(track: TrackInfo): Long? {
         val sourceId = track.sourceId ?: return null
@@ -920,8 +963,8 @@ class ClientPlaybackRuntime(
             ).encode()
         }
 
-    fun cacheSearchState(state: CachedSearchState?) {
-        cachedSearchState = state
+    fun cacheSearchTabState(state: CachedSearchTabState?) {
+        cachedSearchTabState = state
     }
 
     fun clearContext() {
@@ -945,6 +988,7 @@ class ClientPlaybackRuntime(
         currentContext = null
         currentLyrics = null
         currentSecondaryLyrics = null
+        cachedSearchTabState = null
         lastSearchResponse = null
         lastQueueResponse = null
         lastUiBootstrapResponse = null
@@ -1812,6 +1856,7 @@ class ClientPlaybackRuntime(
         pendingTrackSubmitResponses.failAll(cause)
         pendingIdentifierSubmitResponses.failAll(cause)
         pendingSelectionSubmitResponses.failAll(cause)
+        pendingSelectionPageResponses.failAll(cause)
         pendingQueueRemoveResponses.failAll(cause)
         pendingPlaybackControlResponses.failAll(cause)
         pendingContentFilterActionResponses.failAll(cause)
@@ -1836,14 +1881,19 @@ class ClientPlaybackRuntime(
             SearchRequest(query = query, source_id = sourceId, limit = limit, offset = offset, request_id = requestId).encode()
         }
 
-    override fun beginQueueRequest(): Deferred<QueueResponse>? =
+    override fun beginQueueRequest(limit: Int, offset: Int): Deferred<QueueResponse>? =
         beginCorrelatedRequest(pendingQueueResponses, PacketIds.QUEUE_REQUEST) { requestId ->
-            QueueRequest(request_id = requestId).encode()
+            QueueRequest(limit = limit, offset = offset, request_id = requestId).encode()
         }
 
-    internal fun beginUiBootstrapRequest(): Deferred<UiBootstrapResponse>? =
+    internal fun beginUiBootstrapRequest(queueLimit: Int = 20): Deferred<UiBootstrapResponse>? =
         beginCorrelatedRequest(pendingUiBootstrapResponses, PacketIds.UI_BOOTSTRAP_REQUEST) { requestId ->
-            UiBootstrapRequest(request_id = requestId).encode()
+            UiBootstrapRequest(queue_limit = queueLimit, request_id = requestId).encode()
+        }
+
+    override fun beginSelectionPageRequest(sessionId: String, offset: Int, limit: Int): Deferred<SelectionPageResponse>? =
+        beginCorrelatedRequest(pendingSelectionPageResponses, PacketIds.SELECTION_PAGE_REQUEST) { requestId ->
+            SelectionPageRequest(session_id = sessionId, offset = offset, limit = limit, request_id = requestId).encode()
         }
 
     override fun beginQueueRemoveRequest(sourceId: String, trackId: String): Deferred<QueueRemoveResponse>? {

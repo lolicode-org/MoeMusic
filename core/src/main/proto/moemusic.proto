@@ -213,11 +213,25 @@ message SearchRequest {
 /** Client requests the current user queue. */
 message QueueRequest {
   int64 request_id = 1;
+  /** Maximum number of tracks per page. 0 = server default (20). */
+  int32 limit = 2;
+  /** Zero-based result offset for pagination. */
+  int32 offset = 3;
 }
 
 /** Builtin GUI requests its initial queue snapshot plus capability snapshot. */
 message UiBootstrapRequest {
   int64 request_id = 1;
+  /** Maximum number of initial queue tracks. 0 = server default (20). */
+  int32 queue_limit = 2;
+}
+
+/** Client requests a specific page of choices from an active selection session. */
+message SelectionPageRequest {
+  int64 request_id = 1;
+  string session_id = 2;
+  int32 offset = 3;
+  int32 limit = 4;
 }
 
 /** Client requests removal of a track from the user queue. */
@@ -350,6 +364,14 @@ message IdentifierSubmitResponse {
   string success = 5;
   /** Further selectable choices when the identifier points at a container or indirect item. */
   repeated SelectionEntryProto choices = 6;
+  /** Echoed offset for choices pagination. */
+  int32 offset = 7;
+  /** Total number of choices available for this container/identifier. */
+  int32 total = 8;
+  /** True when there are more choices after this page. */
+  bool has_more = 9;
+  /** Server selection session ID if choices are cached on server for pagination. */
+  string session_id = 10;
 }
 
 /** Server's response to a SelectionSubmitRequest. */
@@ -366,6 +388,27 @@ message SelectionSubmitResponse {
   string success = 5;
   /** Further selectable choices when the selected row expands instead of enqueuing directly. */
   repeated SelectionEntryProto choices = 6;
+  /** Echoed offset for choices pagination. */
+  int32 offset = 7;
+  /** Total number of choices available. */
+  int32 total = 8;
+  /** True when there are more choices after this page. */
+  bool has_more = 9;
+  /** Server selection session ID if choices are cached on server for pagination. */
+  string session_id = 10;
+}
+
+/** Server's response to a SelectionPageRequest. */
+message SelectionPageResponse {
+  /** Echoed from the originating SelectionPageRequest. */
+  int64 request_id = 1;
+  string session_id = 2;
+  repeated SelectionEntryProto choices = 3;
+  int32 offset = 4;
+  int32 total = 5;
+  bool has_more = 6;
+  /** Non-empty when an error occurred (e.g. session expired). Empty means success. */
+  string failure = 7;
 }
 
 /** Server's response to a SearchRequest. */
@@ -400,6 +443,12 @@ message QueueResponse {
   repeated TrackInfoProto tracks = 2;
   /** Non-empty when an error occurred. Empty means success. */
   string failure = 3;
+  /** Echoed offset for client-side pagination state. */
+  int32 offset = 4;
+  /** Total number of tracks in the queue. */
+  int32 total = 5;
+  /** True when there are more tracks after this page. */
+  bool has_more = 6;
 }
 
 /** Builtin GUI bootstrap response with initial queue data plus UI capabilities. */
@@ -410,6 +459,12 @@ message UiBootstrapResponse {
   /** Non-empty when queue loading failed. Empty means success. */
   string failure = 3;
   UiCapabilitySnapshot capabilities = 4;
+  /** Zero-based offset of returned queue tracks (always 0 for bootstrap). */
+  int32 queue_offset = 5;
+  /** Total number of tracks in the user queue. */
+  int32 queue_total = 6;
+  /** True when there are more tracks in the queue after this initial page. */
+  bool queue_has_more = 7;
 }
 
 /** Server's response to a QueueRemoveRequest. */

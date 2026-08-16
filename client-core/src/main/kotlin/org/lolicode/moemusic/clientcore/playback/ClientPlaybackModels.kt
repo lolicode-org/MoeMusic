@@ -35,13 +35,14 @@ data class SearchSourceCatalog(
     val defaultSourceId: String,
 )
 
-data class CachedSearchState(
+data class CachedSearchTabState(
     val query: String,
     val sourceId: String,
     val entries: List<SelectionEntry>,
     val total: Int,
     val hasMore: Boolean,
     val failure: String? = null,
+    val selectionSessionId: String? = null,
 )
 
 enum class AvailabilityIssue {

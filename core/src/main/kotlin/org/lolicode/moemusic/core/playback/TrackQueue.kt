@@ -113,6 +113,48 @@ class TrackQueue {
     /** Snapshot of the user queue for display purposes (ordered, not live). */
     fun userQueueSnapshot(): List<TrackInfo> = synchronized(queueLock) { userQueue.map { it.track } }
 
+    data class QueueSliceResult(
+        val tracks: List<TrackInfo>,
+        val totalSize: Int
+    )
+
+    fun userQueueSliceWithTotal(offset: Int, limit: Int): QueueSliceResult = synchronized(queueLock) {
+        val total = userQueue.size
+        val normalizedOffset = offset.coerceIn(0, total)
+        val effectiveLimit = limit.coerceAtLeast(0)
+        val toIndex = (normalizedOffset + effectiveLimit).coerceAtMost(total)
+        if (normalizedOffset >= total || effectiveLimit <= 0) return QueueSliceResult(emptyList(), total)
+        val result = ArrayList<TrackInfo>(toIndex - normalizedOffset)
+        var currentIndex = 0
+        for (queued in userQueue) {
+            if (currentIndex in normalizedOffset until toIndex) {
+                result.add(queued.track)
+            }
+            currentIndex++
+            if (currentIndex >= toIndex) break
+        }
+        return QueueSliceResult(result, total)
+    }
+
+    /** Returns a paginated slice of user-queue tracks. */
+    fun userQueueSlice(offset: Int, limit: Int): List<TrackInfo> = synchronized(queueLock) {
+        val total = userQueue.size
+        val normalizedOffset = offset.coerceIn(0, total)
+        val effectiveLimit = limit.coerceAtLeast(0)
+        val toIndex = (normalizedOffset + effectiveLimit).coerceAtMost(total)
+        if (normalizedOffset >= total || effectiveLimit <= 0) return emptyList()
+        val result = ArrayList<TrackInfo>(toIndex - normalizedOffset)
+        var currentIndex = 0
+        for (queued in userQueue) {
+            if (currentIndex in normalizedOffset until toIndex) {
+                result.add(queued.track)
+            }
+            currentIndex++
+            if (currentIndex >= toIndex) break
+        }
+        result
+    }
+
     /** True when the same logical track is already pending in the user queue. */
     fun containsUserTrack(track: TrackInfo): Boolean = synchronized(queueLock) {
         userQueue.any { it.track.matchesQueueIdentity(track) }

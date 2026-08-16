@@ -1388,4 +1388,33 @@ class ServerPlaybackControllerTest {
         ctrl.enqueueAndPlay(SAMPLE_TRACK.copy { title = "Renamed" }, requesterId = null, allowDuplicate = true)
         assertEquals(2, ctrl.queue.userQueueSize(), "Both copies should be in queue when bypass is active")
     }
+
+    @Test
+    fun `userQueueSlice returns paginated slices with accurate metadata`() {
+        val queue = TrackQueue()
+        val tracks = (1..15).map { i -> SAMPLE_TRACK.copy { id = "track-$i"; title = "Title $i" } }
+        tracks.forEach { queue.enqueueUser(it) }
+
+        // First page
+        val slice1 = queue.userQueueSlice(offset = 0, limit = 6)
+        assertEquals(6, slice1.size)
+        assertEquals("track-1", slice1.first().id)
+        assertEquals("track-6", slice1.last().id)
+
+        // Second page
+        val slice2 = queue.userQueueSlice(offset = 6, limit = 6)
+        assertEquals(6, slice2.size)
+        assertEquals("track-7", slice2.first().id)
+        assertEquals("track-12", slice2.last().id)
+
+        // Third page
+        val slice3 = queue.userQueueSlice(offset = 12, limit = 6)
+        assertEquals(3, slice3.size)
+        assertEquals("track-13", slice3.first().id)
+        assertEquals("track-15", slice3.last().id)
+
+        // Out-of-bounds offset
+        val sliceOob = queue.userQueueSlice(offset = 50, limit = 6)
+        assertTrue(sliceOob.isEmpty())
+    }
 }

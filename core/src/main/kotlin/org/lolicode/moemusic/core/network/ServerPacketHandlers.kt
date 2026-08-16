@@ -10,6 +10,7 @@ import org.lolicode.moemusic.api.service.IdentifierSubmitOutcome
 import org.lolicode.moemusic.api.service.PlaybackAction
 import org.lolicode.moemusic.api.service.QueueRemoveResult
 import org.lolicode.moemusic.api.service.SelectionSubmitOutcome
+import org.lolicode.moemusic.core.config.ModConfigManager
 import org.lolicode.moemusic.core.contentfilter.ContentFilterRuleEditor
 import org.lolicode.moemusic.core.error.UserFacingErrors
 import org.lolicode.moemusic.core.i18n.Localization
@@ -24,6 +25,7 @@ import org.lolicode.moemusic.core.protocol.ProtocolViewMapper
 import org.lolicode.moemusic.core.protocol.proto.*
 import org.lolicode.moemusic.core.runtime.ServerRuntimeCoordinator
 import org.lolicode.moemusic.core.session.UserSessionRegistry
+import org.lolicode.moemusic.core.source.SelectionSessionManager
 import org.lolicode.moemusic.core.transport.FramedPayloadCodec
 import org.lolicode.moemusic.core.transport.NetworkChannel
 import org.slf4j.LoggerFactory
@@ -47,9 +49,12 @@ class ServerPacketHandlers(
     private val sessions: ServerPacketSessionBridge,
 ) {
 
-    private data class QueueSnapshotPayload(
+    private data class QueueSlicePayload(
         val tracks: List<TrackInfoProto>,
         val failure: String?,
+        val offset: Int = 0,
+        val total: Int = tracks.size,
+        val hasMore: Boolean = false,
     )
 
     private val logger = LoggerFactory.getLogger(ServerPacketHandlers::class.java)
@@ -199,11 +204,14 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
-                val queueSnapshot = buildQueueSnapshotFor(sender)
+                val queuePayload = buildQueueSliceFor(sender, offset = 0, limit = msg.queue_limit)
                 UiBootstrapResponse(
-                    tracks = queueSnapshot.tracks,
-                    failure = queueSnapshot.failure.orEmpty(),
+                    tracks = queuePayload.tracks,
+                    failure = queuePayload.failure.orEmpty(),
                     capabilities = buildUiCapabilitiesFor(sender),
+                    queue_offset = queuePayload.offset,
+                    queue_total = queuePayload.total,
+                    queue_has_more = queuePayload.hasMore,
                     request_id = msg.request_id,
                 )
             } catch (e: Exception) {
@@ -216,9 +224,12 @@ class ServerPacketHandlers(
             }
             sendToClient(sender, PacketIds.UI_BOOTSTRAP_RESPONSE, response.encode())
             logger.debug(
-                "UiBootstrapResponse → {}: {} tracks failure='{}' hasSubmitDuplicatePermission={}",
+                "UiBootstrapResponse → {}: {} tracks (offset={}, total={}, hasMore={}) failure='{}' hasSubmitDuplicatePermission={}",
                 sender.displayName,
                 response.tracks.size,
+                response.queue_offset,
+                response.queue_total,
+                response.queue_has_more,
                 response.failure,
                 response.capabilities?.has_submit_duplicate_permission == true,
             )
@@ -341,13 +352,45 @@ class ServerPacketHandlers(
                             request_id = msg.request_id,
                         )
 
-                        is SelectionSubmitOutcome.Choices -> SelectionSubmitResponse(
-                            success = render(sender, selectionPrompt()),
-                            choices = outcome.entries.map { entry ->
-                                ProtocolViewMapper.selectionToClientProto(entry, canBypass, canSeeDetail) { render(sender, it) }
-                            },
-                            request_id = msg.request_id,
-                        )
+                        is SelectionSubmitOutcome.Choices -> {
+                            val isV2 = org.lolicode.moemusic.core.session.UserSessionRegistry.protocolVersion(sender.id) < 3
+                            if (isV2) {
+                                SelectionSubmitResponse(
+                                    success = render(sender, selectionPrompt()),
+                                    choices = outcome.entries.map { entry ->
+                                        ProtocolViewMapper.selectionToClientProto(entry, canBypass, canSeeDetail) { render(sender, it) }
+                                    },
+                                    offset = 0,
+                                    total = outcome.entries.size,
+                                    has_more = false,
+                                    session_id = "",
+                                    request_id = msg.request_id,
+                                )
+                            } else {
+                                val session = SelectionSessionManager.createSession(
+                                    ownerUserId = sender.id,
+                                    sourceId = msg.source_id,
+                                    entries = outcome.entries,
+                                )
+                                val page = SelectionSessionManager.getPage(
+                                    sessionId = session.id,
+                                    offset = 0,
+                                    limit = 20,
+                                    requesterId = sender.id,
+                                )
+                                SelectionSubmitResponse(
+                                    success = render(sender, selectionPrompt()),
+                                    choices = (page?.entries ?: outcome.entries).map { entry ->
+                                        ProtocolViewMapper.selectionToClientProto(entry, canBypass, canSeeDetail) { render(sender, it) }
+                                    },
+                                    offset = page?.offset ?: 0,
+                                    total = page?.total ?: outcome.entries.size,
+                                    has_more = page?.hasMore ?: false,
+                                    session_id = session.id,
+                                    request_id = msg.request_id,
+                                )
+                            }
+                        }
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -369,12 +412,15 @@ class ServerPacketHandlers(
                         response.failure,
                     )
                     response.choices.isNotEmpty() -> logger.info(
-                        "Selection submit from {} returned {} choice(s): source={} selection={} mode={}",
+                        "Selection submit from {} returned {} choice(s): source={} selection={} mode={} (session={}, total={}, hasMore={})",
                         sender.displayName,
                         response.choices.size,
                         msg.source_id,
                         msg.selection_id,
                         mode,
+                        response.session_id,
+                        response.total,
+                        response.has_more,
                     )
                     else -> logger.info(
                         "Selection submit accepted from {}: source={} selection={} trackId={} title='{}' mode={} resultMessage='{}'",
@@ -412,13 +458,45 @@ class ServerPacketHandlers(
                             request_id = msg.request_id,
                         )
 
-                        is IdentifierSubmitOutcome.Choices -> IdentifierSubmitResponse(
-                            success = render(sender, selectionPrompt()),
-                            choices = outcome.entries.map { entry ->
-                                ProtocolViewMapper.selectionToClientProto(entry, canBypass, canSeeDetail) { render(sender, it) }
-                            },
-                            request_id = msg.request_id,
-                        )
+                        is IdentifierSubmitOutcome.Choices -> {
+                            val isV2 = org.lolicode.moemusic.core.session.UserSessionRegistry.protocolVersion(sender.id) < 3
+                            if (isV2) {
+                                IdentifierSubmitResponse(
+                                    success = render(sender, selectionPrompt()),
+                                    choices = outcome.entries.map { entry ->
+                                        ProtocolViewMapper.selectionToClientProto(entry, canBypass, canSeeDetail) { render(sender, it) }
+                                    },
+                                    offset = 0,
+                                    total = outcome.entries.size,
+                                    has_more = false,
+                                    session_id = "",
+                                    request_id = msg.request_id,
+                                )
+                            } else {
+                                val session = SelectionSessionManager.createSession(
+                                    ownerUserId = sender.id,
+                                    sourceId = outcome.entries.firstOrNull()?.sourceId.orEmpty(),
+                                    entries = outcome.entries,
+                                )
+                                val page = SelectionSessionManager.getPage(
+                                    sessionId = session.id,
+                                    offset = 0,
+                                    limit = 20,
+                                    requesterId = sender.id,
+                                )
+                                IdentifierSubmitResponse(
+                                    success = render(sender, selectionPrompt()),
+                                    choices = (page?.entries ?: outcome.entries).map { entry ->
+                                        ProtocolViewMapper.selectionToClientProto(entry, canBypass, canSeeDetail) { render(sender, it) }
+                                    },
+                                    offset = page?.offset ?: 0,
+                                    total = page?.total ?: outcome.entries.size,
+                                    has_more = page?.hasMore ?: false,
+                                    session_id = session.id,
+                                    request_id = msg.request_id,
+                                )
+                            }
+                        }
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -512,10 +590,13 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
-                val queueSnapshot = buildQueueSnapshotFor(sender)
+                val queuePayload = buildQueueSliceFor(sender, offset = msg.offset, limit = msg.limit)
                 QueueResponse(
-                    tracks = queueSnapshot.tracks,
-                    failure = queueSnapshot.failure.orEmpty(),
+                    tracks = queuePayload.tracks,
+                    failure = queuePayload.failure.orEmpty(),
+                    offset = queuePayload.offset,
+                    total = queuePayload.total,
+                    has_more = queuePayload.hasMore,
                     request_id = msg.request_id,
                 )
             } catch (e: Exception) {
@@ -526,7 +607,71 @@ class ServerPacketHandlers(
                 )
             }
             sendToClient(sender, PacketIds.QUEUE_RESPONSE, response.encode())
-            logger.debug("QueueResponse → {}: {} tracks failure='{}'", sender.displayName, response.tracks.size, response.failure)
+            logger.debug(
+                "QueueResponse → {}: {} tracks (offset={}, total={}, hasMore={}) failure='{}'",
+                sender.displayName,
+                response.tracks.size,
+                response.offset,
+                response.total,
+                response.has_more,
+                response.failure,
+            )
+        }
+
+        // SELECTION_PAGE_REQUEST — fetch subsequent pages of choices from an active selection session
+        registry.register(
+            PacketIds.SELECTION_PAGE_REQUEST,
+            { SelectionPageRequest.ADAPTER.decode(FramedPayloadCodec.unwrapServerInbound(it)) },
+        ) { msg, sender ->
+            if (sender == null) return@register
+            val response = try {
+                val bypassOwnership = hasPermission(sender, PermissionNodes.QUEUE_CONTROL)
+                val page = SelectionSessionManager.getPage(
+                    sessionId = msg.session_id,
+                    offset = msg.offset,
+                    limit = msg.limit,
+                    requesterId = sender.id,
+                    bypassOwnership = bypassOwnership,
+                )
+                if (page == null) {
+                    SelectionPageResponse(
+                        session_id = msg.session_id,
+                        failure = render(sender, LocalizedText.key("error.moemusic.selection.session_expired")),
+                        request_id = msg.request_id,
+                    )
+                } else {
+                    val canBypass = senderHasFilterBypass(sender)
+                    val canSeeDetail = senderHasFilterManage(sender)
+                    SelectionPageResponse(
+                        session_id = page.sessionId,
+                        choices = page.entries.map { entry ->
+                            ProtocolViewMapper.selectionToClientProto(entry, canBypass, canSeeDetail) { render(sender, it) }
+                        },
+                        offset = page.offset,
+                        total = page.total,
+                        has_more = page.hasMore,
+                        request_id = msg.request_id,
+                    )
+                }
+            } catch (e: Exception) {
+                logHandledFailure("SelectionPageRequest", sender, e)
+                SelectionPageResponse(
+                    session_id = msg.session_id,
+                    failure = render(sender, classifyForSender(sender, e)),
+                    request_id = msg.request_id,
+                )
+            }
+            sendToClient(sender, PacketIds.SELECTION_PAGE_RESPONSE, response.encode())
+            logger.debug(
+                "SelectionPageResponse → {}: session={} {} choices (offset={}, total={}, hasMore={}) failure='{}'",
+                sender.displayName,
+                response.session_id,
+                response.choices.size,
+                response.offset,
+                response.total,
+                response.has_more,
+                response.failure,
+            )
         }
 
         // QUEUE_REMOVE_REQUEST — remove a track from the user queue by (source_id, track_id)
@@ -759,21 +904,53 @@ class ServerPacketHandlers(
             has_submit_duplicate_permission = hasPermission(sender, PermissionNodes.SUBMIT_DUPLICATE),
         )
 
-    private fun buildQueueSnapshotFor(sender: MoeMusicUser): QueueSnapshotPayload {
+    private fun buildQueueSliceFor(
+        sender: MoeMusicUser,
+        offset: Int = 0,
+        limit: Int = 0,
+    ): QueueSlicePayload {
         if (!hasPermission(sender, PermissionNodes.QUEUE_VIEW)) {
-            return QueueSnapshotPayload(
+            return QueueSlicePayload(
                 tracks = emptyList(),
                 failure = render(sender, PermissionNodes.QUEUE_VIEW.deniedMessage),
+                offset = 0,
+                total = 0,
+                hasMore = false,
             )
         }
-        val snapshot = ServerRuntimeCoordinator.queue.userQueueSnapshot()
+        val protocolVersion = org.lolicode.moemusic.core.session.UserSessionRegistry.protocolVersion(sender.id)
+        val isV2 = protocolVersion < 3
+
+        val configuredMax = ModConfigManager.config.media.maxQueueResultsPerPage
+        
+        val effectiveLimit = if (isV2) {
+            Int.MAX_VALUE
+        } else {
+            (if (limit > 0) limit else 20).coerceIn(1, configuredMax)
+        }
+        
+        val sliceResult = ServerRuntimeCoordinator.queue.userQueueSliceWithTotal(
+            offset = if (isV2) 0 else offset, 
+            limit = effectiveLimit
+        )
+        val total = sliceResult.totalSize
+        val snapshot = sliceResult.tracks
+        
         val canBypass = senderHasFilterBypass(sender)
         val canSeeDetail = senderHasFilterManage(sender)
-        return QueueSnapshotPayload(
+        
+        val normalizedOffset = if (isV2) 0 else offset.coerceIn(0, total)
+        val toIndex = (normalizedOffset + snapshot.size)
+        val hasMore = if (isV2) false else toIndex < total
+
+        return QueueSlicePayload(
             tracks = snapshot.map { track ->
                 ProtocolViewMapper.trackToClientProto(track, canBypass, canSeeDetail) { render(sender, it) }
             },
             failure = null,
+            offset = normalizedOffset,
+            total = total,
+            hasMore = hasMore,
         )
     }
 
