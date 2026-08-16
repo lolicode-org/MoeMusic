@@ -24,7 +24,9 @@ object PermissionNodes {
     }
 
     const val MIN_DEFAULT_LEVEL: Int = 0
-    const val MAX_DEFAULT_LEVEL: Int = 4
+    const val MAX_VANILLA_LEVEL: Int = 4
+    const val MAX_DEFAULT_LEVEL: Int = 5
+    const val LEVEL_DISABLED: Int = 5
 
     val SUBMIT: Node = Node(
         id = "moemusic.common.submit",

@@ -162,11 +162,11 @@ Check permissions before any action that consumes resources, has side effects, o
 
 Permission resolution order is:
 
-1. singleplayer owner or real server console
-2. optional advanced permission provider
-3. vanilla fallback level
+1. singleplayer owner (for fallback levels <= 4) or real server console (always allowed)
+2. optional advanced permission provider (explicit allow/deny, e.g. LuckPerms / Fabric Permissions API)
+3. fallback level: vanilla command permission levels 0–4 (0=everyone, 1=moderators, 2=gamemasters, 3=admins, 4=OPs), or level 5 (`LEVEL_DISABLED`, completely disables the action for all vanilla players without a dedicated permission mod)
 
-Do not treat every non-user command source as trusted. Only the real server console should bypass checks.
+Do not treat every non-user command source as trusted. Only the real server console should bypass checks unconditionally.
 
 Public permission groups are semantic, not command-shaped:
 

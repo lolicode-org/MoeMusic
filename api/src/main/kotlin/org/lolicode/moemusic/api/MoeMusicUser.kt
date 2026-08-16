@@ -26,12 +26,12 @@ public abstract class MoeMusicUser {
      *
      * Resolution order:
      * 1. If a modded permission provider (e.g. LuckPerms) is available, delegate to it.
-     * 2. Otherwise fall back to vanilla operator-level checks using [defaultLevel].
+     * 2. Otherwise fall back to vanilla operator-level checks using [defaultLevel] (0–4 for vanilla OP levels, or 5 to disable for vanilla players).
      *
      * <b>Note:</b> Generally you should not need this. All common operations (e.g. command execution, queueing tracks) have built-in permission checks in the core module.
      *
      * @param permission   The permission node to check (e.g. `"moemusic.common.submit"`).
-     * @param defaultLevel Vanilla operator level (0–4) used when no modded provider is present.
+     * @param defaultLevel Vanilla operator level (0–4) or 5 (`LEVEL_DISABLED`, disabled for all vanilla players) used when no modded provider is present.
      *                     Defaults to 2 (standard operator).
      */
     public abstract fun hasPermission(permission: String, defaultLevel: Int = 2): Boolean

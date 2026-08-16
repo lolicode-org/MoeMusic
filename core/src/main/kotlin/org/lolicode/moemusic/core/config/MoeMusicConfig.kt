@@ -130,7 +130,7 @@ data class PermissionDefaultsConfig(
 
     private companion object {
         private const val MIN_LEVEL: Int = 0
-        private const val MAX_LEVEL: Int = 4
+        private const val MAX_LEVEL: Int = 5
     }
 }
 
