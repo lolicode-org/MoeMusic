@@ -9,7 +9,7 @@ plugins {
 
 val generatedBuildInfoDir = layout.buildDirectory.dir("generated/sources/moemusicBuildInfo/main/kotlin")
 
-val generateMoeMusicApiBuildInfo by tasks.registering {
+val generateMoeMusicApiBuildInfo = tasks.register("generateMoeMusicApiBuildInfo") {
     val apiVersion = libs.versions.moemusic.api.compat.get()
     inputs.property("apiVersion", apiVersion)
     outputs.dir(generatedBuildInfoDir)
