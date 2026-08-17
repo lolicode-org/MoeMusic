@@ -18,19 +18,44 @@ fun catalogVersion(alias: String): String =
         GradleException("Missing version catalog entry '$alias'.")
     }.requiredVersion
 
-val versionSuffix = providers.gradleProperty("moemusic.versionSuffix")
-    .orElse(
-        providers.gradleProperty("moemusic.snapshot").map { snapshot ->
-            when (snapshot.lowercase()) {
-                "true" -> "-SNAPSHOT"
-                "false" -> ""
-                else -> throw GradleException("moemusic.snapshot must be 'true' or 'false', got '$snapshot'.")
-            }
-        },
-    )
-    .orElse("")
+fun nextPatchSnapshotVersion(baseVersion: String): String {
+    val cleanVersion = baseVersion.removeSuffix("-SNAPSHOT")
+    val parts = cleanVersion.split(".")
+    return if (parts.size == 3 && parts[2].toIntOrNull() != null) {
+        "${parts[0]}.${parts[1]}.${parts[2].toInt() + 1}-SNAPSHOT"
+    } else {
+        "$cleanVersion-SNAPSHOT"
+    }
+}
 
-fun moduleVersion(alias: String): String = catalogVersion(alias) + versionSuffix.get()
+val isSnapshot = providers.gradleProperty("moemusic.snapshot").map { snapshot ->
+    when (snapshot.lowercase()) {
+        "true" -> true
+        "false" -> false
+        else -> throw GradleException("moemusic.snapshot must be 'true' or 'false', got '$snapshot'.")
+    }
+}.orElse(false)
+
+val explicitVersionSuffix = providers.gradleProperty("moemusic.versionSuffix")
+
+fun moduleVersion(moduleName: String, catalogAlias: String): String {
+    val explicitModuleVersion = providers.gradleProperty("moemusic.$moduleName.version")
+        .orElse(providers.gradleProperty("moemusic.${moduleName.replace("-", "")}.version"))
+    if (explicitModuleVersion.isPresent) {
+        return explicitModuleVersion.get()
+    }
+
+    val base = catalogVersion(catalogAlias)
+    if (explicitVersionSuffix.isPresent) {
+        return base + explicitVersionSuffix.get()
+    }
+
+    return if (isSnapshot.get()) {
+        nextPatchSnapshotVersion(base)
+    } else {
+        base
+    }
+}
 
 fun nonBlankEnvironmentVariable(name: String) =
     providers.provider {
@@ -38,9 +63,9 @@ fun nonBlankEnvironmentVariable(name: String) =
     }
 
 val moduleVersions = mapOf(
-    "api" to moduleVersion("moemusic-api"),
-    "core" to moduleVersion("moemusic-core"),
-    "client-core" to moduleVersion("moemusic-client-core"),
+    "api" to moduleVersion("api", "moemusic-api"),
+    "core" to moduleVersion("core", "moemusic-core"),
+    "client-core" to moduleVersion("client-core", "moemusic-client-core"),
 )
 
 tasks.register("checkPublicApi") {
