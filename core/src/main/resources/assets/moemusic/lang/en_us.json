@@ -21,7 +21,7 @@
   "config.moemusic.save_conflict.title": "Some Settings Were Not Saved",
   "config.moemusic.save_conflict.body": "MoeMusic settings changed elsewhere while this screen was open. Conflicting changes were discarded; reopen the settings screen and try again.",
 
-  "config.moemusic.client_only_notice": "§eNote: settings in this screen are saved on this client and do not change server settings.",
+  "config.moemusic.client_only_notice": "Note: settings in this screen are saved on this client and do not change server settings.",
   "config.moemusic.client.playback_enabled": "Enable Local Playback",
   "config.moemusic.client.playback_enabled.tooltip": "When off, this client will not play MoeMusic tracks or join vote and playback interactions, but search and song requests still work.",
   "config.moemusic.client.current_server": "Current Server: %1$s",

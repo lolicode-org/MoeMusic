@@ -21,7 +21,7 @@
   "config.moemusic.save_conflict.title": "部分设置未保存",
   "config.moemusic.save_conflict.body": "此界面打开期间，MoeMusic 设置已在其他位置发生变化。存在冲突的更改已被撤销，请重新打开设置界面后再试。",
 
-  "config.moemusic.client_only_notice": "§e注意：此界面中的设置保存在当前客户端，不会修改服务器设置。",
+  "config.moemusic.client_only_notice": "注意：此界面中的设置保存在当前客户端，不会修改服务器设置。",
   "config.moemusic.client.playback_enabled": "启用本机播放",
   "config.moemusic.client.playback_enabled.tooltip": "关闭后，当前客户端不会播放任何曲目，也不会参与投票等互动，但仍可以使用点歌和搜索等功能。",
   "config.moemusic.client.current_server": "当前服务器：%1$s",
