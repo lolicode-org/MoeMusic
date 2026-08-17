@@ -4,7 +4,7 @@
 
 > [!TIP]
 > 本仓库存放的是 MoeMusic 的**核心库**，包含了核心业务逻辑、API 接口和共享数据模型。
-> - 如果你需要获取可直接运行的 Minecraft Mod（Fabric / NeoForge / Forge）或其平台适配层源码，请访问 [MoeMusic Mod](https://github.com/lolicode-org/MoeMusic-Minecraft)。
+> - 如果你需要获取可直接运行的 Minecraft 模组/插件（Fabric / NeoForge / Forge / Spigot / Paper / Velocity）或其平台适配层源码，请访问 [MoeMusic Minecraft](https://github.com/lolicode-org/MoeMusic-Minecraft)。
 > - 如果你需要完全脱离 Minecraft 的独立轻量终端客户端实现，请访问 [MoeMusic Terminal](https://github.com/KoishiMoe/MoeMusic-Terminal)。该项目可作为核心库可移植性与可扩展性的概念验证，同时在开发音源插件时，也可用于进行快速测试，避免启动 Minecraft 实例占用过多资源。
 
 > [!NOTE]~~~~
