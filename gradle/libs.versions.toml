@@ -7,16 +7,16 @@ moemusic-core = "1.4.0"
 moemusic-client-core = "1.4.0"
 
 # Kotlin and build tooling.
-kotlin = "2.4.10"
+kotlin = "2.4.10"  # use latest compiler but target kotlin 2.2
 wire = "6.4.5"
 
-# Runtime libraries.
+# Baseline runtime libraries (guaranteed across all supported platforms).
 lavaplayer = "2.4.5"
 ktoml-core = "0.7.1"
 ktoml-file = "0.7.1"
-slf4j = "2.0.18"
-kotlinx-serialization = "1.11.0"
-kotlinx-coroutines = "1.11.0"
+slf4j = "1.7.36"
+kotlinx-serialization = "1.9.0"
+kotlinx-coroutines = "1.10.2"
 
 # Tests.
 junit = "6.1.3"

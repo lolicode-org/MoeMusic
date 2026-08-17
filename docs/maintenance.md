@@ -95,20 +95,25 @@ Standalone plugin jars are trusted local code, not sandboxed. Their classloader 
 
 To keep a consistent interface across platforms and simplify third-party plugin development, the MoeMusic `:api` module exports a standard runtime baseline via `api(...)` dependency declarations. Third-party plugins and platform implementations that depend on `:api` transitively receive compile-time access and runtime guarantees for:
 
-- **Kotlin Standard Library** (`org.jetbrains.kotlin:kotlin-stdlib`)
-- **Kotlinx Coroutines Core** (`org.jetbrains.kotlinx:kotlinx-coroutines-core`)
-- **Kotlinx Serialization Core** (`org.jetbrains.kotlinx:kotlinx-serialization-core-jvm`)
-- **Kotlinx Serialization JSON** (`org.jetbrains.kotlinx:kotlinx-serialization-json-jvm`)
-- **SLF4J API** (`org.slf4j:slf4j-api`)
+- **Kotlin Standard Library** (`org.jetbrains.kotlin:kotlin-stdlib`, baseline API/Language `2.2`)
+- **Kotlinx Coroutines Core** (`org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2`)
+- **Kotlinx Serialization Core** (`org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.9.0`)
+- **Kotlinx Serialization JSON** (`org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.9.0`)
+- **SLF4J API** (`org.slf4j:slf4j-api:1.7.36`)
+
+All shared modules (`:api`, `:core`, and `:client-core`) compile with `apiVersion = 2.2`, `languageVersion = 2.2`, and `jvmTarget = JVM_17` against this baseline. This lowest-common-denominator (LCD) alignment prevents `:core` and third-party plugins from accidentally calling newer library APIs that do not exist on older platforms (e.g. KotlinForForge 4.12.0 on Minecraft 1.20.1 Forge, or Minecraft 1.18.2 SLF4J 1.8.0-beta4).
 
 Each host platform guarantees these libraries in the host/parent classloader without duplicate shading or classpath collisions:
 - **Fabric**: Supplied by `fabric-language-kotlin` and Minecraft vanilla SLF4J.
-- **NeoForge / Forge**: Supplied by `kotlinforforge` / `kotlin-neoforge` and Minecraft/Forge SLF4J.
-- **Spigot / Paper**: Downloaded automatically at runtime into the plugin classloader via `plugin.yml` `libraries:` entries (`kotlin-stdlib`, `kotlinx-coroutines-core-jvm`, `kotlinx-serialization-core-jvm`, `kotlinx-serialization-json-jvm`, `slf4j-api`, `slf4j-jdk14`).
+- **NeoForge / Forge**: Supplied by `kotlinforforge` / `kotlin-neoforge` (or bundled unrelocated Kotlin 2 runtime on older Forge branches) and Minecraft/Forge SLF4J. Forge builds exclude transitive `slf4j-api` from `:core` to prevent launcher module-layer conflicts.
+- **Spigot / Paper**: Downloaded automatically at runtime into the plugin classloader via `plugin.yml` `libraries:` entries (`kotlin-stdlib`, `kotlinx-coroutines-core-jvm`, `kotlinx-serialization-core-jvm`, `kotlinx-serialization-json-jvm`, `slf4j-api:1.7.36`, `slf4j-jdk14:1.7.36`).
 - **Velocity**: Embedded in the MoeMusic Velocity shadow jar with un-relocated `kotlin.*`, `kotlinx.*`, and `org.slf4j.*` packages for parent-first classloader delegation.
 - **Terminal**: Bundled directly into the standalone application runtime classpath.
 
 Standalone plugin jars loaded by `StandalonePluginClassLoader` delegate all `kotlin.*`, `kotlinx.*`, `org.slf4j.*`, and `org.lolicode.moemusic.api.*` classes to the parent classloader first, ensuring single shared runtime instances across all loaded plugins.
+
+#### Logging Baseline Contract
+Because supported platforms span SLF4J 1.7.x, 1.8.0-beta4 (Minecraft 1.18.2/1.19), and 2.0.x (modern loaders and proxies), all logging in shared modules and plugins must strictly use the traditional parameterized logging API (`logger.info("msg: {}", arg)`). The SLF4J 2.0 Fluent API (`logger.atInfo()`, `logger.atDebug()`) must not be used in shared code or plugin-facing contracts.
 
 Plugin lifecycle has runtime and session layers:
 

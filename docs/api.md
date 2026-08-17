@@ -54,16 +54,31 @@ dependencies {
 }
 ```
 
-### Guaranteed Runtime Libraries
+### Guaranteed Runtime Libraries & Compilation Baseline
 
 MoeMusic's `:api` artifact exports the following standard baseline libraries transitively:
-- **Kotlin Standard Library** (`kotlin-stdlib`)
-- **Kotlinx Coroutines Core** (`kotlinx-coroutines-core`)
-- **Kotlinx Serialization Core** (`kotlinx-serialization-core`)
-- **Kotlinx Serialization JSON** (`kotlinx-serialization-json`)
-- **SLF4J API** (`slf4j-api`)
+- **Kotlin Standard Library** (`kotlin-stdlib`, baseline API/Language `2.2`)
+- **Kotlinx Coroutines Core** (`kotlinx-coroutines-core:1.10.2`)
+- **Kotlinx Serialization Core** (`kotlinx-serialization-core:1.9.0`)
+- **Kotlinx Serialization JSON** (`kotlinx-serialization-json:1.9.0`)
+- **SLF4J API** (`slf4j-api:1.7.36`)
 
 These libraries are guaranteed to be available at runtime across all supported MoeMusic host platforms (Fabric, NeoForge, Forge, Spigot, Velocity, Terminal). Standalone plugins do not need to add separate `compileOnly` declarations or shade these libraries into their plugin jar.
+
+#### Plugin Build Configuration Guidelines
+To ensure your plugin works across all supported Minecraft versions (1.18.2 through latest) and server platforms:
+1. **Target Java 17 & Kotlin 2.2**:
+   ```kotlin
+   kotlin {
+       compilerOptions {
+           jvmTarget.set(JvmTarget.JVM_17)
+           apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2)
+           languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2)
+       }
+   }
+   ```
+2. **Logging API Rule**: Use traditional parameterized logging (`logger.info("message: {}", arg)`). **Do NOT use the SLF4J 2.0 Fluent API** (`logger.atInfo()`, `logger.atDebug()`), as older environments (e.g. Minecraft 1.18.2 / 1.19 / Spigot) run on SLF4J 1.7 / 1.8.0-beta4.
+3. **Do Not Shade Host Libraries**: Configure your shadow / jar task to exclude `kotlin.*`, `kotlinx.*`, `org.slf4j.*`, and `org.lolicode.moemusic.api.*`.
 
 ## Compatibility
 

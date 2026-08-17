@@ -54,16 +54,31 @@ dependencies {
 }
 ```
 
-### 保证的运行时基础库
-
-MoeMusic 的 `:api` 依赖会自动传递导出以下标准基础库：
-- **Kotlin 标准库** (`kotlin-stdlib`)
-- **Kotlinx 协程库** (`kotlinx-coroutines-core`)
-- **Kotlinx 序列化核心库** (`kotlinx-serialization-core`)
-- **Kotlinx 序列化 JSON 库** (`kotlinx-serialization-json`)
-- **SLF4J 日志门面** (`slf4j-api`)
-
-在所有受支持的 MoeMusic 宿主平台（Fabric、NeoForge、Forge、Spigot、Velocity、Terminal）上，这些库均保证在运行时可用。独立插件无需额外声明 `compileOnly` 或将其打包进自身产物。
+### 保证的运行时基础库与编译基线
+ 
+ MoeMusic 的 `:api` 依赖会自动传递导出以下标准基础库：
+- **Kotlin 标准库** (`kotlin-stdlib`, 基础 API/Language `2.2`)
+- **Kotlinx 协程库** (`kotlinx-coroutines-core:1.10.2`)
+- **Kotlinx 序列化核心库** (`kotlinx-serialization-core:1.9.0`)
+- **Kotlinx 序列化 JSON 库** (`kotlinx-serialization-json:1.9.0`)
+- **SLF4J 日志 API** (`slf4j-api:1.7.36`)
+ 
+ 在所有受支持的 MoeMusic 宿主平台（Fabric、NeoForge、Forge、Spigot、Velocity、Terminal）上，这些库均保证在运行时可用。独立插件无需额外声明 `compileOnly` 或将其打包进自身产物。
+ 
+#### 插件构建配置建议
+为确保您的插件可以在所有支持的 Minecraft 版本（1.18.2 至最新版）及服务端平台上无缝运行：
+1. **目标 Java 17 与 Kotlin 2.2**：
+   ```kotlin
+   kotlin {
+       compilerOptions {
+           jvmTarget.set(JvmTarget.JVM_17)
+           apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2)
+           languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2)
+       }
+   }
+   ```
+2. **日志**：请使用传统的参数化占位符方法（如 `logger.info("message: {}", arg)`）。**不要使用 SLF4J 2.0 的 Fluent API**（如 `logger.atInfo()`、`logger.atDebug()`），因为旧版本环境（如 Minecraft 1.18.2 / 1.19 / Spigot）运行在 SLF4J 1.7 / 1.8.0-beta4 上。
+3. **不需要打包宿主运行库**：在 shadow 或打包任务中，排除 `kotlin.*`、`kotlinx.*`、`org.slf4j.*` 和 `org.lolicode.moemusic.api.*`。
 
 ## 兼容性
 

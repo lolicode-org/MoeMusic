@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -32,6 +33,8 @@ val generateMoeMusicClientCoreBuildInfo = tasks.register("generateMoeMusicClient
 kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_17
+        apiVersion = KotlinVersion.KOTLIN_2_2
+        languageVersion = KotlinVersion.KOTLIN_2_2
     }
 
     sourceSets.named("main") {
