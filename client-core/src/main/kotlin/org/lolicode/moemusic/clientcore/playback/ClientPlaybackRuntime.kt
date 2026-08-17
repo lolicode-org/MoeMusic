@@ -938,14 +938,16 @@ class ClientPlaybackRuntime(
         }
     }
 
-    fun sendQueueClearRequest(scope: QueueClearScopeProto, targetUserId: String? = null): Long? =
-        sendCorrelatedRequest(PacketIds.QUEUE_CLEAR_REQUEST) { requestId ->
+    fun sendQueueClearRequest(scope: QueueClearScopeProto, targetUserId: String? = null): Long? {
+        if (activeProtocolVersion < 3) return null
+        return sendCorrelatedRequest(PacketIds.QUEUE_CLEAR_REQUEST) { requestId ->
             QueueClearRequest(
                 scope = scope,
                 target_user_id = targetUserId.orEmpty(),
                 request_id = requestId,
             ).encode()
         }
+    }
 
     fun sendTrackSubmit(track: TrackInfo, mode: TrackAddMode = TrackAddMode.NORMAL): Long? =
         sendCorrelatedRequest(PacketIds.TRACK_SUBMIT) { requestId ->
@@ -1953,14 +1955,16 @@ class ClientPlaybackRuntime(
     override fun beginQueueClearRequest(
         scope: QueueClearScopeProto,
         targetUserId: String?,
-    ): Deferred<QueueClearResponse>? =
-        beginCorrelatedRequest(pendingQueueClearResponses, PacketIds.QUEUE_CLEAR_REQUEST) { requestId ->
+    ): Deferred<QueueClearResponse>? {
+        if (activeProtocolVersion < 3) return null
+        return beginCorrelatedRequest(pendingQueueClearResponses, PacketIds.QUEUE_CLEAR_REQUEST) { requestId ->
             QueueClearRequest(
                 scope = scope,
                 target_user_id = targetUserId.orEmpty(),
                 request_id = requestId,
             ).encode()
         }
+    }
 
     override fun beginTrackSubmitRequest(track: TrackInfo, mode: TrackAddMode): Deferred<TrackSubmitResponse>? =
         beginCorrelatedRequest(pendingTrackSubmitResponses, PacketIds.TRACK_SUBMIT) { requestId ->

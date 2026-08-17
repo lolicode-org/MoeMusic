@@ -748,6 +748,27 @@ class ClientPlaybackRuntimeTest {
     }
 
     @Test
+    fun `queue clear requests return null when connected to legacy v2 server`() {
+        val harness = harness()
+        harness.platform.clientProtocolVersion = 2
+        harness.runtime.onConnectionJoined()
+        harness.runtime.receiveFromServer(PacketIds.SERVER_WELCOME, acceptedWelcome(serverProtocolVersion = 2).encode())
+        assertEquals(2, harness.runtime.activeProtocolVersion)
+
+        val deferred = harness.runtime.beginQueueClearRequest(
+            scope = QueueClearScopeProto.QUEUE_CLEAR_SCOPE_ALL,
+            targetUserId = null,
+        )
+        assertNull(deferred)
+
+        val requestId = harness.runtime.sendQueueClearRequest(
+            scope = QueueClearScopeProto.QUEUE_CLEAR_SCOPE_ALL,
+            targetUserId = null,
+        )
+        assertNull(requestId)
+    }
+
+    @Test
     fun `handleQueueClearResponse completes pending deferred and notifies listener`() {
         val harness = harness()
         harness.acceptWelcome()
