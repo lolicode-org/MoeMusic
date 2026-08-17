@@ -319,4 +319,18 @@ Platform builds should support both dependency modes:
 
 Shared artifact versions are catalog-backed. The shared project uses separate versions for API artifacts, protocol compatibility, core, and client-core. Keep generated build-info values tied to those catalog versions.
 
+### Maven Repositories (Cloudflare R2)
+
+MoeMusic artifacts are hosted on Cloudflare R2 behind the custom domain `https://maven.lolicode.org/`:
+
+- **Releases** (`https://maven.lolicode.org/releases`):
+  - Strictly immutable. CI workflows check if release artifacts already exist on R2 before publishing, preventing accidental overwrites.
+  - Published with long-lived CDN cache headers (`Cache-Control: public, max-age=31536000, immutable`).
+- **Snapshots** (`https://maven.lolicode.org/snapshots`):
+  - Used for development snapshot builds.
+  - Snapshot artifacts follow standard SemVer snapshot naming (e.g. `2.2.0-SNAPSHOT`) and short cache headers (`Cache-Control: public, max-age=300, must-revalidate`).
+- **Metadata Synchronization**:
+  - Gradle creates new maven metadata for published artifacts in a local staging directory.
+  - CI pre-fetches any existing `maven-metadata.xml` from R2 into the staging directory before Gradle executes, allowing Gradle's Maven publication plugin to correctly append new versions and maintain full multi-version metadata.
+
 Keep repository declarations consistent across subprojects so shading and published-artifact fallback resolve the same dependencies.

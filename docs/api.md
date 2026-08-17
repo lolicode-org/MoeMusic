@@ -6,16 +6,22 @@ Use the KDoc comments in the source files as the source of truth for signatures.
 
 ## Dependency
 
-MoeMusic core artifacts are published to both Codeberg Packages (recommended) and GitHub Packages.
+MoeMusic core artifacts are published to the public Lolicode Maven repository (recommended) and GitHub Packages.
 
-### Option A: Codeberg Packages (Recommended)
-You can download public packages without an access token:
+### Option A: Lolicode Maven Repository (Recommended)
+You can download public packages directly without an access token:
 
 ```kotlin
 repositories {
     maven {
-        name = "MoeMusic"
-        url = uri("https://codeberg.org/api/packages/lolicode/maven")
+        name = "Lolicode Releases"
+        url = uri("https://maven.lolicode.org/releases")
+        content { includeGroupByRegex("org\\.lolicode.*") }
+    }
+    // Optional: for development snapshot builds
+    maven {
+        name = "Lolicode Snapshots"
+        url = uri("https://maven.lolicode.org/snapshots")
         content { includeGroupByRegex("org\\.lolicode.*") }
     }
 }
@@ -48,7 +54,7 @@ dependencies {
 
 ## Compatibility
 
-[MoeMusicApi.API_VERSION](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicApi.kt) is the plugin API compatibility version. It is checked against [Plugin.supportedApiVersions](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt). It will be the same as Maven artifact version for release builds, but snapshot builds may increment more frequently for internal compatibility tracking.
+MoeMusicApi.API_VERSION is the plugin API compatibility version. It is independent of the Maven artifact version, so snapshot artifacts keep the same compatibility version until the public API changes.
 
 Keep your supported range explicit.
 This project's API version follows semantic versioning, and breaking changes will increment the major version. So it's recommended to declare the supported range as >= the current minor version (**not patch version**) and < the next major version, to allow patch updates without needing plugin changes.

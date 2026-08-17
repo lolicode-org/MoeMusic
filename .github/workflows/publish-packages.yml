@@ -133,13 +133,53 @@ jobs:
       - name: publish selected modules
         if: steps.modules.outputs.modules != ''
         env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: ${{ secrets.R2_BUCKET_NAME }}
+          SNAPSHOT_INPUT: ${{ inputs.snapshot }}
           GITHUB_PACKAGES_USERNAME: ${{ github.actor }}
           GITHUB_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           IFS=',' read -ra modules <<< "${{ steps.modules.outputs.modules }}"
+
+          snapshot_flag="false"
+          target_prefix="releases"
+          if [[ "$GITHUB_EVENT_NAME" == "push" || "$SNAPSHOT_INPUT" == "true" ]]; then
+            snapshot_flag="true"
+            target_prefix="snapshots"
+          fi
+
+          staging_dir="$RUNNER_TEMP/r2-staging"
+          rm -rf "$staging_dir"
+          mkdir -p "$staging_dir"
+
+          echo "Target R2 prefix: $target_prefix (snapshot: $snapshot_flag)"
+
+          # Pre-fetch existing maven metadata from R2 for seamless multi-version updates
+          for module in "${modules[@]}"; do
+            metadata_path="org/lolicode/moemusic/$module/maven-metadata.xml"
+            mkdir -p "$staging_dir/org/lolicode/moemusic/$module"
+            if aws s3 cp "s3://$R2_BUCKET/$target_prefix/$metadata_path" "$staging_dir/$metadata_path" --endpoint-url "$AWS_ENDPOINT_URL" 2>/dev/null; then
+              echo "Fetched existing $metadata_path from R2"
+            else
+              echo "No existing $metadata_path found on R2 ($target_prefix)"
+            fi
+
+            # Check release immutability
+            if [[ "$snapshot_flag" == "false" ]]; then
+              version="$(./gradlew -q ":$module:properties" -Pmoemusic.snapshot=false | awk -F': ' '$1 == "version" {print $2}')"
+              echo "Checking immutability for $module version $version on R2..."
+              if aws s3 ls "s3://$R2_BUCKET/releases/org/lolicode/moemusic/$module/$version/" --endpoint-url "$AWS_ENDPOINT_URL" 2>/dev/null | grep -q '.*'; then
+                echo "::error::Release version $version for module '$module' already exists on R2 and is immutable!"
+                exit 1
+              fi
+            fi
+          done
+
           tasks=()
           for module in "${modules[@]}"; do
             case "$module" in
@@ -150,9 +190,27 @@ jobs:
             esac
           done
 
-          snapshot_flag="false"
-          if [[ "${{ github.event_name }}" == "push" || "${{ inputs.snapshot }}" == "true" ]]; then
-            snapshot_flag="true"
+          ./gradlew -Pmoemusic.snapshot="$snapshot_flag" -Pmoemusic.publish.stagingDir="$staging_dir" "${tasks[@]}" --stacktrace
+
+          # Sync artifacts to Cloudflare R2
+          if [[ "$snapshot_flag" == "false" ]]; then
+            # Release files (immutable CDN caching)
+            aws s3 sync "$staging_dir" "s3://$R2_BUCKET/$target_prefix" \
+              --endpoint-url "$AWS_ENDPOINT_URL" \
+              --exclude "*/maven-metadata.xml*" \
+              --cache-control "public, max-age=31536000, immutable"
+
+            # Metadata files (short revalidation TTL)
+            aws s3 sync "$staging_dir" "s3://$R2_BUCKET/$target_prefix" \
+              --endpoint-url "$AWS_ENDPOINT_URL" \
+              --exclude "*" \
+              --include "*/maven-metadata.xml*" \
+              --cache-control "public, max-age=300, must-revalidate"
+          else
+            # Snapshot files (short TTL)
+            aws s3 sync "$staging_dir" "s3://$R2_BUCKET/$target_prefix" \
+              --endpoint-url "$AWS_ENDPOINT_URL" \
+              --cache-control "public, max-age=300, must-revalidate"
           fi
 
-          ./gradlew -Pmoemusic.snapshot="$snapshot_flag" "${tasks[@]}" --stacktrace
+          echo "Successfully published to https://maven.lolicode.org/$target_prefix/"

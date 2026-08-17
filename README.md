@@ -20,7 +20,7 @@ While not directly tied to any Minecraft components, it is optimized for Minecra
 
 ### Dependency Configuration
 
-MoeMusic core components are published to Codeberg Packages and GitHub Packages.
+MoeMusic core components are published to Lolicode Maven (https://maven.lolicode.org) and GitHub Packages.
 
 Detailed installation and build setup instructions (including repository declarations for Gradle) are located in the API Documentation.
 
@@ -95,7 +95,6 @@ MoeMusic stands on the shoulders of these open-source projects:
 - [lavaplayer](https://github.com/lavalink-devs/lavaplayer) - Core audio decoding and playback
 - [ktoml](https://github.com/orchestr7/ktoml) - TOML configuration file support
 - [wire](https://github.com/square/wire) - Protobuf packet serialization
-- [codeberg](https://codeberg.org/) - Code hosting and artifact distribution
 - [GitHub](https://github/) - Repository mirror and CI automation
 - [Kotlin](https://kotlinlang.org/) - The primary programming language
 

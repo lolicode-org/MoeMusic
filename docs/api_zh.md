@@ -6,16 +6,22 @@
 
 ## 依赖
 
-MoeMusic 核心组件发布在 Codeberg Packages（推荐）和 GitHub Packages 上。
+MoeMusic 核心组件发布在 Lolicode Maven 仓库（推荐）和 GitHub Packages 上。
 
-### 选项 A：Codeberg Packages（推荐）
+### 选项 A：Lolicode Maven 仓库（推荐）
 无需配置 Access Token 即可直接拉取公开依赖包：
 
 ```kotlin
 repositories {
     maven {
-        name = "MoeMusic"
-        url = uri("https://codeberg.org/api/packages/lolicode/maven")
+        name = "Lolicode Releases"
+        url = uri("https://maven.lolicode.org/releases")
+        content { includeGroupByRegex("org\\.lolicode.*") }
+    }
+    // 可选：用于获取开发快照构建
+    maven {
+        name = "Lolicode Snapshots"
+        url = uri("https://maven.lolicode.org/snapshots")
         content { includeGroupByRegex("org\\.lolicode.*") }
     }
 }
@@ -48,7 +54,7 @@ dependencies {
 
 ## 兼容性
 
-[MoeMusicApi.API_VERSION](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicApi.kt) 是插件接口的内部版本，用于与 [Plugin.supportedApiVersions](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt) 进行匹配。正式发布版的接口版本号会和 Maven 产物版本号保持一致；快照版的接口版本号可能更频繁变动，不保证与 Maven 版本号完全同步。
+[MoeMusicApi.API_VERSION](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicApi.kt) 是插件接口的兼容版本，与 Maven 产物版本号相互独立；快照产物会保持相同的兼容版本，直到公开 API 发生变化。
 
 建议在插件中显式声明所支持的 API 版本范围。
 本项目接口版本遵循语义化版本规范，并且在主版本号不变的前提下保持向后兼容。因此，推荐的声明方式为：大于等于当前的最新次要版本号（不是修订版本号），并且小于下一个主版本号，例如：

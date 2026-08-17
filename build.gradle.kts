@@ -1,9 +1,7 @@
 import org.gradle.api.plugins.BasePlugin
 import org.gradle.api.artifacts.VersionCatalogsExtension
-import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.language.base.plugins.LifecycleBasePlugin
 
 plugins {
@@ -23,7 +21,11 @@ fun catalogVersion(alias: String): String =
 val versionSuffix = providers.gradleProperty("moemusic.versionSuffix")
     .orElse(
         providers.gradleProperty("moemusic.snapshot").map { snapshot ->
-            if (snapshot.toBooleanStrictOrNull() == true) "-SNAPSHOT" else ""
+            when (snapshot.lowercase()) {
+                "true" -> "-SNAPSHOT"
+                "false" -> ""
+                else -> throw GradleException("moemusic.snapshot must be 'true' or 'false', got '$snapshot'.")
+            }
         },
     )
     .orElse("")
@@ -63,6 +65,16 @@ tasks.register("publishSharedToMavenLocal") {
     )
 }
 
+tasks.register("publishSharedToStaging") {
+    group = BasePlugin.BUILD_GROUP
+    description = "Publishes api/core/client-core to local R2 staging directory."
+    dependsOn(
+        ":api:publishMavenJavaPublicationToLocalR2StagingRepository",
+        ":core:publishMavenJavaPublicationToLocalR2StagingRepository",
+        ":client-core:publishMavenJavaPublicationToLocalR2StagingRepository",
+    )
+}
+
 fun sharedModuleTaskNamePart(moduleName: String): String =
     moduleName.split("-").joinToString("") { part ->
         part.replaceFirstChar { it.uppercaseChar() }
@@ -73,10 +85,10 @@ val publishableSharedModules = listOf("api", "core", "client-core")
 publishableSharedModules.forEach { moduleName ->
     tasks.register("publish${sharedModuleTaskNamePart(moduleName)}ToPackageRegistries") {
         group = "publishing"
-        description = "Publishes :$moduleName to GitHub Packages and Codeberg Packages."
+        description = "Publishes :$moduleName to local R2 staging and GitHub Packages."
         dependsOn(
+            ":$moduleName:publishMavenJavaPublicationToLocalR2StagingRepository",
             ":$moduleName:publishMavenJavaPublicationToGitHubPackagesRepository",
-            ":$moduleName:publishMavenJavaPublicationToCodebergPackagesRepository",
         )
     }
 }
@@ -90,9 +102,14 @@ allprojects {
             content { includeGroupByRegex("com\\.github\\.walkyst\\..*") }
         }
         maven {
-            name = "Lolicode on Codeberg"
-            url = uri("https://codeberg.org/api/packages/lolicode/maven")
-            content { includeGroupByRegex("org\\.lolicode.*")}
+            name = "Lolicode Releases"
+            url = uri("https://maven.lolicode.org/releases")
+            content { includeGroupByRegex("org\\.lolicode.*") }
+        }
+        maven {
+            name = "Lolicode Snapshots"
+            url = uri("https://maven.lolicode.org/snapshots")
+            content { includeGroupByRegex("org\\.lolicode.*") }
         }
     }
 }
@@ -114,6 +131,13 @@ subprojects {
 
             repositories {
                 maven {
+                    name = "LocalR2Staging"
+                    val stagingDir = providers.gradleProperty("moemusic.publish.stagingDir")
+                        .orElse(nonBlankEnvironmentVariable("STAGING_DIR"))
+                        .orElse(rootProject.layout.buildDirectory.dir("r2-staging").map { it.asFile.absolutePath })
+                    url = uri(rootProject.file(stagingDir.get()))
+                }
+                maven {
                     name = "GitHubPackages"
                     val repository = providers.gradleProperty("moemusic.githubPackagesRepository")
                         .orElse(providers.environmentVariable("GITHUB_REPOSITORY"))
@@ -130,25 +154,6 @@ subprojects {
                             .orElse(nonBlankEnvironmentVariable("GITHUB_TOKEN"))
                             .orElse("")
                             .get()
-                    }
-                }
-                maven {
-                    name = "CodebergPackages"
-                    val owner = providers.gradleProperty("moemusic.codebergPackagesOwner")
-                        .orElse(nonBlankEnvironmentVariable("CODEBERG_PACKAGES_OWNER"))
-                        .orElse("lolicode")
-                        .get()
-                    url = uri("https://codeberg.org/api/packages/$owner/maven")
-                    credentials(HttpHeaderCredentials::class) {
-                        name = "Authorization"
-                        value = providers.gradleProperty("codeberg.token")
-                            .orElse(nonBlankEnvironmentVariable("CODEBERG_TOKEN"))
-                            .map { "token $it" }
-                            .orElse("")
-                            .get()
-                    }
-                    authentication {
-                        create<HttpHeaderAuthentication>("header")
                     }
                 }
             }

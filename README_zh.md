@@ -20,7 +20,7 @@ MoeMusic 是一个专为多人同步播放音乐而设计的 Kotlin 库，支持
 
 ### 引入依赖
 
-MoeMusic 发布在 Codeberg Packages 和 GitHub Packages 上。 
+MoeMusic 发布在 Lolicode Maven（https://maven.lolicode.org）和 GitHub Packages 上。
 
 有关如何在 Gradle 中声明仓库和引入依赖的具体配置，请参阅 API 开发文档的对应章节。
 
@@ -95,7 +95,6 @@ MoeMusic 依赖以下开源项目的支持：
 - [lavaplayer](https://github.com/lavalink-devs/lavaplayer) - 音频解码与播放引擎
 - [ktoml](https://github.com/orchestr7/ktoml) - TOML 配置文件读写支持
 - [wire](https://github.com/square/wire) - Protobuf 数据序列化支持
-- [codeberg](https://codeberg.org/) - 代码托管及 Maven 仓库分发
 - [GitHub](https://github/) - 代码托管与 CI 流水线
 - [Kotlin](https://kotlinlang.org/) - 核心开发语言
 
