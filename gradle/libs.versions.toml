@@ -3,8 +3,8 @@
 moemusic-api = "2.2.0"  # Used as maven artifact version for API modules.
 moemusic-api-compat = "2.2.0"  # Used in core for plugin compatibility checks.
 moemusic-protocol = "3"
-moemusic-core = "1.4.0"
-moemusic-client-core = "1.4.0"
+moemusic-core = "1.4.1"
+moemusic-client-core = "1.4.1"
 
 # Kotlin and build tooling.
 kotlin = "2.4.10"  # use latest compiler but target kotlin 2.2

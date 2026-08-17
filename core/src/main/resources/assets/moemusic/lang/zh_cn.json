@@ -298,7 +298,7 @@
   "screen.moemusic.unavailable.protocol_mismatch.update_server": "当前客户端使用 MoeMusic 协议 %1$s，但服务器使用协议 %2$s。请联系服务器管理员更新服务器端 MoeMusic，然后重新连接。",
   "screen.moemusic.unavailable.protocol_mismatch.check_both": "客户端和服务器都报告 MoeMusic 协议 %1$s，但握手仍被拒绝。请在两端重新安装或更新 MoeMusic，然后重新连接。",
   "screen.moemusic.unavailable.compatibility.title": "MoeMusic 兼容模式",
-  "screen.moemusic.unavailable.compatibility.body": "当前以旧版协议 v%1$s 兼容模式连接。压缩与分片等高级传输特性已禁用。",
+  "screen.moemusic.unavailable.compatibility.body": "当前以旧版协议 v%1$s 兼容模式连接，部分功能可能无法使用。如果你是服务器管理员，请升级服务端的 MoeMusic 以获得更佳体验。",
   "screen.moemusic.control.pause": "⏸ 暂停",
   "screen.moemusic.control.resume": "▶ 继续",
   "screen.moemusic.control.skip": "⏭ 跳过",

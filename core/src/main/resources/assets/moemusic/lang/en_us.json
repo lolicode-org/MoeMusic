@@ -298,7 +298,7 @@
   "screen.moemusic.unavailable.protocol_mismatch.update_server": "This client uses MoeMusic protocol %1$s, but the server uses protocol %2$s. Ask the server administrator to update MoeMusic on the server, then reconnect.",
   "screen.moemusic.unavailable.protocol_mismatch.check_both": "Both sides reported MoeMusic protocol %1$s, but the handshake was still rejected. Reinstall or update MoeMusic on both sides, then reconnect.",
   "screen.moemusic.unavailable.compatibility.title": "MoeMusic Compatibility Mode",
-  "screen.moemusic.unavailable.compatibility.body": "Connected in compatibility mode with legacy protocol v%1$s. Advanced transport features like compression and chunking are disabled.",
+  "screen.moemusic.unavailable.compatibility.body": "Connected in compatibility mode with legacy protocol v%1$s, some features may not be available. If you're the server administrator, please upgrade MoeMusic on your server for better user experience.",
   "screen.moemusic.control.pause": "⏸ Pause",
   "screen.moemusic.control.resume": "▶ Resume",
   "screen.moemusic.control.skip": "⏭ Skip",
