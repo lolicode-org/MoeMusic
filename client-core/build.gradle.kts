@@ -55,10 +55,7 @@ tasks.named("sourcesJar") {
 
 dependencies {
     api(project(":core"))
-    implementation(libs.kotlin.stdlib)
     implementation(libs.lavaplayer)
-    implementation(libs.kotlinx.coroutines.core)
-    compileOnly(libs.slf4j.api)
 
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)

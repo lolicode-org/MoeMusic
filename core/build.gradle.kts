@@ -80,19 +80,15 @@ wire {
 
 dependencies {
     api(project(":api"))
-    implementation(libs.kotlin.stdlib)
     implementation(libs.lavaplayer)
     implementation(libs.ktoml.core)
     implementation(libs.ktoml.file)
-    implementation(libs.kotlinx.coroutines.core)
-    // SLF4J — runtime provided by Minecraft/the loader on platform modules
-    compileOnly(libs.slf4j.api)
+
     // Test
     testImplementation(kotlin("test"))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
     testRuntimeOnly(libs.slf4j.simple)
-
 }
 
 tasks.test {

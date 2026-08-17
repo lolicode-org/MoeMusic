@@ -68,8 +68,10 @@ tasks.named("sourcesJar") {
 }
 
 dependencies {
-    implementation(libs.kotlin.stdlib)
-    implementation(libs.kotlinx.serialization.core)
-    // SLF4J facade — used for Logger type in PluginContext; runtime provided by Minecraft/the loader
-    compileOnly(libs.slf4j.api)
+    // Guaranteed baseline runtime libraries exported to all consumers (core, platforms, plugins)
+    api(libs.kotlin.stdlib)
+    api(libs.kotlinx.coroutines.core)
+    api(libs.kotlinx.serialization.core)
+    api(libs.kotlinx.serialization.json)
+    api(libs.slf4j.api)
 }

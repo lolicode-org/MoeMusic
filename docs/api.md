@@ -27,7 +27,8 @@ repositories {
 }
 
 dependencies {
-    implementation("org.lolicode.moemusic:api:x.y.z") // Replace with the latest version
+    // Standalone plugin jars should use compileOnly so host runtime dependencies are not shaded.
+    compileOnly("org.lolicode.moemusic:api:x.y.z") // Replace with the latest version
 }
 ```
 
@@ -48,9 +49,21 @@ repositories {
 }
 
 dependencies {
-    implementation("org.lolicode.moemusic:api:x.y.z") // Replace with the latest version
+    // Standalone plugin jars should use compileOnly so host runtime dependencies are not shaded.
+    compileOnly("org.lolicode.moemusic:api:x.y.z") // Replace with the latest version
 }
 ```
+
+### Guaranteed Runtime Libraries
+
+MoeMusic's `:api` artifact exports the following standard baseline libraries transitively:
+- **Kotlin Standard Library** (`kotlin-stdlib`)
+- **Kotlinx Coroutines Core** (`kotlinx-coroutines-core`)
+- **Kotlinx Serialization Core** (`kotlinx-serialization-core`)
+- **Kotlinx Serialization JSON** (`kotlinx-serialization-json`)
+- **SLF4J API** (`slf4j-api`)
+
+These libraries are guaranteed to be available at runtime across all supported MoeMusic host platforms (Fabric, NeoForge, Forge, Spigot, Velocity, Terminal). Standalone plugins do not need to add separate `compileOnly` declarations or shade these libraries into their plugin jar.
 
 ## Compatibility
 

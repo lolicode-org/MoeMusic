@@ -27,7 +27,8 @@ repositories {
 }
 
 dependencies {
-    implementation("org.lolicode.moemusic:api:x.y.z") // 请替换为最新版本
+    // 独立插件 Jar 推荐使用 compileOnly，避免将宿主运行时已提供的依赖重复打包进插件。
+    compileOnly("org.lolicode.moemusic:api:x.y.z") // 请替换为最新版本
 }
 ```
 
@@ -48,9 +49,21 @@ repositories {
 }
 
 dependencies {
-    implementation("org.lolicode.moemusic:api:x.y.z") // 请替换为最新版本
+    // 独立插件 Jar 推荐使用 compileOnly，避免将宿主运行时已提供的依赖重复打包进插件。
+    compileOnly("org.lolicode.moemusic:api:x.y.z") // 请替换为最新版本
 }
 ```
+
+### 保证的运行时基础库
+
+MoeMusic 的 `:api` 依赖会自动传递导出以下标准基础库：
+- **Kotlin 标准库** (`kotlin-stdlib`)
+- **Kotlinx 协程库** (`kotlinx-coroutines-core`)
+- **Kotlinx 序列化核心库** (`kotlinx-serialization-core`)
+- **Kotlinx 序列化 JSON 库** (`kotlinx-serialization-json`)
+- **SLF4J 日志门面** (`slf4j-api`)
+
+在所有受支持的 MoeMusic 宿主平台（Fabric、NeoForge、Forge、Spigot、Velocity、Terminal）上，这些库均保证在运行时可用。独立插件无需额外声明 `compileOnly` 或将其打包进自身产物。
 
 ## 兼容性
 

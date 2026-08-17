@@ -91,6 +91,25 @@ Duplicate [Plugin.id](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Pl
 
 Standalone plugin jars are trusted local code, not sandboxed. Their classloader is child-first for plugin classes but parent-first for the Java/Kotlin runtime, SLF4J, and MoeMusic API types. This avoids duplicate API classes while still letting a standalone jar carry its own implementation dependencies. There is no hot reload guarantee; jar changes require a JVM/game/server restart.
 
+### Guaranteed Runtime Baseline Libraries
+
+To keep a consistent interface across platforms and simplify third-party plugin development, the MoeMusic `:api` module exports a standard runtime baseline via `api(...)` dependency declarations. Third-party plugins and platform implementations that depend on `:api` transitively receive compile-time access and runtime guarantees for:
+
+- **Kotlin Standard Library** (`org.jetbrains.kotlin:kotlin-stdlib`)
+- **Kotlinx Coroutines Core** (`org.jetbrains.kotlinx:kotlinx-coroutines-core`)
+- **Kotlinx Serialization Core** (`org.jetbrains.kotlinx:kotlinx-serialization-core-jvm`)
+- **Kotlinx Serialization JSON** (`org.jetbrains.kotlinx:kotlinx-serialization-json-jvm`)
+- **SLF4J API** (`org.slf4j:slf4j-api`)
+
+Each host platform guarantees these libraries in the host/parent classloader without duplicate shading or classpath collisions:
+- **Fabric**: Supplied by `fabric-language-kotlin` and Minecraft vanilla SLF4J.
+- **NeoForge / Forge**: Supplied by `kotlinforforge` / `kotlin-neoforge` and Minecraft/Forge SLF4J.
+- **Spigot / Paper**: Downloaded automatically at runtime into the plugin classloader via `plugin.yml` `libraries:` entries (`kotlin-stdlib`, `kotlinx-coroutines-core-jvm`, `kotlinx-serialization-core-jvm`, `kotlinx-serialization-json-jvm`, `slf4j-api`, `slf4j-jdk14`).
+- **Velocity**: Embedded in the MoeMusic Velocity shadow jar with un-relocated `kotlin.*`, `kotlinx.*`, and `org.slf4j.*` packages for parent-first classloader delegation.
+- **Terminal**: Bundled directly into the standalone application runtime classpath.
+
+Standalone plugin jars loaded by `StandalonePluginClassLoader` delegate all `kotlin.*`, `kotlinx.*`, `org.slf4j.*`, and `org.lolicode.moemusic.api.*` classes to the parent classloader first, ensuring single shared runtime instances across all loaded plugins.
+
 Plugin lifecycle has runtime and session layers:
 
 - [onServerRuntimeLoad](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt#L100) / [onServerRuntimeUnload](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt#L115): once per logical server runtime in the JVM.
