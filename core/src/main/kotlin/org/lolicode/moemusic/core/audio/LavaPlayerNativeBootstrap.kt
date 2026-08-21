@@ -73,10 +73,11 @@ object LavaPlayerNativeBootstrap {
         env: Map<String, String>,
         userHome: String,
         tempDir: String,
+        userName: String = System.getProperty("user.name").orEmpty(),
     ): Path? {
         val failures = mutableListOf<String>()
 
-        for (candidate in candidateExtractionPaths(gameDir, configDir, osName, env, userHome, tempDir)) {
+        for (candidate in candidateExtractionPaths(gameDir, configDir, osName, env, userHome, tempDir, userName)) {
             val normalized = candidate.toAbsolutePath().normalize()
             val result = runCatching {
                 ensureUsableDirectory(normalized)
@@ -102,24 +103,155 @@ object LavaPlayerNativeBootstrap {
         env: Map<String, String>,
         userHome: String,
         tempDir: String,
+        userName: String = System.getProperty("user.name").orEmpty(),
+        isAndroidOverride: Boolean? = null,
     ): List<Path> {
         val candidates = mutableListOf<Path>()
+        val onAndroid = isAndroidOverride ?: isAndroid(osName, env)
+
+        fun tempCandidate(dir: String): Path? {
+            if (dir.isBlank()) return null
+            val scopedModDir = if (userName.isNotBlank() && !onAndroid) "$MOD_ID-$userName" else MOD_ID
+            return Paths.get(dir).resolve(scopedModDir).resolve(NATIVES_DIR)
+        }
+
+        if (onAndroid) {
+            // Android linker namespaces (clns) strictly forbid loading .so binaries from external storage.
+            // Internal app storage (such as java.io.tmpdir / /data/data/<pkg>/cache) must be prioritized.
+            tempCandidate(tempDir)?.let { candidates.add(it) }
+
+            env["TMPDIR"]?.takeIf { it.isNotBlank() }?.let {
+                tempCandidate(it)?.let { candidate -> candidates.add(candidate) }
+            }
+        }
 
         gameDir?.let {
             candidates.add(it.resolve("cache").resolve(MOD_ID).resolve(NATIVES_DIR))
         }
 
-        osCacheDirectory(osName, env, userHome)?.let {
-            candidates.add(it.resolve(MOD_ID).resolve(NATIVES_DIR))
+        if (!onAndroid) {
+            osCacheDirectory(osName, env, userHome)?.let {
+                candidates.add(it.resolve(MOD_ID).resolve(NATIVES_DIR))
+            }
         }
 
         candidates.add(configDir.resolve("cache").resolve(NATIVES_DIR))
 
-        if (tempDir.isNotBlank()) {
-            candidates.add(Paths.get(tempDir).resolve(MOD_ID).resolve(NATIVES_DIR))
+        if (!onAndroid) {
+            tempCandidate(tempDir)?.let { candidates.add(it) }
         }
 
-        return candidates.distinctBy { it.toAbsolutePath().normalize() }
+        val filtered = if (onAndroid) {
+            candidates.filterNot { isAndroidExternalStorage(it) }
+        } else {
+            candidates
+        }
+
+        return filtered.map { it.toAbsolutePath().normalize() }.distinct()
+    }
+
+    internal fun isAndroid(
+        osName: String = System.getProperty("os.name").orEmpty(),
+        env: Map<String, String> = System.getenv(),
+        propertyGetter: (String) -> String? = { System.getProperty(it) },
+    ): Boolean {
+        if ("android" in osName.lowercase()) return true
+
+        val runtimeName = propertyGetter("java.runtime.name").orEmpty().lowercase()
+        val vmName = propertyGetter("java.vm.name").orEmpty().lowercase()
+        val vmVendor = propertyGetter("java.vm.vendor").orEmpty().lowercase()
+        val vendor = propertyGetter("java.vendor").orEmpty().lowercase()
+
+        if ("android" in runtimeName || "dalvik" in vmName || "art" in vmName || "android" in vmVendor || "android" in vendor) {
+            return true
+        }
+
+        if (env.containsKey("ANDROID_ROOT") ||
+            env.containsKey("ANDROID_DATA") ||
+            env.containsKey("ANDROID_ART_ROOT") ||
+            env.containsKey("ANDROID_I18N_ROOT") ||
+            env.containsKey("ANDROID_TZDATA_ROOT")
+        ) {
+            return true
+        }
+
+        if (Files.exists(Paths.get("/system/build.prop")) ||
+            Files.exists(Paths.get("/apex/com.android.runtime")) ||
+            Files.exists(Paths.get("/system/bin/linker64")) ||
+            Files.exists(Paths.get("/system/bin/linker"))
+        ) {
+            return true
+        }
+
+        return checkProcSelfMapsForAndroid()
+    }
+
+    private fun checkProcSelfMapsForAndroid(): Boolean {
+        val mapsPath = Paths.get("/proc/self/maps")
+        if (!Files.exists(mapsPath)) return false
+        return runCatching {
+            Files.newBufferedReader(mapsPath).use { reader ->
+                reader.lineSequence().any { line ->
+                    line.contains("/bionic/libc.so") ||
+                        line.contains("/apex/com.android.runtime/") ||
+                        line.contains("/system/lib/libc.so") ||
+                        line.contains("/system/lib64/libc.so")
+                }
+            }
+        }.getOrDefault(false)
+    }
+
+    private val ANDROID_EXTERNAL_STORAGE_PREFIXES = listOf(
+        "/storage/",
+        "/sdcard",
+        "/data/media/",
+        "/mnt/sdcard",
+        "/mnt/media_rw/",
+        "/mnt/obb/",
+        "/mnt/user/",
+        "/mnt/runtime/",
+        "/mnt/expand/",
+        "/mnt/pass_through/",
+        "/mnt/androidwritable/",
+    )
+
+    internal fun resolveRealPath(path: Path): Path {
+        // safely resolves symbolic links (symlinks) to find the true physical path where files will actually
+        // be created, even when target subdirectories do not exist on disk yet.
+        // GPT says this is vulnerable to symlink swapping, which may allow other processes that can swap part
+        // of the path to another symlink to redirect the final native library path under its control,
+        // and inject code to this process (because `runCatching { current.toRealPath() }.getOrDefault(current)`
+        // has fallback, allowing symlink in the "real path" in rare case (what case?), and the later directory
+        // creation is not atomic).
+        // But: This is only checked on android, any other processes that can do this already hold the same privilege
+        // as this process, especially considering android will block library loading on shared storage.
+        // Maybe this would be a thing on other platforms? Pre-existing trust-boundary issue.
+        // Currently I think that's acceptable.
+        var current: Path? = path.toAbsolutePath().normalize()
+        val missingSuffixes = mutableListOf<String>()
+
+        while (current != null && !Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+            missingSuffixes.add(0, current.fileName?.toString().orEmpty())
+            current = current.parent
+        }
+
+        val realBase = if (current != null) {
+            runCatching { current.toRealPath() }.getOrDefault(current)
+        } else {
+            path.toAbsolutePath().normalize()
+        }
+
+        return missingSuffixes.fold(realBase) { acc, segment ->
+            if (segment.isNotEmpty()) acc.resolve(segment) else acc
+        }.normalize()
+    }
+
+    internal fun isAndroidExternalStorage(path: Path): Boolean {
+        val realPathStr = resolveRealPath(path).toString()
+        val normalizedPathStr = path.toAbsolutePath().normalize().toString()
+        return ANDROID_EXTERNAL_STORAGE_PREFIXES.any { prefix ->
+            realPathStr.startsWith(prefix) || normalizedPathStr.startsWith(prefix)
+        }
     }
 
     private fun osCacheDirectory(osName: String, env: Map<String, String>, userHome: String): Path? {
@@ -170,6 +302,10 @@ object LavaPlayerNativeBootstrap {
     }
 
     private fun ensureUsableDirectory(path: Path) {
+        if (isAndroid() && isAndroidExternalStorage(path)) {
+            throw IOException("Path resolves to Android external storage which is forbidden for native library loading: $path")
+        }
+
         createDirectoriesSecurely(path)
 
         val probe = Files.createTempFile(path, ".moemusic-lavaplayer-", ".probe")
