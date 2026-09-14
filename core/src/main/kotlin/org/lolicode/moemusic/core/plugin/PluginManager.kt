@@ -112,6 +112,10 @@ object PluginManager {
     val plugins: List<Plugin>
         get() = registeredPlugins.values.toList()
 
+    /** The discovery and validation report produced during the most recent [initialize] call. */
+    var lastDiscoveryReport: PluginDiscoveryReport? = null
+        private set
+
     /** Snapshot the currently registered music sources for safe iteration across async work. */
     fun musicSourceSnapshot(): List<MusicSource> = ArrayList(musicSources)
 
@@ -132,31 +136,109 @@ object PluginManager {
      * `<configDir>/plugins/` directory during this call.
      *
      * @param configDir Root config directory.
+     * @return [PluginDiscoveryReport] detailing loaded, duplicate, incompatible, and failed plugins.
      */
-    fun initialize(configDir: Path) {
-        if (initialized) return
+    fun initialize(configDir: Path): PluginDiscoveryReport {
+        lastDiscoveryReport?.let { if (initialized) return it }
         this.configDir = configDir
         loadBundledLangResources()
         val loadedPluginJars = PluginJarDiscovery.discover(configDir.resolve(STANDALONE_PLUGIN_DIR))
 
-        try {
-            for (candidate in discoveredPlugins(loadedPluginJars.plugins)) {
-                val plugin = candidate.plugin
-                requireCompatibleApiVersion(plugin)
-                requireValidConfigId(plugin)
-                loadLangResources(plugin)
-                registeredPlugins[plugin.id] = plugin
-                plugin.configSpec?.let { spec ->
-                    PluginConfigIO.ensureExists(PluginConfigIO.fileFor(configDir, plugin), spec)
-                }
-                logger.info("Registered plugin: {} v{} ({})", plugin.id, plugin.version, candidate.origin)
+        val candidates =
+            builtinPlugins.map { RawCandidate(it, "builtin plugin", resolveFilePath(it), null) } +
+                MoeMusicApi.plugins.map { RawCandidate(it, "explicit MoeMusicApi registration", resolveFilePath(it), null) } +
+                loadedPluginJars.plugins.map { RawCandidate(it.plugin, it.origin, it.jarPath, it.classLoader) }
+
+        val compatibleCandidates = mutableListOf<RawCandidate>()
+        val incompatibleRecords = mutableListOf<IncompatiblePluginRecord>()
+
+        for (candidate in candidates) {
+            val plugin = candidate.plugin
+            val apiError = checkApiCompatibility(plugin)
+            val configIdError = checkConfigIdValidity(plugin)
+            if (apiError != null || configIdError != null) {
+                val reason = listOfNotNull(apiError, configIdError).joinToString("; ")
+                incompatibleRecords += IncompatiblePluginRecord(
+                    pluginId = plugin.id,
+                    version = plugin.version,
+                    origin = candidate.origin,
+                    filePath = candidate.filePath,
+                    supportedApiVersions = plugin.supportedApiVersions,
+                    runtimeApiVersion = MoeMusicApi.API_VERSION,
+                    reason = reason,
+                )
+                logger.warn("Incompatible plugin '{}' v{} ({}): {}", plugin.id, plugin.version, candidate.origin, reason)
+            } else {
+                compatibleCandidates += candidate
             }
-            pluginClassLoaders += loadedPluginJars.classLoaders
-        } catch (e: Exception) {
-            loadedPluginJars.close()
-            throw e
         }
+
+        val grouped = compatibleCandidates.groupBy { it.plugin.id }
+        val selectedCandidates = mutableListOf<RawCandidate>()
+        val duplicateRecords = mutableListOf<DeduplicationRecord>()
+        val discardedCandidates = mutableListOf<RawCandidate>()
+
+        for ((pluginId, pluginCandidates) in grouped) {
+            if (pluginCandidates.size == 1) {
+                selectedCandidates += pluginCandidates.single()
+            } else {
+                // Sort descending to place the highest version first, so we can easily select it and skip the rest
+                val sorted = pluginCandidates.sortedWith { a, b ->
+                    comparePluginVersions(b.plugin.version, a.plugin.version)
+                }
+                val selected = sorted.first()
+                val skipped = sorted.drop(1)
+                selectedCandidates += selected
+                discardedCandidates += skipped
+                duplicateRecords += DeduplicationRecord(
+                    pluginId = pluginId,
+                    selected = PluginCandidateInfo(selected.plugin, selected.origin, selected.filePath),
+                    skipped = skipped.map { PluginCandidateInfo(it.plugin, it.origin, it.filePath) },
+                )
+                logger.warn(
+                    "Deduplicated plugin '{}': selected v{} ({}) over {}",
+                    pluginId,
+                    selected.plugin.version,
+                    selected.origin,
+                    skipped.joinToString { "v${it.plugin.version} (${it.origin})" },
+                )
+            }
+        }
+
+        // Close classloaders for standalone plugins that were not selected and share no classloader with selected plugins
+        val activeClassLoaders = selectedCandidates.mapNotNull { it.classLoader }.toSet()
+        for (candidate in candidates) {
+            if (candidate !in selectedCandidates) {
+                val cl = candidate.classLoader
+                if (cl != null && cl !in activeClassLoaders) {
+                    closeQuietly(cl)
+                }
+            }
+        }
+        pluginClassLoaders += activeClassLoaders
+
+        for (candidate in selectedCandidates) {
+            val plugin = candidate.plugin
+            loadLangResources(plugin)
+            registeredPlugins[plugin.id] = plugin
+            plugin.configSpec?.let { spec ->
+                PluginConfigIO.ensureExists(PluginConfigIO.fileFor(configDir, plugin), spec)
+            }
+            logger.info("Registered plugin: {} v{} ({})", plugin.id, plugin.version, candidate.origin)
+        }
+
+        val loadedInfos = selectedCandidates.map {
+            PluginCandidateInfo(it.plugin, it.origin, it.filePath)
+        }
+        val report = PluginDiscoveryReport(
+            loadedPlugins = loadedInfos,
+            duplicatePlugins = duplicateRecords,
+            incompatiblePlugins = incompatibleRecords,
+            failedPlugins = loadedPluginJars.failures,
+        )
+        lastDiscoveryReport = report
         initialized = true
+        return report
     }
 
     /** Attach client-runtime services and build per-plugin client contexts. */
@@ -238,6 +320,7 @@ object PluginManager {
         clientPlaybackService = null
         clientRequestService = null
         configDir = null
+        lastDiscoveryReport = null
         Localization.clear()
     }
 
@@ -411,25 +494,19 @@ object PluginManager {
         }
     }
 
-    private fun discoveredPlugins(standalonePlugins: List<PluginJarDiscovery.DiscoveredPlugin>): List<PluginCandidate> {
-        val candidates =
-            builtinPlugins.map { PluginCandidate(it, "builtin plugin") } +
-                    MoeMusicApi.plugins.map { PluginCandidate(it, "explicit MoeMusicApi registration") } +
-                    standalonePlugins.map { PluginCandidate(it.plugin, it.origin) }
-
-        val discovered = LinkedHashMap<String, PluginCandidate>()
-        for (candidate in candidates) {
-            val plugin = candidate.plugin
-            val existing = discovered.putIfAbsent(plugin.id, candidate)
-            if (existing != null) {
-                throw DuplicateRegistrationException(
-                    "Duplicate MoeMusic plugin id '${plugin.id}': ${describePlugin(existing.plugin)} from ${existing.origin} " +
-                            "is already scheduled for load; refusing to load ${describePlugin(plugin)} from ${candidate.origin}. " +
-                            "Plugin ids must be globally unique.",
-                )
+    private fun resolveFilePath(plugin: Plugin): Path? = try {
+        val location = plugin.javaClass.protectionDomain?.codeSource?.location ?: return null
+        val uri = location.toURI()
+        when (uri.scheme) {
+            "file" -> Path.of(uri)
+            "jar" -> {
+                val raw = uri.rawSchemeSpecificPart.substringBefore("!/")
+                if (raw.startsWith("file:")) Path.of(URI.create(raw)) else null
             }
+            else -> null
         }
-        return discovered.values.toList()
+    } catch (_: Exception) {
+        null
     }
 
     private fun closeQuietly(closeable: Closeable) {
@@ -464,9 +541,11 @@ object PluginManager {
         val owner: String,
     )
 
-    private data class PluginCandidate(
+    private data class RawCandidate(
         val plugin: Plugin,
         val origin: String,
+        val filePath: Path?,
+        val classLoader: Closeable?,
     )
 
     data class PluginConfigReloadReport(
@@ -700,34 +779,30 @@ object PluginManager {
         }
     }
 
-    /** Validates that [Plugin.supportedApiVersions] includes [MoeMusicApi.API_VERSION]. */
-    private fun requireCompatibleApiVersion(plugin: Plugin) {
+    /** Checks whether [Plugin.supportedApiVersions] includes [MoeMusicApi.API_VERSION]. Returns null if compatible. */
+    private fun checkApiCompatibility(plugin: Plugin): String? {
         val range = plugin.supportedApiVersions
-        val api = checkNotNull(SemVer.parse(MoeMusicApi.API_VERSION)) {
-            "MoeMusic runtime reports invalid API compatibility version '${MoeMusicApi.API_VERSION}'."
+        val api = SemVer.parse(MoeMusicApi.API_VERSION)
+            ?: return "MoeMusic runtime reports invalid API compatibility version '${MoeMusicApi.API_VERSION}'."
+        if (!matchesRange(api, range)) {
+            return "Plugin requires API version '$range' but runtime is ${MoeMusicApi.API_VERSION}."
         }
-        check(matchesRange(api, range)) {
-            "Plugin '${plugin.id}' v${plugin.version} requires API version '$range' but running " +
-                    "${MoeMusicApi.API_VERSION}. Refusing to start with an incompatible plugin."
-        }
+        return null
     }
 
     /**
-     * Validates that [Plugin.configId] satisfies `^[a-z0-9_-]+$`.
-     *
-     * The default implementation of [Plugin.configId] sanitizes [Plugin.id] automatically,
-     * so only plugins that override [Plugin.configId] with an invalid value fail here.
+     * Checks whether [Plugin.configId] satisfies `^[a-z0-9_-]+$`. Returns null if valid.
      */
-    private fun requireValidConfigId(plugin: Plugin) {
+    private fun checkConfigIdValidity(plugin: Plugin): String? {
         val configId = plugin.configId
-        check(CONFIG_ID_RE.matches(configId)) {
-            "Plugin '${plugin.id}' has invalid configId '$configId' (must match ^[a-z0-9_-]+$). " +
-                    "Refusing to start with an invalid plugin config file id."
+        if (!CONFIG_ID_RE.matches(configId)) {
+            return "Plugin has invalid configId '$configId' (must match ^[a-z0-9_-]+$)."
         }
+        return null
     }
 
     // -------------------------------------------------------------------------
-    // Simple SemVer range checker
+    // Simple SemVer range checker & comparator
     // -------------------------------------------------------------------------
 
     private data class SemVer(val major: Int, val minor: Int, val patch: Int) : Comparable<SemVer> {
@@ -736,15 +811,35 @@ object PluginManager {
 
         companion object {
             fun parse(s: String): SemVer? {
-                val parts = s.trim().split(".")
-                if (parts.size != 3) return null
+                val clean = s.trim().substringBefore('-').substringBefore('+')
+                val parts = clean.split(".")
+                if (parts.isEmpty() || parts.size > 3) return null
                 return try {
-                    SemVer(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
+                    val major = parts.getOrNull(0)?.toInt() ?: 0
+                    val minor = parts.getOrNull(1)?.toInt() ?: 0
+                    val patch = parts.getOrNull(2)?.toInt() ?: 0
+                    SemVer(major, minor, patch)
                 } catch (_: NumberFormatException) {
                     null
                 }
             }
         }
+    }
+
+    private fun comparePluginVersions(v1: String, v2: String): Int {
+        val s1 = SemVer.parse(v1)
+        val s2 = SemVer.parse(v2)
+        if (s1 != null && s2 != null) {
+            val semverComp = s1.compareTo(s2)
+            // If semver parts are identical (e.g. 1.0.0-beta1 and 1.0.0-beta2), fallback to raw string comparison
+            if (semverComp != 0) return semverComp
+            return v1.compareTo(v2)
+        }
+        // Valid semver is always considered greater than invalid semver
+        if (s1 != null) return 1
+        if (s2 != null) return -1
+        // If both are invalid semver strings, fallback to raw string comparison
+        return v1.compareTo(v2)
     }
 
     /** Supports: `*`, space-separated constraints like `>=0.1.0 <1.0.0`. Operators: `>=`, `>`, `<=`, `<`, `=`. */

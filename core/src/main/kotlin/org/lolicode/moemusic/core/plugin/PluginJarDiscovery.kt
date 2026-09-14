@@ -27,49 +27,59 @@ internal object PluginJarDiscovery {
                 .sorted(compareBy<Path> { it.fileName.toString().lowercase() }.thenBy { it.fileName.toString() })
                 .toList()
         }
-        if (jars.isEmpty()) return LoadedPluginJars(emptyList(), emptyList())
+        if (jars.isEmpty()) return LoadedPluginJars(emptyList(), emptyList(), emptyList())
 
         val plugins = mutableListOf<DiscoveredPlugin>()
         val classLoaders = mutableListOf<Closeable>()
-        try {
-            for (jar in jars) {
-                val providerNames = try {
-                    readProviderClassNames(jar)
-                } catch (e: Exception) {
-                    throw pluginLoadError(jar, "Could not read provider service descriptor.", e)
-                }
-                if (providerNames.isEmpty()) {
-                    logger.warn(
-                        "Skipping MoeMusic plugin jar '{}' because it has no {} service descriptor.",
-                        jar.fileName,
-                        SERVICE_FILE,
-                    )
-                    continue
-                }
+        val failures = mutableListOf<PluginFailureRecord>()
 
-                val classLoader = StandalonePluginClassLoader(
-                    jar,
-                    PluginJarDiscovery::class.java.classLoader,
-                )
-                val jarPlugins = try {
-                    loadProviders(jar, classLoader, providerNames)
-                } catch (e: Exception) {
-                    closeQuietly(classLoader)
-                    throw e
-                }
-                if (jarPlugins.isEmpty()) {
-                    classLoader.close()
-                } else {
-                    classLoaders += classLoader
-                    plugins += jarPlugins
-                }
+        for (jar in jars) {
+            val providerNames = try {
+                readProviderClassNames(jar)
+            } catch (e: Exception) {
+                val failure = PluginFailureRecord(jar, "Could not read provider service descriptor: ${e.message ?: e.javaClass.simpleName}", e)
+                failures += failure
+                logger.warn("Failed to read provider descriptor for '{}': {}", jar.fileName, failure.message)
+                continue
             }
-        } catch (e: Exception) {
-            classLoaders.forEach { closeQuietly(it) }
-            throw e
+            if (providerNames.isEmpty()) {
+                logger.warn(
+                    "Skipping MoeMusic plugin jar '{}' because it has no {} service descriptor.",
+                    jar.fileName,
+                    SERVICE_FILE,
+                )
+                continue
+            }
+
+            val classLoader = StandalonePluginClassLoader(
+                jar,
+                PluginJarDiscovery::class.java.classLoader,
+            )
+            val jarPlugins = try {
+                loadProviders(jar, classLoader, providerNames)
+            } catch (e: Exception) {
+                closeQuietly(classLoader)
+                val failure = PluginFailureRecord(jar, e.message ?: e.javaClass.simpleName, e)
+                failures += failure
+                logger.warn("Failed to load plugin provider for '{}': {}", jar.fileName, failure.message)
+                continue
+            } catch (e: LinkageError) {
+                closeQuietly(classLoader)
+                val failure = PluginFailureRecord(jar, e.message ?: e.javaClass.simpleName, e)
+                failures += failure
+                logger.warn("Failed to link plugin provider for '{}': {}", jar.fileName, failure.message)
+                continue
+            }
+
+            if (jarPlugins.isEmpty()) {
+                classLoader.close()
+            } else {
+                classLoaders += classLoader
+                plugins += jarPlugins
+            }
         }
 
-        return LoadedPluginJars(plugins, classLoaders)
+        return LoadedPluginJars(plugins, classLoaders, failures)
     }
 
     private fun readProviderClassNames(jar: Path): List<String> =
@@ -111,6 +121,8 @@ internal object PluginJarDiscovery {
                 plugins += DiscoveredPlugin(
                     plugin = plugin,
                     origin = "standalone plugin jar '${jar.fileName}' provider '$providerName'",
+                    jarPath = jar,
+                    classLoader = classLoader as Closeable,
                 )
                 index += 1
             }
@@ -155,7 +167,7 @@ internal object PluginJarDiscovery {
     private fun pluginLoadError(jar: Path, message: String, cause: Throwable?): IllegalStateException =
         IllegalStateException("Failed to load MoeMusic plugin jar '${jar.fileName}': $message", cause)
 
-    private fun closeQuietly(closeable: Closeable) {
+    internal fun closeQuietly(closeable: Closeable) {
         try {
             closeable.close()
         } catch (_: Exception) {
@@ -166,6 +178,7 @@ internal object PluginJarDiscovery {
     data class LoadedPluginJars(
         val plugins: List<DiscoveredPlugin>,
         val classLoaders: List<Closeable>,
+        val failures: List<PluginFailureRecord>,
     ) {
         fun close() {
             classLoaders.forEach { PluginJarDiscovery.closeQuietly(it) }
@@ -175,6 +188,8 @@ internal object PluginJarDiscovery {
     data class DiscoveredPlugin(
         val plugin: Plugin,
         val origin: String,
+        val jarPath: Path,
+        val classLoader: Closeable,
     )
 
     private class StandalonePluginClassLoader(

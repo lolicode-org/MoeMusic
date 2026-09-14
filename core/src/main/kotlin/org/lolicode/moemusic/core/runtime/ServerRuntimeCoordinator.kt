@@ -154,7 +154,10 @@ object ServerRuntimeCoordinator {
         ModConfigManager.load(configDir)
         ContentFilterRuntime.applyConfig(ModConfigManager.config)
 
-        PluginManager.initialize(configDir)
+        val discoveryReport = PluginManager.initialize(configDir)
+        if (discoveryReport.hasIssues) {
+            logDiscoveryReportWarnings(discoveryReport)
+        }
         Localization.validateConfiguredDefaultLanguage()
         ensureServerRuntimeInitialized(channel)
         refreshAutoplayRuntimeIfNeeded()
@@ -323,4 +326,39 @@ object ServerRuntimeCoordinator {
             pluginConfigsNotified = pluginReport.notifiedPluginIds,
             pluginConfigFailures = pluginReport.failures,
         )
+
+    private fun logDiscoveryReportWarnings(report: org.lolicode.moemusic.core.plugin.PluginDiscoveryReport) {
+        logger.warn("================================================================================")
+        logger.warn("[MoeMusic] Plugin Discovery Notice: One or more plugin issues were detected:")
+        for (dup in report.duplicatePlugins) {
+            val skippedSummary = dup.skipped.joinToString { s ->
+                "v${s.plugin.version}${s.filePath?.let { " ($it)" } ?: ""}"
+            }
+            logger.warn(
+                " - Duplicate: '{}' loaded v{} ({}), skipped: {}",
+                dup.pluginId,
+                dup.selected.plugin.version,
+                dup.selected.filePath ?: dup.selected.origin,
+                skippedSummary,
+            )
+        }
+        for (inc in report.incompatiblePlugins) {
+            logger.warn(
+                " - Incompatible: '{}' v{} ({}) - {}",
+                inc.pluginId,
+                inc.version,
+                inc.filePath ?: inc.origin,
+                inc.reason,
+            )
+        }
+        for (fail in report.failedPlugins) {
+            logger.warn(
+                " - Corrupt/Unreadable: jar '{}' - {}",
+                fail.jarPath.fileName,
+                fail.message,
+            )
+        }
+        logger.warn("Only compatible plugins were loaded. Please review your plugins / mods folder.")
+        logger.warn("================================================================================")
+    }
 }

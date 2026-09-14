@@ -7,7 +7,8 @@ internal fun resetPluginTestState() {
 
     val pluginsField = MoeMusicApi::class.java.getDeclaredField("_plugins")
     pluginsField.isAccessible = true
-    @Suppress("UNCHECKED_CAST")
-    val plugins = pluginsField.get(MoeMusicApi) as MutableMap<String, *>
-    plugins.clear()
+    when (val plugins = pluginsField.get(MoeMusicApi)) {
+        is MutableCollection<*> -> plugins.clear()
+        is MutableMap<*, *> -> plugins.clear()
+    }
 }

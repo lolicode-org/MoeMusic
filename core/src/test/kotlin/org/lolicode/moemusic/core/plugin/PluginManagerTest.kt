@@ -12,6 +12,7 @@ import org.lolicode.moemusic.api.plugin.ClientRuntimeContext
 import org.lolicode.moemusic.api.plugin.ServerRuntimeContext
 import org.lolicode.moemusic.core.i18n.Localization
 import org.lolicode.moemusic.core.ratelimit.RequestRateLimiter
+import java.io.Closeable
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
@@ -114,7 +115,7 @@ class PluginManagerTest {
 
     private val testClientRequestService = object : IClientRequestService {
         override suspend fun search(query: SearchQuery): ClientSearchPage = error("unused")
-        @Suppress("DEPRECATION")
+        @Deprecated("Overrides deprecated interface method")
         override suspend fun requestQueue(): ClientQueueSnapshot = error("unused")
         override suspend fun requestQueue(offset: Int, limit: Int): ClientQueueSnapshot = error("unused")
         override suspend fun requestSelectionPage(sessionId: String, offset: Int, limit: Int): ClientSelectionPage = error("unused")
@@ -149,7 +150,7 @@ class PluginManagerTest {
     }
 
     @Test
-    fun `registerPlugin throws on duplicate plugin id`() {
+    fun `registerPlugin allows multiple registrations for same id without throwing`() {
         val pluginId = "test-duplicate-plugin-${System.nanoTime()}"
         val first = object : Plugin {
             override val id = pluginId
@@ -163,12 +164,9 @@ class PluginManagerTest {
         }
 
         MoeMusicApi.registerPlugin(first)
-        val error = assertFailsWith<DuplicateRegistrationException> {
-            MoeMusicApi.registerPlugin(second)
-        }
+        MoeMusicApi.registerPlugin(second)
 
-        assertContains(error.message.orEmpty(), pluginId)
-        assertContains(error.message.orEmpty(), "refusing to register")
+        assertEquals(listOf(first, second), MoeMusicApi.plugins)
     }
 
     @Test
@@ -225,7 +223,7 @@ class PluginManagerTest {
     }
 
     @Test
-    fun `explicit and standalone duplicate plugin ids fail initialization`() {
+    fun `explicit and standalone duplicate plugin ids are deduplicated to highest compatible version`() {
         val pluginId = "test-duplicate-standalone-${System.nanoTime()}"
         val explicitPlugin = object : Plugin {
             override val id = pluginId
@@ -242,13 +240,15 @@ class PluginManagerTest {
             pluginId = pluginId,
         )
 
-        val error = assertFailsWith<DuplicateRegistrationException> {
-            PluginManager.initialize(tmpDir)
-        }
+        val report = PluginManager.initialize(tmpDir)
 
-        assertContains(error.message.orEmpty(), pluginId)
-        assertContains(error.message.orEmpty(), "explicit MoeMusicApi registration")
-        assertContains(error.message.orEmpty(), "duplicate.jar")
+        assertTrue(report.hasIssues)
+        assertEquals(1, PluginManager.plugins.size)
+        assertEquals(pluginId, PluginManager.plugins.single().id)
+        assertEquals(1, report.duplicatePlugins.size)
+        val dup = report.duplicatePlugins.single()
+        assertEquals(pluginId, dup.pluginId)
+        assertEquals(1, dup.skipped.size)
         tmpDir.toFile().deleteRecursively()
     }
 
@@ -257,23 +257,26 @@ class PluginManagerTest {
         val tmpDir = Files.createTempDirectory("moemusic-test")
         createServiceOnlyJar(tmpDir, "empty.jar", providerClassName = null)
 
-        PluginManager.initialize(tmpDir)
+        val report = PluginManager.initialize(tmpDir)
 
+        assertFalse(report.hasIssues)
         assertTrue(PluginManager.plugins.isEmpty())
         tmpDir.toFile().deleteRecursively()
     }
 
     @Test
-    fun `standalone jar with missing provider class fails initialization`() {
+    fun `standalone jar with missing provider class is recorded as failure in report without crashing`() {
         val tmpDir = Files.createTempDirectory("moemusic-test")
         createServiceOnlyJar(tmpDir, "broken.jar", providerClassName = "missing.Provider")
 
-        val error = assertFailsWith<IllegalStateException> {
-            PluginManager.initialize(tmpDir)
-        }
+        val report = PluginManager.initialize(tmpDir)
 
-        assertContains(error.message.orEmpty(), "broken.jar")
-        assertContains(error.message.orEmpty(), "Provider class 'missing.Provider' was not found")
+        assertTrue(report.hasIssues)
+        assertTrue(PluginManager.plugins.isEmpty())
+        assertEquals(1, report.failedPlugins.size)
+        val failure = report.failedPlugins.single()
+        assertContains(failure.jarPath.fileName.toString(), "broken.jar")
+        assertContains(failure.message, "missing.Provider")
         tmpDir.toFile().deleteRecursively()
     }
 
@@ -315,7 +318,7 @@ class PluginManagerTest {
     }
 
     @Test
-    fun `plugin with incompatible API version range fails initialization`() {
+    fun `plugin with incompatible API version range is recorded in report without crashing`() {
         val plugin = object : Plugin {
             override val id = "test-compat-${System.nanoTime()}"
             override val version = "1.0.0"
@@ -325,19 +328,19 @@ class PluginManagerTest {
         val tmpDir = Files.createTempDirectory("moemusic-test")
         MoeMusicApi.registerPlugin(plugin)
 
-        val error = assertFailsWith<IllegalStateException> {
-            PluginManager.initialize(tmpDir)
-        }
+        val report = PluginManager.initialize(tmpDir)
 
-        assertContains(error.message.orEmpty(), plugin.id)
-        assertContains(error.message.orEmpty(), "requires API version")
+        assertTrue(report.hasIssues)
+        assertTrue(PluginManager.plugins.isEmpty())
+        assertEquals(1, report.incompatiblePlugins.size)
+        val record = report.incompatiblePlugins.single()
+        assertEquals(plugin.id, record.pluginId)
+        assertContains(record.reason, "requires API version")
         tmpDir.toFile().deleteRecursively()
     }
 
     @Test
-    fun `plugin built against API 1_x range is refused after 2_0 bump`() {
-        // The plugin compatibility version is now 2.0.0, so a plugin declaring the historical
-        // 1.x range must be cleanly refused at load (fail-fast) rather than crash at runtime.
+    fun `plugin built against API 1_x range is recorded in report after 2_0 bump`() {
         val plugin = object : Plugin {
             override val id = "test-compat-1x-${System.nanoTime()}"
             override val version = "1.0.0"
@@ -347,17 +350,19 @@ class PluginManagerTest {
         val tmpDir = Files.createTempDirectory("moemusic-test")
         MoeMusicApi.registerPlugin(plugin)
 
-        val error = assertFailsWith<IllegalStateException> {
-            PluginManager.initialize(tmpDir)
-        }
+        val report = PluginManager.initialize(tmpDir)
 
-        assertContains(error.message.orEmpty(), plugin.id)
-        assertContains(error.message.orEmpty(), "requires API version")
+        assertTrue(report.hasIssues)
+        assertTrue(PluginManager.plugins.isEmpty())
+        assertEquals(1, report.incompatiblePlugins.size)
+        val record = report.incompatiblePlugins.single()
+        assertEquals(plugin.id, record.pluginId)
+        assertContains(record.reason, "requires API version")
         tmpDir.toFile().deleteRecursively()
     }
 
     @Test
-    fun `plugin with invalid config id fails initialization`() {
+    fun `plugin with invalid config id is recorded in report without crashing`() {
         val plugin = object : Plugin {
             override val id = "test-invalid-config-${System.nanoTime()}"
             override val configId = "bad:id"
@@ -368,12 +373,113 @@ class PluginManagerTest {
         val tmpDir = Files.createTempDirectory("moemusic-test")
         MoeMusicApi.registerPlugin(plugin)
 
-        val error = assertFailsWith<IllegalStateException> {
-            PluginManager.initialize(tmpDir)
+        val report = PluginManager.initialize(tmpDir)
+
+        assertTrue(report.hasIssues)
+        assertTrue(PluginManager.plugins.isEmpty())
+        assertEquals(1, report.incompatiblePlugins.size)
+        val record = report.incompatiblePlugins.single()
+        assertEquals(plugin.id, record.pluginId)
+        assertContains(record.reason, "invalid configId")
+        tmpDir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun `deduplication selects highest SemVer among compatible candidates`() {
+        val pluginId = "test-compat-highest-${System.nanoTime()}"
+        val v1 = object : Plugin {
+            override val id = pluginId
+            override val version = "1.0.0"
+            override val supportedApiVersions = "*"
+        }
+        val v3 = object : Plugin {
+            override val id = pluginId
+            override val version = "3.0.0"
+            override val supportedApiVersions = "*"
+        }
+        val v2 = object : Plugin {
+            override val id = pluginId
+            override val version = "2.0.0"
+            override val supportedApiVersions = "*"
         }
 
-        assertContains(error.message.orEmpty(), plugin.id)
-        assertContains(error.message.orEmpty(), "invalid configId")
+        val tmpDir = Files.createTempDirectory("moemusic-test")
+        MoeMusicApi.registerPlugin(v1)
+        MoeMusicApi.registerPlugin(v3)
+        MoeMusicApi.registerPlugin(v2)
+
+        val report = PluginManager.initialize(tmpDir)
+
+        assertTrue(report.hasIssues)
+        assertEquals(1, PluginManager.plugins.size)
+        val loaded = PluginManager.plugins.single()
+        assertEquals(pluginId, loaded.id)
+        assertEquals("3.0.0", loaded.version)
+
+        assertEquals(1, report.duplicatePlugins.size)
+        val dup = report.duplicatePlugins.single()
+        assertEquals("3.0.0", dup.selected.plugin.version)
+        assertEquals(listOf("2.0.0", "1.0.0"), dup.skipped.map { it.plugin.version })
+        tmpDir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun `deduplication selects lower SemVer with compatible API over higher SemVer with incompatible API`() {
+        val pluginId = "test-compat-precedence-${System.nanoTime()}"
+        val incompatibleHigher = object : Plugin {
+            override val id = pluginId
+            override val version = "2.5.0"
+            override val supportedApiVersions = ">=999.0.0"
+        }
+        val compatibleLower = object : Plugin {
+            override val id = pluginId
+            override val version = "1.2.0"
+            override val supportedApiVersions = "*"
+        }
+
+        val tmpDir = Files.createTempDirectory("moemusic-test")
+        MoeMusicApi.registerPlugin(incompatibleHigher)
+        MoeMusicApi.registerPlugin(compatibleLower)
+
+        val report = PluginManager.initialize(tmpDir)
+
+        assertTrue(report.hasIssues)
+        assertEquals(1, PluginManager.plugins.size)
+        val loaded = PluginManager.plugins.single()
+        assertEquals(pluginId, loaded.id)
+        assertEquals("1.2.0", loaded.version, "Lower version with compatible API must be selected")
+
+        assertEquals(1, report.incompatiblePlugins.size)
+        assertEquals("2.5.0", report.incompatiblePlugins.single().version)
+        assertTrue(report.duplicatePlugins.isEmpty())
+        tmpDir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun `initialize closes classloader of incompatible standalone jar`() {
+        val pluginId = "test-standalone-incompat-${System.nanoTime()}"
+        val tmpDir = Files.createTempDirectory("moemusic-test")
+        createStandalonePluginJar(
+            rootConfigDir = tmpDir,
+            fileName = "incompatible.jar",
+            providerClassName = "org.lolicode.moemusic.testplugin.IncompatProvider",
+            pluginId = pluginId,
+            supportedApi = ">=999.0.0",
+        )
+
+        val report = PluginManager.initialize(tmpDir)
+
+        assertTrue(report.hasIssues)
+        assertTrue(PluginManager.plugins.isEmpty())
+        assertEquals(1, report.incompatiblePlugins.size)
+        assertEquals(pluginId, report.incompatiblePlugins.single().pluginId)
+
+        // Verify that PluginManager does not retain any active plugin classloader
+        val clField = PluginManager::class.java.getDeclaredField("pluginClassLoaders")
+        clField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val loaders = clField.get(PluginManager) as List<Closeable>
+        assertTrue(loaders.isEmpty(), "Discarded/incompatible plugin classloaders should not be retained")
         tmpDir.toFile().deleteRecursively()
     }
 
@@ -651,6 +757,7 @@ class PluginManagerTest {
         providerClassName: String,
         pluginId: String,
         runtimeProperty: String? = null,
+        supportedApi: String = "*",
     ): Path {
         val workDir = Files.createTempDirectory("moemusic-plugin-compile")
         val classesDir = workDir.resolve("classes")
@@ -699,7 +806,7 @@ class PluginManagerTest {
 
                     @Override
                     public String getSupportedApiVersions() {
-                        return "*";
+                        return "$supportedApi";
                     }
 
                     $runtimeCallback

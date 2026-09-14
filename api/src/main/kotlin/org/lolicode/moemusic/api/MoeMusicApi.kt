@@ -25,11 +25,11 @@ public object MoeMusicApi {
     public val API_VERSION: String
         get() = MoeMusicApiBuildInfo.API_VERSION
 
-    private val _plugins: LinkedHashMap<String, Plugin> = linkedMapOf()
+    private val _plugins: MutableList<Plugin> = mutableListOf()
 
-    /** Read-only view of all registered plugins in registration order. */
+    /** Read-only view of all registered plugin candidates in registration order. */
     public val plugins: List<Plugin>
-        get() = _plugins.values.toList()
+        get() = synchronized(_plugins) { _plugins.toList() }
 
     /**
      * Register [plugin] with the MoeMusic runtime.
@@ -39,21 +39,13 @@ public object MoeMusicApi {
      * initialization hook, so registration only needs to happen before MoeMusic's runtime
      * initialization begins.
      *
-     * @throws DuplicateRegistrationException if another plugin has already registered the same
-     * [Plugin.id]. Duplicate plugin ids are fatal because plugin lookup and lifecycle dispatch
-     * use the id as a global key.
+     * If multiple candidates register the same [Plugin.id], `PluginManager` will evaluate them
+     * during initialization, select the highest compatible version, and report duplicates or
+     * incompatibilities to the platform.
      */
     public fun registerPlugin(plugin: Plugin) {
-        val existing = _plugins[plugin.id]
-        if (existing != null) {
-            throw DuplicateRegistrationException(
-                "Duplicate MoeMusic plugin id '${plugin.id}': ${describePlugin(existing)} is already registered; " +
-                    "refusing to register ${describePlugin(plugin)}. Plugin ids must be globally unique.",
-            )
+        synchronized(_plugins) {
+            _plugins.add(plugin)
         }
-        _plugins[plugin.id] = plugin
     }
-
-    private fun describePlugin(plugin: Plugin): String =
-        "${plugin.javaClass.name} v${plugin.version}"
 }
