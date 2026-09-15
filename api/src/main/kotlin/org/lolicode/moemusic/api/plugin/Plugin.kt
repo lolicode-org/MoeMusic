@@ -30,6 +30,12 @@ import org.lolicode.moemusic.api.MoeMusicApi
  *   that JVM.
  * - [onClientRuntimeUnload] is called on client shutdown only.
  * - **No hot-reload.** Plugins are never unloaded and reloaded within a single JVM session.
+ * - **No early side effects.** Do not perform file I/O, allocate background resources, start threads,
+ *   register global hooks, or cause global state mutations in static initializers (`init {}`), constructors,
+ *   or property initializers. During discovery, all candidates are instantiated to inspect metadata; unselected
+ *   duplicates or incompatible candidates are discarded immediately and their classloaders closed without
+ *   invoking lifecycle hooks. Defer all state setup and resource acquisition to [onServerRuntimeLoad]
+ *   and/or [onClientRuntimeLoad].
  *
  * If a plugin needs to work on both the client runtime and the logical server runtime, initialize
  * the client-side state in [onClientRuntimeLoad] and the logical-server state in
@@ -41,8 +47,9 @@ public interface Plugin {
      * Stable, unique identifier for this plugin (e.g. `"my-awesome-source"`).
      * Used as the log tag and (unless [configId] is overridden) derives the config file name.
      *
-     * Plugin ids are global across the running JVM. Registering two plugins with the same id
-     * is a fatal startup error.
+     * Plugin ids are global across the running JVM. When multiple candidates share the same ID,
+     * the candidate with the highest SemVer version among API-compatible candidates is selected
+     * and duplicates are recorded in the internal discovery report.
      */
     public val id: String
 
@@ -76,8 +83,8 @@ public interface Plugin {
      * to an explicit, stable name (e.g. `"moemusic_content_filter"`) so the config file name
      * is predictable and portable across all operating systems (Windows forbids `:` in paths).
      *
-     * The plugin manager treats an invalid [configId] as a fatal startup error and aborts
-     * initialization so the problem is visible immediately.
+     * The plugin manager treats an invalid [configId] as an incompatible plugin error and records
+     * it in the discovery report so the problem is visible to users.
      */
     public val configId: String
         get() = id.replace(Regex("[^a-z0-9_-]"), "_")
@@ -87,8 +94,8 @@ public interface Plugin {
 
     /**
      * SemVer range expression describing compatible MoeMusic plugin API versions
-     * (e.g. `">=0.1.0 <1.0.0"`). The plugin manager treats an incompatible range as a fatal
-     * startup error and aborts initialization so the mismatch cannot be missed.
+     * (e.g. `">=0.1.0 <1.0.0"`). The plugin manager validates this range against `MoeMusicApi.API_VERSION`
+     * and records incompatible candidates in the discovery report.
      *
      * This range is evaluated against `MoeMusicApi.API_VERSION`, the stable API compatibility
      * version, not the Maven artifact version. Snapshot API artifacts should therefore keep the

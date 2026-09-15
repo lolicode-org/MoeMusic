@@ -150,13 +150,13 @@ object ExamplePlugin : Plugin {
 }
 ```
 
-Important plugin rules:
-
-- `Plugin.id` is globally unique. Duplicate plugin IDs are fatal startup errors.
-- `configId` must match `^[a-z0-9_-]+$`. The default sanitizes `id`, but namespaced IDs should usually override it for predictable filenames.
-- `displayName` should normally be `LocalizedText.key(...)` backed by lang files.
-- There is no hot reload. Jar changes require a JVM/game/server restart.
-- Do not register sources or long-lived event handlers from `onServerSessionLoad`; that callback can run more than once in an integrated-server JVM.
+> [!IMPORTANT]
+> - `Plugin.id` is globally unique across loaded plugins. When multiple candidates share the same ID, the candidate with the highest SemVer version among API-compatible candidates is selected.
+> - **Avoid early side effects**: Do not perform I/O, allocate persistent resources, start background threads, register global listeners, or cause global state changes during early initialization (e.g. static initializers `init {}` / `static {}`, `PluginProvider` constructors, `PluginProvider.plugins()`, `Plugin` constructors / property initializers, or loader initializers like Fabric `onInitialize`). During discovery, all candidate plugins are instantiated to inspect metadata; unselected duplicates (lower SemVer) or incompatible candidates are discarded immediately and their classloaders closed without lifecycle events firing. Always defer state setup, resource acquisition, config file creation, and source registrations to the supported lifecycle hooks: `onServerRuntimeLoad` and/or `onClientRuntimeLoad`.
+> - `configId` must match `^[a-z0-9_-]+$`. The default sanitizes `id`, but namespaced IDs should usually override it for predictable filenames.
+> - `displayName` should normally be `LocalizedText.key(...)` backed by lang files.
+> - There is no hot reload. Jar changes require a JVM/game/server restart.
+> - Do not register sources or long-lived event handlers from `onServerSessionLoad`; that callback can run more than once in an integrated-server JVM.
 
 ## Bootstrap Paths
 
@@ -164,14 +164,25 @@ MoeMusic supports two plugin bootstrap paths. Developers can choose the appropri
 
 ### Comparison of Bootstrap Paths
 
-| Dimension | Minecraft Mod Bootstrap | Standalone JAR Bootstrap |
-| :--- | :--- | :--- |
-| **Development & Build** | Requires Minecraft-specific mod development toolchains (e.g., Loom or Architectury). You may need to compile and adapt separate versions of the plugin for each target Minecraft version and mod loader, making the pipeline more complex. | Simpler development. It only depends on the `:api` module, requiring no Minecraft modding toolchain and freeing you from compatibility issues caused by loader or Minecraft updates. |
-| **Cross-Platform Compatibility** | Hard-coded to specific Minecraft versions and mod loaders. Developers must closely monitor and adapt to breaking changes introduced by Minecraft updates. | **Cross-platform compatible**. Because it does not rely on Minecraft or any loader-specific APIs, the same compiled plugin JAR can theoretically be loaded and run on any major platform that integrates the MoeMusic core. |
-| **APIs & Flexibility** | Full access to native Minecraft and mod loader (Fabric/NeoForge, etc.) APIs, offering maximum development freedom and flexibility. | Restricted to the public MoeMusic API. Cannot directly interact with loader-specific components or game engine subsystems. |
-| **Dependency Resolution** | Leverages the mod loader's dependency management. Missing dependencies or runtime conflicts are automatically resolved or clearly reported in a user-friendly manner. | The built-in plugin loader is basic and lacks automatic dependency resolution or conflict management. External dependencies must be shaded/bundled into the fat JAR. |
-| **Installation & Management** | Installed in the standard `mods/` directory. Users can manage, update, enable, or disable it using launcher-integrated mod managers. | Installed under the `config/moemusic/plugins/` directory. It cannot be managed by standard mod launchers, requiring users to manually download, install, and update. |
-| **Publishing & Distribution** | Standard mod package format. Can be easily published to major mod distribution platforms like CurseForge or Modrinth. | Lacks mod-specific metadata descriptors (e.g., `fabric.mod.json`), which **may** result in stricter review or approval issues when uploading to mod distribution sites. |
+| Dimension | Minecraft Mod Bootstrap                                                                                                                                                                                                                    | Standalone JAR Bootstrap | Universal JAR (Combined)                                                                                                                               |
+| :--- |:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| :--- |:-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Development & Build** | Requires Minecraft-specific mod development toolchains (e.g., Loom or Architectury). You may need to compile and adapt separate versions of the plugin for each target Minecraft version and mod loader, making the pipeline more complex. | Simpler development. It only depends on the `:api` module, requiring no Minecraft modding toolchain and freeing you from compatibility issues caused by loader or Minecraft updates. | Combines the best of both: core logic depends only on `:api`, while lightweight compile-only loader entrypoints reside in an isolated sourceSet.       |
+| **Cross-Platform Compatibility** | Hard-coded to specific Minecraft versions and mod loaders if using Minecraft internal APIs.                                                                                                                                                | **Cross-platform compatible**. Because it does not rely on Minecraft or any loader-specific APIs, the same compiled plugin JAR can theoretically be loaded and run on any major platform that integrates the MoeMusic core. | Same as Standalone JAR.                                                                                                                                |
+| **APIs & Flexibility** | Full access to native Minecraft and mod loader (Fabric/NeoForge, etc.) APIs, offering maximum development freedom and flexibility.                                                                                                         | Restricted to the public MoeMusic API. Cannot directly interact with loader-specific components or game engine subsystems. | Same as Standalone JAR.                                                                                                                                |
+| **Dependency Resolution** | Leverages the mod loader's dependency management. Missing dependencies or runtime conflicts are automatically resolved or clearly reported in a user-friendly manner.                                                                      | The built-in plugin loader automatically resolves version conflicts among duplicate plugin IDs (selecting the highest compatible SemVer version) and reports incompatible or broken plugins on startup. External dependencies must still be shaded/bundled into the fat JAR. | Supported by both mod loader dependency checks (when in `mods/`) and MoeMusic's built-in deduplication/reporting (when in `config/moemusic/plugins/`). |
+| **Installation & Management** | Installed in the standard `mods/` directory. Users can manage, update, enable, or disable it using launcher-integrated mod managers.                                                                                                       | Installed under the `config/moemusic/plugins/` directory. It cannot be managed by standard mod launchers, requiring users to manually download, install, and update. | Highly flexible: Minecraft players can drop it into `mods/` (launcher managed), and you can drop it into `config/moemusic/plugins/` on any platform.   |
+| **Publishing & Distribution** | Standard mod package format. Can be easily published to major mod distribution platforms like CurseForge or Modrinth.                                                                                                                      | Lacks mod-specific metadata descriptors (e.g., `fabric.mod.json`), which **may** result in stricter review or approval issues when uploading to mod distribution sites. | Native mod metadata files ensure smooth release on mod distribution platforms.                                                                            |
+
+> [!TIP]
+> **Universal JAR is Preferred**
+>
+> The two bootstrap paths are **complementary and do not conflict with each other**. MoeMusic's plugin loader merges explicit loader registrations and SPI jar discoveries during startup, cleanly resolving duplicate plugin IDs via SemVer without collisions or exceptions.
+>
+> As long as your plugin does not require Minecraft internal classes (`net.minecraft.*`) or loader-specific subsystems, **building a single Universal JAR is possible and strongly preferred**.
+>
+> - **In Minecraft (`.minecraft/mods/`)**: Fabric, NeoForge, and Forge read the bundled mod metadata (`fabric.mod.json`, `META-INF/neoforge.mods.toml`, `META-INF/mods.toml`) and execute the lightweight entrypoint calling `MoeMusicApi.registerPlugin(...)`. Players can install, update, and manage the plugin with standard mod launchers.
+> - **In Standalone/Non-Minecraft (`config/moemusic/plugins/`)**: Platforms (such as Spigot, Velocity, or terminal platforms) discover and load the exact same compiled JAR via `PluginProvider` (Java SPI).
+> - **Reference Implementation**: Use the [MoeMusic-source-template](https://github.com/lolicode-org/MoeMusic-source-template) as a reference. It isolates modloader bootstrap entrypoints into a compile-only `platform` sourceSet, keeps core music source logic pure against `:api`, and packages a single universal fat JAR.
 
 **Minecraft mod bootstrap:**
 
@@ -432,7 +443,7 @@ Client plugins receive [ClientRuntimeContext](../api/src/main/kotlin/org/lolicod
 - [UserResult](../api/src/main/kotlin/org/lolicode/moemusic/api/UserResult.kt): expected user-facing success/error result.
 - [UserFacingException](../api/src/main/kotlin/org/lolicode/moemusic/api/UserFacingException.kt) and subclasses: exceptional user-visible aborts.
 - [MoeMusicUser](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicUser.kt): platform-agnostic user identity, locale, and custom permission checks.
-- [DuplicateRegistrationException](../api/src/main/kotlin/org/lolicode/moemusic/api/DuplicateRegistrationException.kt): fatal duplicate plugin/source ID error.
+- [DuplicateRegistrationException](../api/src/main/kotlin/org/lolicode/moemusic/api/DuplicateRegistrationException.kt): fatal duplicate music source ID error.
 
 ### `org.lolicode.moemusic.api.plugin`
 

@@ -86,6 +86,7 @@ Prefer adding code to the existing feature package instead of creating cross-cut
 ## Plugin Model
 
 Plugins have two bootstrap paths. Standalone plugins are self-contained jars under `config/moemusic/plugins/` and expose [PluginProvider](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/PluginProvider.kt#L14) through Java's service descriptor. Minecraft loader mods that need Fabric/NeoForge/Minecraft bootstrap can call [MoeMusicApi.registerPlugin(...)](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicApi.kt#L47) during their initializer.
+These two bootstrap mechanisms do not conflict: a single universal JAR can package both SPI descriptors and modloader entrypoints (e.g. following `MoeMusic-source-template`), allowing it to work both in `mods/` and in `config/moemusic/plugins/`.
 
 Built-in plugins, API-registered plugins, and standalone jar plugins are merged and validated during [PluginManager.initialize(...)](../core/src/main/kotlin/org/lolicode/moemusic/core/plugin/PluginManager.kt#L136). Candidates are evaluated for API compatibility first; 
 among compatible candidates sharing the same [Plugin.id](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt#L47), the candidate with the highest SemVer version is selected while duplicates and API-incompatible candidates are cataloged in `PluginDiscoveryReport` rather than throwing fatal exceptions. 

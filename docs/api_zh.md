@@ -104,13 +104,13 @@ override val supportedApiVersions: String = ">=2.0.0 <3.0.0"
 
 插件的入口类需要实现 [Plugin](../api/src/main/kotlin/org/lolicode/moemusic/api/plugin/Plugin.kt) 接口。其中，生命周期较长的服务端运行时回调方法 `onServerRuntimeLoad(ctx)` 是注册音源、本地化翻译、订阅事件以及监听配置变更的核心入口。
 
-核心开发规则：
-
-- `Plugin.id` 必须全局唯一；若存在重复的 ID，将在模组启动阶段抛出致命错误并终止运行。
-- `configId` 必须符合正则表达式 `^[a-z0-9_-]+$`。尽管该值默认会根据 `id` 派生，但为了保证配置文件名和生成路径的稳定性，建议显式声明。
-- `displayName` 建议使用 [LocalizedText.key(...)](../api/src/main/kotlin/org/lolicode/moemusic/api/LocalizedText.kt)，并由对应的语言文件（Language Files）提供具体的本地化翻译。
-- 不支持插件热重载；替换插件 Jar 包后，需要重启游戏客户端或服务端。
-- 请勿在 `onServerSessionLoad` 回调中注册音源或长生命周期的事件监听器。因为在单人游戏或联机时，Minecraft 的集成服务端（Integrated Server）在同一个 JVM 进程中可能会多次启动和关闭。
+> [!IMPORTANT]
+> - `Plugin.id` 在已加载插件中全局唯一；当发现多个同 ID 的候选插件时，MoeMusic 会优先选择 API 兼容且语义化版本（SemVer）最高的版本加载。
+> - **避免在早期初始化阶段执行有副作用的操作**：请勿在类的静态初始化块（`init {}`、`static {}`）、构造函数（`PluginProvider()`、`Plugin()`）、属性初始化器、`PluginProvider.plugins()` 方法或模组加载器初始化器（如 Fabric 的 `onInitialize`、Forge 模组构造函数）中执行耗时操作、文件读写、创建目录、启动后台线程、注册全局监听器或修改全局状态等。在插件发现与解析阶段，MoeMusic 会先实例化所有候选插件以读取并校验其 `id`、`version` 和 `supportedApiVersions`。对于重复的低版本候选或 API 不兼容的候选，它们会被舍弃并立即关闭类加载器，其生命周期钩子将永远不会被调用。若在早期初始化时产生副作用，被舍弃的插件仍会污染运行环境、浪费系统资源甚至与最终被选中的插件版本发生冲突。所有实际的状态初始化、资源获取、配置文件读写、事件订阅和音源注册，务必延后到对应的生命周期回调中执行：如[`onServerRuntimeLoad`](#生命周期与上下文模型) 或 [`onClientRuntimeLoad`](#生命周期与上下文模型)。
+> - `configId` 必须符合正则表达式 `^[a-z0-9_-]+$`。尽管该值默认会根据 `id` 派生，但为了保证配置文件名和生成路径的稳定性，建议显式声明。
+> - `displayName` 建议使用 [LocalizedText.key(...)](../api/src/main/kotlin/org/lolicode/moemusic/api/LocalizedText.kt)，并由对应的语言文件（Language Files）提供具体的本地化翻译。
+> - 不支持插件热重载；替换插件 Jar 包后，需要重启游戏客户端或服务端。
+> - 请勿在 `onServerSessionLoad` 回调中注册音源或长生命周期的事件监听器。因为在单人游戏或联机时，Minecraft 的集成服务端（Integrated Server）在同一个 JVM 进程中可能会多次启动和关闭。
 
 一个典型的插件结构通常包含：
 
@@ -126,14 +126,25 @@ MoeMusic 支持以下两种插件注册与加载方式。开发者可以根据�
 
 ### 加载方式对比
 
-| 维度 | 作为模组加载                                                                              | 独立插件 Jar 包 |
-| :--- |:------------------------------------------------------------------------------------| :--- |
-| **开发与构建** | 需要使用模组开发工具链（如 Loom 或 Architectury）；可能需要对每个 Minecraft 版本以及不同的模组加载器进行单独适配，构建和开发流程较复杂。 | 开发更简单，无需使用模组开发工具链，也无需操心 Minecraft 版本和模组加载器更新带来的兼容问题。 |
-| **跨平台能力** | 绑定于特定的 Minecraft 版本和模组加载器，且需要持续关注 Minecraft 版本更新带来的破坏性更改。                           | **跨平台兼容**。由于完全不依赖 Minecraft 及其模组接口，理论上同一份独立插件 JAR 可以在任何适配了 MoeMusic 核心的主流平台上直接加载运行。 |
-| **自由度与接口** | 可以访问 Minecraft、模组加载器（Fabric/NeoForge 等）以及服务端提供的原生接口，拥有极高的开发自由度。                     | 仅能调用 MoeMusic 核心提供的 API 接口，无法直接访问特定模组加载器的底层功能。 |
-| **依赖管理** | 模组加载器会自动处理依赖关系。当发生依赖缺失或冲突时，加载器会向用户提供清晰的错误提示，更容易被用户理解。                               | 核心的插件加载器较为基础，缺少依赖管理和版本冲突解决机制，如有外部依赖库，需在构建时将其打包进 JAR 中。 |
-| **安装与更新** | 直接放入 `mods` 目录中。可以借助第三方启动器或游戏内置的模组管理功能进行版本更新、启用或禁用。                                 | 必须放置在 `config/moemusic/plugins/` 目录中。无法被启动器的模组管理器直接管理，需要用户手动安装与更新。 |
-| **分发与审核** | 拥有完整的 Mod 属性，更容易发布到 CurseForge、Modrinth 等主流模组分发网站。                                  | 缺少模组专有的特征配置（如 `fabric.mod.json` 等），在上传到模组分发网站时**可能**更容易卡在审核阶段。 |
+| 维度 | 作为模组加载 | 独立插件 Jar 包 | 通用 JAR                                                                                                          |
+| :--- | :--- | :--- |:----------------------------------------------------------------------------------------------------------------------------------|
+| **开发与构建** | 需要使用模组开发工具链（如 Loom 或 Architectury）；若涉及 Minecraft 原生代码可能需针对不同版本及加载器多头适配。 | 开发更简单，无需使用模组开发工具链，也无需操心 Minecraft 版本和模组加载器更新带来的兼容问题。 | 兼具两者优势：核心逻辑仅依赖 `:api`，通过隔离的 sourceSet 声明轻量加载器入口。                                                    |
+| **跨平台能力** | 若调用了 Minecraft 内部类，则绑定于特定 Minecraft 版本和模组加载器。 | **跨平台兼容**。由于完全不依赖 Minecraft 及其模组接口，理论上同一份独立插件 JAR 可以在任何适配了 MoeMusic 核心的主流平台上直接加载运行。 | 与独立插件相同。                                                                                                                  |
+| **自由度与接口** | 可以访问 Minecraft、模组加载器（Fabric/NeoForge 等）以及服务端提供的原生接口，拥有极高的开发自由度。 | 仅能调用 MoeMusic 核心提供的 API 接口，无法直接访问特定模组加载器的底层功能。 | 与独立插件相同。                                                                                                                  |
+| **依赖管理** | 模组加载器会自动处理依赖关系。当发生依赖缺失或冲突时，加载器会向用户提供清晰的错误提示，更容易被用户理解。 | 核心插件加载器支持自动冲突处理（在多个同 ID 插件中自动选取 API 兼容的最高 SemVer 版本），并在启动时通过报告界面提示重复、不兼容或损坏的插件；外部依赖库仍需在构建时打包进 JAR 中。 | 兼享两者优势：安装在 `mods/` 时受模组加载器的版本和重复校验保护，而安装在 `plugins/` 时受 MoeMusic 核心的自动去重与启动诊断保护。 |
+| **安装与更新** | 直接放入 `mods` 目录中。可以借助第三方启动器或游戏内置的模组管理功能进行版本更新、启用或禁用。 | 必须放置在 `config/moemusic/plugins/` 目录中。无法被启动器的模组管理器直接管理，需要用户手动安装与更新。 | 极为灵活：Minecraft 玩家可直接将其放入 `mods/` 并由启动器统一管理，而任意平台的用户都可直接将其放入 `config/moemusic/plugins/`。  |
+| **分发与审核** | 拥有完整的 Mod 属性，更容易发布到 CurseForge、Modrinth 等主流模组分发网站。 | 缺少模组专有的特征配置（如 `fabric.mod.json` 等），在上传到模组分发网站时**可能**更容易卡在审核阶段。 | 自带规范的模组结构与元数据清单，可正常被审核与分发。                                                                              |
+
+> [!TIP]
+> **推荐优先采用“通用 JAR”**
+>
+> 两种加载机制**不会产生冲突**。MoeMusic 核心在启动时会统一汇总来自模组加载器注册（`MoeMusicApi.registerPlugin`）和独立插件目录（Java SPI `PluginProvider`）的所有候选插件，并通过统一的 SemVer 去重与兼容性判定机制进行处理。即使同一个插件同时通过两种方式被发现，核心也会自动合并去重，不会引发冲突或报错。
+>
+> 只要你的插件不需要访问 Minecraft 内部类（`net.minecraft.*`）或特定模组加载器的底层专有功能，**强烈建议将其构建为同时支持两者的通用 JAR**：
+>
+> - **在 Minecraft 环境下（放入 `.minecraft/mods/`）**：Fabric、NeoForge 和 Minecraft Forge 可以识别其模组元数据清单（`fabric.mod.json`、`META-INF/neoforge.mods.toml`、`META-INF/mods.toml`）并通过对应入口调用 `MoeMusicApi.registerPlugin(...)` 注册。这样玩家可以直接使用主流启动器进行模组管理与自动更新。
+> - **在独立/非 Minecraft 环境下（放入 `config/moemusic/plugins/`）**：在 Spigot、Velocity、纯终端环境或独立服务端中，**同一份构建出的 JAR** 可以直接通过 `PluginProvider` (Java SPI) 自动发现并加载，无需重新编译。
+> - **参考模板**：我们提供了标准的音源插件模板 [MoeMusic-source-template](https://github.com/lolicode-org/MoeMusic-source-template)。该模板展示了如何通过 Gradle 将模组加载器依赖隔离至 `platform` sourceSet，使插件核心逻辑保持纯净的 `:api` 依赖，并打包出全平台通用的 Fat JAR。
 
 **1. 作为模组加载**
 
@@ -295,7 +306,7 @@ MoeMusic 核心会自动对公共字段进行过滤检查，音源无需自己�
 - [UserFacingException](../api/src/main/kotlin/org/lolicode/moemusic/api/UserFacingException.kt) 及其子类：可直接展示给玩家的、导致流程中止的异常。
 - [MusicSource](../api/src/main/kotlin/org/lolicode/moemusic/api/MusicSource.kt) 相关接口：用于实现音源、文本搜索、原始 ID/链接解析的核心接口。
 - [MoeMusicUser](../api/src/main/kotlin/org/lolicode/moemusic/api/MoeMusicUser.kt)：跨平台的玩家身份封装，包含玩家语言设置及自定义权限检查方法。
-- [DuplicateRegistrationException](../api/src/main/kotlin/org/lolicode/moemusic/api/DuplicateRegistrationException.kt)：当注册了重复的插件或音源 ID 时抛出的致命启动错误。
+- [DuplicateRegistrationException](../api/src/main/kotlin/org/lolicode/moemusic/api/DuplicateRegistrationException.kt)：当注册了重复的音源 ID 时抛出的致命启动错误。
 
 ### `org.lolicode.moemusic.api.plugin`
 
