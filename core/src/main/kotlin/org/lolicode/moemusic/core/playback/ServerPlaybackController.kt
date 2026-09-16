@@ -172,7 +172,7 @@ class ServerPlaybackController(
     }
 
     fun willAutoStartIfQueued(): Boolean =
-        currentContext == null && autoStartPolicy == AutoStartPolicy.ALLOWED
+        currentContext == null && advancingGeneration == null && autoStartPolicy == AutoStartPolicy.ALLOWED
 
     /**
      * Start the next queued track only when nothing is currently loaded.
@@ -183,12 +183,13 @@ class ServerPlaybackController(
      */
     fun startNextIfStopped() {
         if (!willAutoStartIfQueued()) return
-        val generation = startGeneration
+        val generation: Long
         synchronized(advanceLock) {
-            if (advancingGeneration == generation) {
-                logger.debug("Advance already in flight for generation {}, discarding redundant startNext.", generation)
+            if (advancingGeneration != null || currentContext != null) {
+                logger.debug("Advance already in flight or playback active, discarding redundant startNext.")
                 return
             }
+            generation = startGeneration
             advancingGeneration = generation
         }
         scope.launch {
@@ -306,8 +307,8 @@ class ServerPlaybackController(
         return QueueClearOutcome(removedCount = details.removedCount)
     }
 
-    override fun isCurrentTrackFromUser(userId: UUID?, userName: String?): Boolean {
-        val ctx = currentContext ?: return false
+    private fun isCurrentTrackFromUser(ctx: TrackContext?, userId: UUID?, userName: String?): Boolean {
+        if (ctx == null) return false
         if (ctx.state is PlaybackState.Stopped) return false
         if (currentTrackSource == TrackQueue.NextTrack.Source.AUTOPLAY) return false
         if (userId == null && userName.isNullOrBlank()) return false
@@ -317,11 +318,14 @@ class ServerPlaybackController(
             (!trimmedName.isNullOrEmpty() && ctx.track.submittedByUserName?.trim().equals(trimmedName, ignoreCase = true))
     }
 
+    override fun isCurrentTrackFromUser(userId: UUID?, userName: String?): Boolean =
+        isCurrentTrackFromUser(currentContext, userId, userName)
+
     override fun isCurrentTrackFromUser(user: MoeMusicUser?): Boolean =
         if (user == null) false else isCurrentTrackFromUser(user.id, user.displayName)
 
-    internal fun isInFlightTrackFromUser(userId: UUID?, userName: String?): Boolean {
-        val inFlight = inFlightNextTrack ?: return false
+    private fun isInFlightTrackFromUser(inFlight: TrackQueue.NextTrack?, userId: UUID?, userName: String?): Boolean {
+        if (inFlight == null) return false
         if (inFlight.source != TrackQueue.NextTrack.Source.USER_QUEUE) return false
         if (userId == null && userName.isNullOrBlank()) return false
         val trimmedName = userName?.trim()
@@ -329,23 +333,42 @@ class ServerPlaybackController(
             (!trimmedName.isNullOrEmpty() && inFlight.track.submittedByUserName?.trim().equals(trimmedName, ignoreCase = true))
     }
 
+    internal fun isInFlightTrackFromUser(userId: UUID?, userName: String?): Boolean =
+        isInFlightTrackFromUser(inFlightNextTrack, userId, userName)
+
     override fun currentUserTrackMetrics(userId: UUID?, userName: String?): UserTrackMetrics {
         val queueMetrics = queue.userTrackMetrics(userId, userName)
         var count = queueMetrics.count
         var totalDurationMs = queueMetrics.totalDurationMs
 
+        // Sample inFlightNextTrack before currentContext to prevent handover read-tears.
+        // Handover sequence on the advancing thread sets currentContext first, then clears
+        // inFlightNextTrack. Sampling in the opposite order guarantees that a track transitioning
+        // from in-flight to current is observed in at least one of the snapshots.
+        //
+        // Above are from Gemini. For me, I think the track advance state machine got
+        // unexpectedly messy and instead of patching on it, TODO: I may want to rewrite this some day...
         val inFlight = inFlightNextTrack
-        if (inFlight != null && isInFlightTrackFromUser(userId, userName)) {
-            val current = currentContext
-            if (current == null || current.track.id != inFlight.track.id || current.track.sourceId != inFlight.track.sourceId) {
+        val isInFlightFromUser = isInFlightTrackFromUser(inFlight, userId, userName)
+
+        val current = currentContext
+        val isCurrentFromUser = isCurrentTrackFromUser(current, userId, userName)
+
+        if (inFlight != null && isInFlightFromUser) {
+            val isCurrentSameAsInFlight = isCurrentFromUser &&
+                current != null &&
+                current.track.id == inFlight.track.id &&
+                current.track.sourceId == inFlight.track.sourceId
+
+            if (!isCurrentSameAsInFlight) {
                 val inFlightDuration = inFlight.track.durationMs.takeIf { it > 0L } ?: 0L
                 count += 1
                 totalDurationMs += inFlightDuration
             }
         }
 
-        if (isCurrentTrackFromUser(userId, userName)) {
-            val currentDuration = currentContext?.track?.durationMs?.takeIf { it > 0L } ?: 0L
+        if (isCurrentFromUser && current != null) {
+            val currentDuration = current.track.durationMs.takeIf { it > 0L } ?: 0L
             count += 1
             totalDurationMs += currentDuration
         }

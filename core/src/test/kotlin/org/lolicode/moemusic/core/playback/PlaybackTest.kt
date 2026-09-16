@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.parallel.ResourceLock
 import org.lolicode.moemusic.api.*
 import org.lolicode.moemusic.api.event.*
@@ -581,7 +582,7 @@ class TrackQueueTest {
             assertTrue(autoplayFetchCount <= 2, "all-fail autoplay tracks should not hammer autoplay refetches")
             assertNull(controller.currentContext)
         } finally {
-            PluginManager.musicSources.clear()
+            PluginManager.musicSources -= source
         }
     }
 }
@@ -592,6 +593,11 @@ class TrackQueueTest {
 
 @ResourceLock("PluginManager")
 class ServerPlaybackControllerTest {
+
+    @AfterEach
+    fun resetConfig() {
+        ModConfigManager.save(MoeMusicConfig())
+    }
 
     @Test
     fun `play broadcasts PlaybackSnapshotPush packet`() {
@@ -1075,7 +1081,7 @@ class ServerPlaybackControllerTest {
             ctrl.skip()
 
             assertTrue(awaitCondition(timeoutMs = 1_000) {
-                ctrl.currentContext?.track?.id == "track-1"
+                ctrl.currentContext?.track?.id == "track-1" && !ctrl.isSkipInFlight
             })
             // track-2 must still be pending in the queue, not popped or dropped
             assertEquals(1, queue.userQueueSize())
@@ -1244,7 +1250,8 @@ class ServerPlaybackControllerTest {
             assertEquals(listOf("Bad Track"), incidents.map { it.first })
             assertEquals(LocalizedText.key("error.moemusic.source.network"), incidents.single().second)
         } finally {
-            PluginManager.musicSources.clear()
+            PluginManager.musicSources -= source
+            PluginManager.musicSources -= SAMPLE_SOURCE
         }
     }
 
@@ -1278,7 +1285,8 @@ class ServerPlaybackControllerTest {
             assertEquals(listOf("Blocked Track"), incidents.map { it.first })
             assertEquals(LocalizedText.key("error.moemusic.media_policy.local_file_disabled"), incidents.single().second)
         } finally {
-            PluginManager.musicSources.clear()
+            PluginManager.musicSources -= blockedSource
+            PluginManager.musicSources -= SAMPLE_SOURCE
         }
     }
 
@@ -1312,7 +1320,7 @@ class ServerPlaybackControllerTest {
             assertEquals(LocalizedText.key("error.moemusic.source.network"), userFacing.userMessage)
             assertNull(ctrl.currentContext)
         } finally {
-            PluginManager.musicSources.clear()
+            PluginManager.musicSources -= source
         }
     }
 
@@ -1333,7 +1341,7 @@ class ServerPlaybackControllerTest {
             assertEquals(LocalizedText.key("error.moemusic.internal"), userFacing.userMessage)
             assertNull(ctrl.currentContext)
         } finally {
-            PluginManager.musicSources.clear()
+            PluginManager.musicSources -= source
         }
     }
 

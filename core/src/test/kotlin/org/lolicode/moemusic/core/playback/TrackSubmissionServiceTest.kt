@@ -1,6 +1,7 @@
 package org.lolicode.moemusic.core.playback
 
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.parallel.ResourceLock
 import org.lolicode.moemusic.api.*
 import org.lolicode.moemusic.api.event.OnTrackSubmitted
@@ -22,6 +23,11 @@ class TrackSubmissionServiceTest {
 
     init {
         ModConfigManager.load(Files.createTempDirectory("moemusic-track-submission-test"))
+    }
+
+    @AfterEach
+    fun resetConfig() {
+        ModConfigManager.save(MoeMusicConfig())
     }
 
     @Test
@@ -182,7 +188,10 @@ class TrackSubmissionServiceTest {
         withMusicSource(source) {
             val service = TrackSubmissionService(freshController())
             val outcome = service.submitResolvedFromSource(
-                track = TrackInfo(id = "track-1", title = "Source Resolved", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                track = TrackInfo(id = "track-1", title = "Source Resolved", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) {
+                    sourceId = source.id
+                    lyricsFetched = true
+                },
                 mode = TrackAddMode.NORMAL,
             )
 
@@ -351,7 +360,7 @@ class TrackSubmissionServiceTest {
             )
         )
         val source = object : MusicSource {
-            override val id: String = "source"
+            override val id: String = "limits-zero-source"
             override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
                 PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
         }
