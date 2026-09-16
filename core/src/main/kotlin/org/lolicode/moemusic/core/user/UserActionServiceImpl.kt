@@ -10,6 +10,7 @@ import org.lolicode.moemusic.api.model.TrackInfo
 import org.lolicode.moemusic.api.permission.MoeMusicPermission
 import org.lolicode.moemusic.api.service.*
 import org.lolicode.moemusic.core.ratelimit.RequestRateLimiter
+import org.slf4j.LoggerFactory
 import java.util.UUID
 
 /** Shared checked server action path used by plugins, commands, and packet handlers. */
@@ -24,6 +25,8 @@ class UserActionServiceImpl(
         PlaybackActionOutcome(failure = LocalizedText.key("error.moemusic.permission_denied"))
     },
 ) : IUserActionService {
+
+    private val logger = LoggerFactory.getLogger(UserActionServiceImpl::class.java)
 
     override suspend fun search(query: SearchQuery, submitter: MoeMusicUser?): SearchResult {
         permissionService.require(MoeMusicPermission.SEARCH, submitter)
@@ -106,7 +109,7 @@ class UserActionServiceImpl(
     ): QueueRemoveOutcome {
         checkQueueMutationRateLimit(requester)
         val bypassOwnership = requester == null || permissionService.has(MoeMusicPermission.QUEUE_CONTROL, requester)
-        return when (playbackController.removeQueuedTrackByEntryId(sourceId, trackId, queueEntryId, requester, bypassOwnership)) {
+        val outcome = when (playbackController.removeQueuedTrackByEntryId(sourceId, trackId, queueEntryId, requester, bypassOwnership)) {
             QueueRemoveResult.REMOVED -> QueueRemoveOutcome(QueueRemoveResult.REMOVED)
             QueueRemoveResult.NOT_FOUND ->
                 QueueRemoveOutcome(
@@ -126,6 +129,16 @@ class UserActionServiceImpl(
                     LocalizedText.key("error.moemusic.internal")
                 )
         }
+        if (outcome.result == QueueRemoveResult.REMOVED) {
+            logger.info(
+                "Queue track removed by {}: source={} trackId={} entryId={}",
+                requester?.displayName ?: "<server>",
+                sourceId,
+                trackId,
+                queueEntryId ?: "first",
+            )
+        }
+        return outcome
     }
 
     override fun clearQueue(
@@ -146,12 +159,22 @@ class UserActionServiceImpl(
         }
         checkQueueMutationRateLimit(requester)
 
-        return playbackController.clearQueue(
+        val outcome = playbackController.clearQueue(
             targetUserId = targetUserId,
             targetUserName = normalizedTargetName,
             requester = requester,
             bypassOwnership = hasQueueControl,
         )
+        if (outcome.failure == null && outcome.removedCount > 0) {
+            logger.info(
+                "Queue cleared by {}: scope={} target={} removedCount={}",
+                requester?.displayName ?: "<server>",
+                if (targetUserId != null || normalizedTargetName != null) "USER" else "ALL",
+                targetUserId ?: normalizedTargetName ?: "all",
+                outcome.removedCount,
+            )
+        }
+        return outcome
     }
 
     override fun controlPlayback(
@@ -198,7 +221,15 @@ class UserActionServiceImpl(
                     PlaybackActionOutcome(failure = LocalizedText.key("action.moemusic.playback.already_skipping"))
                 } else if (permissionService.has(MoeMusicPermission.QUEUE_CONTROL, requester)) {
                     checkSkipRateLimit(requester)
+                    val currentTrack = playbackController.currentContext?.track
                     playbackController.skip()
+                    logger.info(
+                        "Playback force-skipped by {}: track='{}' ({}:{})",
+                        requester.displayName,
+                        currentTrack?.title.orEmpty(),
+                        currentTrack?.sourceId.orEmpty(),
+                        currentTrack?.id.orEmpty(),
+                    )
                     PlaybackActionOutcome()
                 } else {
                     permissionService.require(MoeMusicPermission.VOTE, requester)
@@ -213,7 +244,16 @@ class UserActionServiceImpl(
         when (action) {
             PlaybackAction.PAUSE -> playbackController.pause()
             PlaybackAction.RESUME -> playbackController.resume()
-            PlaybackAction.SKIP -> playbackController.skip()
+            PlaybackAction.SKIP -> {
+                val currentTrack = playbackController.currentContext?.track
+                playbackController.skip()
+                logger.info(
+                    "Playback force-skipped by <server>: track='{}' ({}:{})",
+                    currentTrack?.title.orEmpty(),
+                    currentTrack?.sourceId.orEmpty(),
+                    currentTrack?.id.orEmpty(),
+                )
+            }
             PlaybackAction.STOP -> playbackController.stop()
             PlaybackAction.SEEK -> playbackController.seek(positionMs)
         }

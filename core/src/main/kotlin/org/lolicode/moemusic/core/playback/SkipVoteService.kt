@@ -4,6 +4,7 @@ import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.api.MoeMusicUser
 import org.lolicode.moemusic.api.model.TrackInfo
 import org.lolicode.moemusic.core.permission.PermissionNodes
+import org.slf4j.LoggerFactory
 import java.util.UUID
 
 class SkipVoteService(
@@ -12,6 +13,7 @@ class SkipVoteService(
         user.hasPermission(PermissionNodes.VOTE.id, PermissionNodes.VOTE.defaultLevel())
     },
 ) {
+    private val logger = LoggerFactory.getLogger(SkipVoteService::class.java)
 
     data class VoteTally(
         val title: String,
@@ -79,8 +81,26 @@ class SkipVoteService(
         }
 
         return when {
-            tally.passed -> RequestResult.Passed(tally)
-            tally.added -> RequestResult.Registered(tally)
+            tally.passed -> {
+                logger.info(
+                    "Skip vote passed (votes={}/{}): track='{}' triggeredBy={}",
+                    tally.voteCount,
+                    tally.requiredVotes,
+                    tally.title,
+                    requester.displayName,
+                )
+                RequestResult.Passed(tally)
+            }
+            tally.added -> {
+                logger.info(
+                    "Skip vote cast by {}: votes={}/{} track='{}'",
+                    requester.displayName,
+                    tally.voteCount,
+                    tally.requiredVotes,
+                    tally.title,
+                )
+                RequestResult.Registered(tally)
+            }
             else -> RequestResult.AlreadyVoted(tally)
         }
     }
@@ -101,7 +121,7 @@ class SkipVoteService(
         val eligibleVoters = eligibleVoters(activeParticipants)
         val eligibleIds = eligibleVoters.mapTo(linkedSetOf()) { it.id }
 
-        return synchronized(this) {
+        val tally = synchronized(this) {
             val state = currentState ?: return@synchronized null
             if (state.trackSessionId != trackSessionId) {
                 currentState = null
@@ -129,6 +149,15 @@ class SkipVoteService(
                 added = false,
             )
         }
+        if (tally != null && tally.passed) {
+            logger.info(
+                "Skip vote passed after participant leave (votes={}/{}): track='{}'",
+                tally.voteCount,
+                tally.requiredVotes,
+                tally.title,
+            )
+        }
+        return tally
     }
 
     fun reset() {

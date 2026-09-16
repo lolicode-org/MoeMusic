@@ -494,14 +494,23 @@ class ServerPlaybackController(
                 automatic = automatic,
             )
         )
-        logger.info(
-            "Playback paused: source={} id={} title='{}' positionMs={} automatic={}",
-            ctx.track.sourceId.orEmpty(),
-            ctx.track.id,
-            ctx.track.title,
-            positionMs,
-            automatic,
-        )
+        if (automatic) {
+            logger.info(
+                "Playback auto-paused (no active listeners): source={} id={} title='{}' positionMs={}",
+                ctx.track.sourceId.orEmpty(),
+                ctx.track.id,
+                ctx.track.title,
+                positionMs,
+            )
+        } else {
+            logger.info(
+                "Playback paused: source={} id={} title='{}' positionMs={}",
+                ctx.track.sourceId.orEmpty(),
+                ctx.track.id,
+                ctx.track.title,
+                positionMs,
+            )
+        }
     }
 
     /**
@@ -515,7 +524,6 @@ class ServerPlaybackController(
         if (ctx.state !is PlaybackState.Playing || isAutoPaused) return
         pause(automatic = true)
         isAutoPaused = true
-        logger.info("Playback auto-paused because there are no active playback clients.")
     }
 
     /**
@@ -525,7 +533,6 @@ class ServerPlaybackController(
         if (!isAutoPaused) return
         isAutoPaused = false
         resume(automatic = true)
-        logger.info("Playback auto-resume requested after a playback client became available.")
     }
 
     /**
@@ -569,14 +576,23 @@ class ServerPlaybackController(
                 automatic = automatic,
             )
         )
-        logger.info(
-            "Playback resumed: source={} id={} title='{}' positionMs={} automatic={}",
-            refreshReadyContext.track.sourceId.orEmpty(),
-            refreshReadyContext.track.id,
-            refreshReadyContext.track.title,
-            pausePos,
-            automatic,
-        )
+        if (automatic) {
+            logger.info(
+                "Playback auto-resumed (active listener joined): source={} id={} title='{}' positionMs={}",
+                refreshReadyContext.track.sourceId.orEmpty(),
+                refreshReadyContext.track.id,
+                refreshReadyContext.track.title,
+                pausePos,
+            )
+        } else {
+            logger.info(
+                "Playback resumed: source={} id={} title='{}' positionMs={}",
+                refreshReadyContext.track.sourceId.orEmpty(),
+                refreshReadyContext.track.id,
+                refreshReadyContext.track.title,
+                pausePos,
+            )
+        }
     }
 
     /**

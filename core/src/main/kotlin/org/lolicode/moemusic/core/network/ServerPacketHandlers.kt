@@ -290,7 +290,7 @@ class ServerPacketHandlers(
                 }
                 sendToClient(sender, PacketIds.TRACK_SUBMIT_RESPONSE, response.encode())
                 if (response.failure.isBlank()) {
-                    logger.info(
+                    logger.debug(
                         "Track submit accepted from {}: source={} id={} title='{}' mode={} resultMessage='{}'",
                         sender.displayName,
                         msg.source_id,
@@ -300,7 +300,7 @@ class ServerPacketHandlers(
                         response.success,
                     )
                 } else {
-                    logger.info(
+                    logger.debug(
                         "Track submit rejected for {}: source={} id={} mode={} reason='{}'",
                         sender.displayName,
                         msg.source_id,
@@ -318,7 +318,7 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             if (msg.source_id.isBlank() || msg.selection_id.isBlank()) {
-                logger.warn(
+                logger.debug(
                     "Rejected malformed SelectionSubmit from {}: source={} selection={} mode={}",
                     sender.displayName,
                     msg.source_id,
@@ -405,7 +405,7 @@ class ServerPacketHandlers(
                 }
                 sendToClient(sender, PacketIds.SELECTION_SUBMIT_RESPONSE, response.encode())
                 when {
-                    response.failure.isNotBlank() -> logger.info(
+                    response.failure.isNotBlank() -> logger.debug(
                         "Selection submit rejected for {}: source={} selection={} mode={} reason='{}'",
                         sender.displayName,
                         msg.source_id,
@@ -413,7 +413,7 @@ class ServerPacketHandlers(
                         mode,
                         response.failure,
                     )
-                    response.choices.isNotEmpty() -> logger.info(
+                    response.choices.isNotEmpty() -> logger.debug(
                         "Selection submit from {} returned {} choice(s): source={} selection={} mode={} (session={}, total={}, hasMore={})",
                         sender.displayName,
                         response.choices.size,
@@ -424,7 +424,7 @@ class ServerPacketHandlers(
                         response.total,
                         response.has_more,
                     )
-                    else -> logger.info(
+                    else -> logger.debug(
                         "Selection submit accepted from {}: source={} selection={} trackId={} title='{}' mode={} resultMessage='{}'",
                         sender.displayName,
                         msg.source_id,
@@ -512,19 +512,19 @@ class ServerPacketHandlers(
                 sendToClient(sender, PacketIds.IDENTIFIER_SUBMIT_RESPONSE, response.encode())
                 logger.debug("IdentifierSubmit from {} handled for identifier='{}'", sender.displayName, msg.identifier)
                 when {
-                    response.failure.isNotBlank() -> logger.info(
+                    response.failure.isNotBlank() -> logger.debug(
                         "Identifier submit rejected for {}: mode={} reason='{}'",
                         sender.displayName,
                         mode,
                         response.failure,
                     )
-                    response.choices.isNotEmpty() -> logger.info(
+                    response.choices.isNotEmpty() -> logger.debug(
                         "Identifier submit from {} returned {} choice(s): mode={}",
                         sender.displayName,
                         response.choices.size,
                         mode,
                     )
-                    else -> logger.info(
+                    else -> logger.debug(
                         "Identifier submit accepted from {}: trackId={} title='{}' mode={} resultMessage='{}'",
                         sender.displayName,
                         response.track_id,
@@ -725,7 +725,7 @@ class ServerPacketHandlers(
                 )
             }
             sendToClient(sender, PacketIds.QUEUE_REMOVE_RESPONSE, response.encode())
-            logger.info(
+            logger.debug(
                 "Queue remove from {}: source={} trackId={} result={}",
                 sender.displayName,
                 msg.source_id,
@@ -804,7 +804,7 @@ class ServerPacketHandlers(
                 )
             }
             sendToClient(sender, PacketIds.QUEUE_CLEAR_RESPONSE, response.encode())
-            logger.info(
+            logger.debug(
                 "Queue clear from {}: scope={} target={} removedCount={} result={}",
                 sender.displayName,
                 msg.scope,
@@ -839,7 +839,7 @@ class ServerPacketHandlers(
                 )
             }
             sendToClient(sender, PacketIds.PLAYBACK_CONTROL_RESPONSE, response.encode())
-            logger.info(
+            logger.debug(
                 "Playback control from {}: action={} posMs={} result={}",
                 sender.displayName,
                 msg.action,
@@ -858,7 +858,7 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             if (!hasPermission(sender, PermissionNodes.CONTENT_FILTER_MANAGE)) {
-                logger.warn(
+                logger.debug(
                     "Rejected content filter action from {} without permission {}: action={} target={} source={} value={}",
                     sender.displayName,
                     PermissionNodes.CONTENT_FILTER_MANAGE.id,
@@ -885,7 +885,7 @@ class ServerPacketHandlers(
             val valueId = msg.value_id.trim()
             val note = msg.note.trim().ifEmpty { null }
             if (sourceId.isBlank() || valueId.isBlank()) {
-                logger.warn(
+                logger.debug(
                     "Rejected malformed content filter action from {}: action={} target={} source={} value={}",
                     sender.displayName,
                     msg.action,
@@ -1093,7 +1093,7 @@ class ServerPacketHandlers(
 
     private fun logHandledFailure(action: String, sender: MoeMusicUser, error: Exception) {
         if (UserFacingErrors.isExpected(error)) {
-            logger.info("{} rejected for {}: {}", action, sender.displayName, error.message)
+            logger.debug("{} rejected for {}: {}", action, sender.displayName, error.message)
         } else {
             logger.error("{} failed for {}: {}", action, sender.displayName, error.message, error)
         }
