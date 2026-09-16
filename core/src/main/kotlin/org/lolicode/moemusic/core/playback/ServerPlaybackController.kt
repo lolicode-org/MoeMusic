@@ -87,6 +87,13 @@ class ServerPlaybackController(
 
     private val playbackRefreshLock = Any()
 
+    @Volatile
+    private var advancingGeneration: Long? = null
+    private val advanceLock = Any()
+
+    override val isSkipInFlight: Boolean
+        get() = advancingGeneration != null
+
     /**
      * Monotonic id for the currently loaded track session.
      *
@@ -171,12 +178,27 @@ class ServerPlaybackController(
     fun startNextIfStopped() {
         if (!willAutoStartIfQueued()) return
         val generation = startGeneration
+        synchronized(advanceLock) {
+            if (advancingGeneration == generation) {
+                logger.debug("Advance already in flight for generation {}, discarding redundant startNext.", generation)
+                return
+            }
+            advancingGeneration = generation
+        }
         scope.launch {
-            startNextPlayableTrack(
-                stopWhenExhausted = false,
-                generation = generation,
-                requireAutoStartPermission = true,
-            )
+            try {
+                startNextPlayableTrack(
+                    stopWhenExhausted = false,
+                    generation = generation,
+                    requireAutoStartPermission = true,
+                )
+            } finally {
+                synchronized(advanceLock) {
+                    if (advancingGeneration == generation) {
+                        advancingGeneration = null
+                    }
+                }
+            }
         }
     }
 
@@ -548,12 +570,27 @@ class ServerPlaybackController(
      */
     override fun skip() {
         val generation = startGeneration
+        synchronized(advanceLock) {
+            if (advancingGeneration == generation) {
+                logger.debug("Skip already in flight for generation {}, discarding redundant skip.", generation)
+                return
+            }
+            advancingGeneration = generation
+        }
         scope.launch {
-            startNextPlayableTrack(
-                stopWhenExhausted = true,
-                generation = generation,
-                requireAutoStartPermission = false,
-            )
+            try {
+                startNextPlayableTrack(
+                    stopWhenExhausted = true,
+                    generation = generation,
+                    requireAutoStartPermission = false,
+                )
+            } finally {
+                synchronized(advanceLock) {
+                    if (advancingGeneration == generation) {
+                        advancingGeneration = null
+                    }
+                }
+            }
         }
     }
 
@@ -790,6 +827,9 @@ class ServerPlaybackController(
         if (manual) {
             autoStartPolicy = AutoStartPolicy.BLOCKED_BY_MANUAL_STOP
             startGeneration += 1
+            synchronized(advanceLock) {
+                advancingGeneration = null
+            }
         } else {
             autoStartPolicy = AutoStartPolicy.ALLOWED
         }
@@ -815,6 +855,9 @@ class ServerPlaybackController(
     private fun allowAutoStart() {
         autoStartPolicy = AutoStartPolicy.ALLOWED
         startGeneration += 1
+        synchronized(advanceLock) {
+            advancingGeneration = null
+        }
     }
 
     private fun canContinueStart(

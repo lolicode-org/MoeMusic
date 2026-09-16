@@ -122,4 +122,71 @@ class ContentFilterRuntimeTest {
         assertIs<FilterVerdict.Reject>(ContentFilterRuntime.textFilterVerdict(ContentFilterTextRuleScope.MISC, listOf("description with spoiler")))
         assertIs<FilterVerdict.Reject>(ContentFilterRuntime.textFilterVerdict(ContentFilterTextRuleScope.QUERY, listOf("spoiler opening")))
     }
+
+    @Test
+    fun verdictMemoizationCachesAndClearsOnConfigUpdate() {
+        ContentFilterRuntime.applyConfig(
+            MoeMusicConfig(
+                contentFilter = ContentFilterRules(
+                    enabled = true,
+                    textRules = listOf(
+                        ContentFilterTextRule(
+                            pattern = "banned",
+                            mode = ContentFilterTextRuleMode.SUBSTRING,
+                            scope = ContentFilterTextRuleScope.TITLE,
+                            ignoreCase = true,
+                        )
+                    ),
+                ),
+            )
+        )
+
+        val track = TrackInfo(id = "track-cache", title = "This is banned title", artists = listOf("Artist").toArtistInfos(), durationMs = 120_000) { sourceId = "test" }
+
+        val verdict1 = ContentFilterRuntime.trackFilterVerdict(track)
+        val verdict2 = ContentFilterRuntime.trackFilterVerdict(track)
+        assertIs<FilterVerdict.Reject>(verdict1)
+        // Verify referential equality from LRU cache hit
+        assertEquals(verdict1, verdict2)
+        assertEquals(1, ContentFilterRuntime.cachedVerdictCount)
+
+        // Disable filter via config update
+        ContentFilterRuntime.applyConfig(
+            MoeMusicConfig(
+                contentFilter = ContentFilterRules(enabled = false)
+            )
+        )
+
+        val verdict3 = ContentFilterRuntime.trackFilterVerdict(track)
+        assertIs<FilterVerdict.Allow>(verdict3)
+        assertEquals(0, ContentFilterRuntime.cachedVerdictCount)
+    }
+
+    @Test
+    fun verdictCacheIsBoundedToMaxEntries() {
+        ContentFilterRuntime.applyConfig(
+            MoeMusicConfig(
+                contentFilter = ContentFilterRules(
+                    enabled = true,
+                    textRules = listOf(
+                        ContentFilterTextRule(
+                            pattern = "banned",
+                            mode = ContentFilterTextRuleMode.SUBSTRING,
+                            scope = ContentFilterTextRuleScope.TITLE,
+                            ignoreCase = true,
+                        )
+                    ),
+                ),
+            )
+        )
+
+        val max = ContentFilterRuntime.MAX_VERDICT_CACHE_ENTRIES
+        // Populate cache up to and beyond the capacity
+        for (i in 0 until max + 50) {
+            val track = TrackInfo(id = "track-$i", title = "Title $i", artists = listOf("Artist").toArtistInfos(), durationMs = 100_000) { sourceId = "test" }
+            ContentFilterRuntime.trackFilterVerdict(track)
+        }
+
+        assertEquals(max, ContentFilterRuntime.cachedVerdictCount, "Cache size must be strictly bounded to MAX_VERDICT_CACHE_ENTRIES")
+    }
 }

@@ -282,7 +282,7 @@ data class RequestRateLimitConfig(
     val enabled: Boolean = true,
 
     /**
-     * Sliding-window size in seconds for both search and submit buckets.
+     * Sliding-window size in seconds for all rate-limit buckets.
      */
     @SerialName("window_seconds")
     val windowSeconds: Int = 10,
@@ -298,11 +298,53 @@ data class RequestRateLimitConfig(
      */
     @SerialName("submit_requests")
     val submitRequests: Int = 6,
+
+    /**
+     * Maximum privileged skip requests per player per window. `0` disables the skip bucket.
+     */
+    @SerialName("skip_requests")
+    val skipRequests: Int = 3,
+
+    /**
+     * Maximum vote-to-skip requests per player per window. `0` disables the vote bucket.
+     */
+    @SerialName("vote_requests")
+    val voteRequests: Int = 3,
+
+    /**
+     * Maximum playback control requests (pause/resume/seek/stop) per player per window. `0` disables the bucket.
+     */
+    @SerialName("playback_control_requests")
+    val playbackControlRequests: Int = 8,
+
+    /**
+     * Maximum queue read/slice requests (UI bootstrap / queue polling) per player per window. `0` disables the bucket.
+     */
+    @SerialName("queue_read_requests")
+    val queueReadRequests: Int = 10,
+
+    /**
+     * Maximum queue mutation requests (track removal / queue clear) per player per window. `0` disables the bucket.
+     */
+    @SerialName("queue_mutation_requests")
+    val queueMutationRequests: Int = 6,
+
+    /**
+     * Maximum selection choice pagination requests per player per window. `0` disables the bucket.
+     */
+    @SerialName("selection_requests")
+    val selectionRequests: Int = 10,
 ) {
     fun normalized(): RequestRateLimitConfig = copy(
         windowSeconds = windowSeconds.coerceIn(1, 3_600),
         searchRequests = searchRequests.coerceIn(0, 1_000),
         submitRequests = submitRequests.coerceIn(0, 1_000),
+        skipRequests = skipRequests.coerceIn(0, 1_000),
+        voteRequests = voteRequests.coerceIn(0, 1_000),
+        playbackControlRequests = playbackControlRequests.coerceIn(0, 1_000),
+        queueReadRequests = queueReadRequests.coerceIn(0, 1_000),
+        queueMutationRequests = queueMutationRequests.coerceIn(0, 1_000),
+        selectionRequests = selectionRequests.coerceIn(0, 1_000),
     )
 }
 

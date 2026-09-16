@@ -203,6 +203,38 @@ class TrackQueueTest {
     }
 
     @Test
+    fun `distinctSubmitterNames extracts unique non-blank user names`() {
+        val queue = TrackQueue()
+        val t1 = SAMPLE_TRACK.copy { id = "t1"; submittedByUserName = "Alice" }
+        val t2 = SAMPLE_TRACK.copy { id = "t2"; submittedByUserName = "Bob" }
+        val t3 = SAMPLE_TRACK.copy { id = "t3"; submittedByUserName = "Alice" }
+        val t4 = SAMPLE_TRACK.copy { id = "t4"; submittedByUserName = "" }
+        val t5 = SAMPLE_TRACK.copy { id = "t5"; submittedByUserName = null }
+
+        queue.enqueueUser(t1)
+        queue.enqueueUser(t2)
+        queue.enqueueUser(t3)
+        queue.enqueueUser(t4)
+        queue.enqueueUser(t5)
+
+        assertEquals(setOf("Alice", "Bob"), queue.distinctSubmitterNames())
+    }
+
+    @Test
+    fun `getQueuedTrack returns track at index or null`() {
+        val queue = TrackQueue()
+        val t1 = SAMPLE_TRACK.copy { id = "track-0" }
+        val t2 = SAMPLE_TRACK.copy { id = "track-1" }
+        queue.enqueueUser(t1)
+        queue.enqueueUser(t2)
+
+        assertNull(queue.getQueuedTrack(-1))
+        assertEquals("track-0", queue.getQueuedTrack(0)?.id)
+        assertEquals("track-1", queue.getQueuedTrack(1)?.id)
+        assertNull(queue.getQueuedTrack(2))
+    }
+
+    @Test
     fun `enqueueAndPlay rejects duplicate of current track`() {
         val (ctrl, _) = freshController()
         ctrl.play(SAMPLE_TRACK, SAMPLE_TRACK.directPlayback())
@@ -1022,6 +1054,33 @@ class ServerPlaybackControllerTest {
                 "normal track advance should switch directly to PlaybackSnapshotPush without a transient STOPPED packet",
             )
             assertEquals("next-track", ctrl.currentContext?.track?.id)
+        }
+    }
+
+    @Test
+    fun `concurrent skip calls coalesce and discard redundant skip while advancing`() {
+        val t1 = SAMPLE_TRACK.copy { id = "track-1"; title = "Track 1" }
+        val t2 = SAMPLE_TRACK.copy { id = "track-2"; title = "Track 2" }
+        val queue = TrackQueue().apply {
+            enqueueUser(t1)
+            enqueueUser(t2)
+        }
+        val (ctrl, _) = freshController(queue)
+
+        withSampleSource {
+            ctrl.play(SAMPLE_TRACK, SAMPLE_TRACK.directPlayback())
+            // First skip triggers advance to track-1
+            ctrl.skip()
+            // Second skip issued immediately before track-1 finishes resolving
+            ctrl.skip()
+
+            assertTrue(awaitCondition(timeoutMs = 1_000) {
+                ctrl.currentContext?.track?.id == "track-1"
+            })
+            // track-2 must still be pending in the queue, not popped or dropped
+            assertEquals(1, queue.userQueueSize())
+            assertEquals("track-2", queue.getQueuedTrack(0)?.id)
+            assertFalse(ctrl.isSkipInFlight)
         }
     }
 

@@ -26,6 +26,9 @@ object ContentFilterRuntime : IContentFilterService {
     override val currentRules: ContentFilterRules
         get() = snapshot.rules
 
+    val cachedVerdictCount: Int
+        get() = snapshot.verdictCache.size
+
     fun applyConfig(config: MoeMusicConfig) {
         snapshot = Snapshot.fromConfig(config)
     }
@@ -47,9 +50,20 @@ object ContentFilterRuntime : IContentFilterService {
     override fun trackFilterVerdict(track: TrackInfo): FilterVerdict {
         track.sourceFilterVerdict?.let { if (it is FilterVerdict.Reject) return it }
 
-        val reason = trackBlockReason(track)
-        if (reason != null) return FilterVerdict.Reject(reason)
-        return FilterVerdict.Allow
+        val current = snapshot
+        if (!current.rules.enabled) return FilterVerdict.Allow
+
+        val key = FilterVerdictCacheKey(
+            sourceId = track.sourceId.orEmpty(),
+            trackId = track.id,
+            title = track.title,
+            artist = track.artistDisplay,
+            album = track.album.orEmpty(),
+        )
+        return current.verdictCache.getOrPut(key) {
+            val reason = trackBlockReason(track)
+            if (reason != null) FilterVerdict.Reject(reason) else FilterVerdict.Allow
+        }
     }
 
     override fun selectionFilterVerdict(entry: SelectionEntry): FilterVerdict {
@@ -164,12 +178,45 @@ object ContentFilterRuntime : IContentFilterService {
             ?.let { rule -> LocalizedText.key("error.moemusic.content_filter.text_blocked", rule.displayPattern) }
     }
 
-    private data class Snapshot(
+    private data class FilterVerdictCacheKey(
+        val sourceId: String,
+        val trackId: String,
+        val title: String,
+        val artist: String,
+        val album: String,
+    )
+
+    const val MAX_VERDICT_CACHE_ENTRIES = 2_048
+
+    private class BoundedVerdictLruCache(private val maxEntries: Int = MAX_VERDICT_CACHE_ENTRIES) {
+        private val lock = Any()
+        private val entries = object : LinkedHashMap<FilterVerdictCacheKey, FilterVerdict>(128, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<FilterVerdictCacheKey, FilterVerdict>?): Boolean {
+                return size > maxEntries
+            }
+        }
+
+        fun getOrPut(key: FilterVerdictCacheKey, compute: () -> FilterVerdict): FilterVerdict {
+            synchronized(lock) {
+                val existing = entries[key]
+                if (existing != null) return existing
+                val computed = compute()
+                entries[key] = computed
+                return computed
+            }
+        }
+
+        val size: Int
+            get() = synchronized(lock) { entries.size }
+    }
+
+    private class Snapshot(
         val rules: ContentFilterRules = ContentFilterRules(),
         val clientConfig: ClientContentFilterConfig = ClientContentFilterConfig(),
         val exactTrackRules: Set<TrackRuleKey> = emptySet(),
         val exactArtistRules: Set<ArtistRuleKey> = emptySet(),
         val textRules: List<CompiledTextRule> = emptyList(),
+        val verdictCache: BoundedVerdictLruCache = BoundedVerdictLruCache(),
     ) {
         companion object {
             fun fromConfig(config: MoeMusicConfig): Snapshot {

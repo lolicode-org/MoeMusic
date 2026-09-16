@@ -19,6 +19,30 @@ class RequestRateLimiter(
         check(RequestType.SUBMIT, requesterId, bypass)
     }
 
+    fun checkSkip(requesterId: String, bypass: Boolean = false) {
+        check(RequestType.SKIP, requesterId, bypass)
+    }
+
+    fun checkVote(requesterId: String, bypass: Boolean = false) {
+        check(RequestType.VOTE, requesterId, bypass)
+    }
+
+    fun checkPlaybackControl(requesterId: String, bypass: Boolean = false) {
+        check(RequestType.PLAYBACK_CONTROL, requesterId, bypass)
+    }
+
+    fun checkQueueRead(requesterId: String, bypass: Boolean = false) {
+        check(RequestType.QUEUE_READ, requesterId, bypass)
+    }
+
+    fun checkQueueMutation(requesterId: String, bypass: Boolean = false) {
+        check(RequestType.QUEUE_MUTATION, requesterId, bypass)
+    }
+
+    fun checkSelection(requesterId: String, bypass: Boolean = false) {
+        check(RequestType.SELECTION, requesterId, bypass)
+    }
+
     fun clear() {
         buckets.clear()
     }
@@ -30,6 +54,12 @@ class RequestRateLimiter(
         val limit = when (type) {
             RequestType.SEARCH -> cfg.searchRequests
             RequestType.SUBMIT -> cfg.submitRequests
+            RequestType.SKIP -> cfg.skipRequests
+            RequestType.VOTE -> cfg.voteRequests
+            RequestType.PLAYBACK_CONTROL -> cfg.playbackControlRequests
+            RequestType.QUEUE_READ -> cfg.queueReadRequests
+            RequestType.QUEUE_MUTATION -> cfg.queueMutationRequests
+            RequestType.SELECTION -> cfg.selectionRequests
         }
         if (limit <= 0) return
 
@@ -64,5 +94,11 @@ class RequestRateLimiter(
     private enum class RequestType {
         SEARCH,
         SUBMIT,
+        SKIP,
+        VOTE,
+        PLAYBACK_CONTROL,
+        QUEUE_READ,
+        QUEUE_MUTATION,
+        SELECTION,
     }
 }

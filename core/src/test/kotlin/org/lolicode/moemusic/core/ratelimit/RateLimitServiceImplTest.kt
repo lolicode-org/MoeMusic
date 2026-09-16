@@ -59,11 +59,66 @@ class RateLimitServiceImplTest {
         )
 
         service.checkSearch(null)
+        service.checkSkip(null)
+        service.checkVote(null)
+        service.checkPlaybackControl(null)
+        service.checkQueueRead(null)
+        service.checkQueueMutation(null)
+        service.checkSelection(null)
+
         val bypassPlayer = fakePlayer(hasBypass = true)
         service.checkSearch(bypassPlayer)
         service.checkSearch(bypassPlayer)
         service.checkSubmit(bypassPlayer)
         service.checkSubmit(bypassPlayer)
+        service.checkSkip(bypassPlayer)
+        service.checkVote(bypassPlayer)
+        service.checkPlaybackControl(bypassPlayer)
+        service.checkQueueRead(bypassPlayer)
+        service.checkQueueMutation(bypassPlayer)
+        service.checkSelection(bypassPlayer)
+    }
+
+    @Test
+    fun `service enforces new limits for normal users`() {
+        val limiter = RequestRateLimiter { 0L }
+        val service = RateLimitServiceImpl(limiter)
+        ModConfigManager.save(
+            MoeMusicConfig(
+                media = MediaPolicyConfig(
+                    rateLimit = RequestRateLimitConfig(
+                        enabled = true,
+                        windowSeconds = 10,
+                        skipRequests = 1,
+                        voteRequests = 1,
+                        playbackControlRequests = 1,
+                        queueReadRequests = 1,
+                        queueMutationRequests = 1,
+                        selectionRequests = 1,
+                    )
+                )
+            )
+        )
+
+        val player = fakePlayer(hasBypass = false)
+
+        service.checkSkip(player)
+        assertFailsWith<RateLimitedException> { service.checkSkip(player) }
+
+        service.checkVote(player)
+        assertFailsWith<RateLimitedException> { service.checkVote(player) }
+
+        service.checkPlaybackControl(player)
+        assertFailsWith<RateLimitedException> { service.checkPlaybackControl(player) }
+
+        service.checkQueueRead(player)
+        assertFailsWith<RateLimitedException> { service.checkQueueRead(player) }
+
+        service.checkQueueMutation(player)
+        assertFailsWith<RateLimitedException> { service.checkQueueMutation(player) }
+
+        service.checkSelection(player)
+        assertFailsWith<RateLimitedException> { service.checkSelection(player) }
     }
 
     private fun fakePlayer(hasBypass: Boolean): MoeMusicUser = object : MoeMusicUser() {

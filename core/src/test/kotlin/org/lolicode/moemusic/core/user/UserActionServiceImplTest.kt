@@ -260,6 +260,150 @@ class UserActionServiceImplTest {
     }
 
     @Test
+    fun `controlPlayback SKIP enforces skip rate limit for queue controllers`() {
+        configureRateLimit(skipRequests = 1)
+        val playbackController = RecordingPlaybackController()
+        val user = FakeUser()
+        val service = UserActionServiceImpl(
+            permissionService = FakePermissionService(
+                hasHandler = { permission, _ -> permission == MoeMusicPermission.QUEUE_CONTROL }
+            ),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+        )
+
+        service.controlPlayback(PlaybackAction.SKIP, requester = user)
+        assertFailsWith<RateLimitedException> {
+            service.controlPlayback(PlaybackAction.SKIP, requester = user)
+        }
+        assertEquals(1, playbackController.skipCalls)
+    }
+
+    @Test
+    fun `controlPlayback SKIP without queue control enforces vote rate limit`() {
+        configureRateLimit(voteRequests = 1)
+        val playbackController = RecordingPlaybackController()
+        val user = FakeUser()
+        var voteCalls = 0
+        val service = UserActionServiceImpl(
+            permissionService = FakePermissionService(
+                hasHandler = { _, _ -> false },
+                requireHandler = { permission, _ ->
+                    if (permission != MoeMusicPermission.VOTE) error("unexpected $permission")
+                }
+            ),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+            voteToSkipHandler = { voteCalls++; PlaybackActionOutcome(success = LocalizedText.plain("voted")) },
+        )
+
+        val outcome = service.controlPlayback(PlaybackAction.SKIP, requester = user)
+        assertEquals(1, voteCalls)
+        assertEquals(LocalizedText.plain("voted"), outcome.success)
+
+        assertFailsWith<RateLimitedException> {
+            service.controlPlayback(PlaybackAction.SKIP, requester = user)
+        }
+        assertEquals(1, voteCalls)
+    }
+
+    @Test
+    fun `controlPlayback SKIP returns already_skipping and preserves budget when skip is in flight`() {
+        configureRateLimit(skipRequests = 1)
+        val playbackController = RecordingPlaybackController().apply {
+            isSkipInFlight = true
+        }
+        val user = FakeUser()
+        val service = UserActionServiceImpl(
+            permissionService = FakePermissionService(
+                hasHandler = { permission, _ -> permission == MoeMusicPermission.QUEUE_CONTROL }
+            ),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+        )
+
+        // Multiple calls while skip is in flight should not fail with RateLimitedException
+        // and should return the already_skipping localized failure
+        val outcome1 = service.controlPlayback(PlaybackAction.SKIP, requester = user)
+        val outcome2 = service.controlPlayback(PlaybackAction.SKIP, requester = user)
+
+        assertEquals("action.moemusic.playback.already_skipping", (outcome1.failure as? LocalizedText.Key)?.key)
+        assertEquals("action.moemusic.playback.already_skipping", (outcome2.failure as? LocalizedText.Key)?.key)
+        assertEquals(0, playbackController.skipCalls)
+    }
+
+    @Test
+    fun `controlPlayback PAUSE enforces playback control rate limit`() {
+        configureRateLimit(playbackControlRequests = 1)
+        val playbackController = RecordingPlaybackController()
+        val user = FakeUser()
+        val service = UserActionServiceImpl(
+            permissionService = FakePermissionService(),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+        )
+
+        service.controlPlayback(PlaybackAction.PAUSE, requester = user)
+        assertFailsWith<RateLimitedException> {
+            service.controlPlayback(PlaybackAction.PAUSE, requester = user)
+        }
+        assertEquals(1, playbackController.pauseCalls)
+    }
+
+    @Test
+    fun `removeQueuedTrack and clearQueue enforce mutation rate limit`() {
+        configureRateLimit(queueMutationRequests = 1)
+        val playbackController = RecordingPlaybackController().apply {
+            nextRemoveQueuedTrackResult = QueueRemoveResult.REMOVED
+            nextClearOutcome = QueueClearOutcome(removedCount = 1)
+        }
+        val user = FakeUser()
+        val service = UserActionServiceImpl(
+            permissionService = FakePermissionService(
+                hasHandler = { permission, _ -> permission == MoeMusicPermission.QUEUE_CONTROL }
+            ),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+        )
+
+        service.removeQueuedTrack("alpha", "track-1", requester = user)
+        assertFailsWith<RateLimitedException> {
+            service.removeQueuedTrack("alpha", "track-2", requester = user)
+        }
+
+        // Fresh limiter for clearQueue
+        val clearService = UserActionServiceImpl(
+            permissionService = FakePermissionService(
+                hasHandler = { permission, _ -> permission == MoeMusicPermission.QUEUE_CONTROL }
+            ),
+            requestRateLimiter = RequestRateLimiter(nowMillis = { 0L }),
+            searchService = NoopSearchService,
+            identifierResolutionService = NoopIdentifierResolutionService,
+            trackSubmissionService = NoopTrackSubmissionService,
+            playbackController = playbackController,
+        )
+        clearService.clearQueue(targetUserId = null, requester = user)
+        assertFailsWith<RateLimitedException> {
+            clearService.clearQueue(targetUserId = null, requester = user)
+        }
+    }
+
+    @Test
     fun `queue remove uses queue control permission as ownership bypass`() {
         val playbackController = RecordingPlaybackController().apply {
             nextRemoveQueuedTrackResult = QueueRemoveResult.REMOVED
@@ -448,7 +592,16 @@ class UserActionServiceImplTest {
         )
     }
 
-    private fun configureRateLimit(searchRequests: Int, submitRequests: Int) {
+    private fun configureRateLimit(
+        searchRequests: Int = 10,
+        submitRequests: Int = 10,
+        skipRequests: Int = 10,
+        voteRequests: Int = 10,
+        playbackControlRequests: Int = 10,
+        queueReadRequests: Int = 10,
+        queueMutationRequests: Int = 10,
+        selectionRequests: Int = 10,
+    ) {
         ModConfigManager.save(
             MoeMusicConfig(
                 media = MediaPolicyConfig(
@@ -457,6 +610,12 @@ class UserActionServiceImplTest {
                         windowSeconds = 10,
                         searchRequests = searchRequests,
                         submitRequests = submitRequests,
+                        skipRequests = skipRequests,
+                        voteRequests = voteRequests,
+                        playbackControlRequests = playbackControlRequests,
+                        queueReadRequests = queueReadRequests,
+                        queueMutationRequests = queueMutationRequests,
+                        selectionRequests = selectionRequests,
                     )
                 )
             )
@@ -489,6 +648,7 @@ class UserActionServiceImplTest {
     private class RecordingPlaybackController : IPlaybackController {
         var pauseCalls: Int = 0
         var skipCalls: Int = 0
+        override var isSkipInFlight: Boolean = false
         var lastRemoveRequester: MoeMusicUser? = null
         var lastRemoveBypassOwnership: Boolean = false
         var nextRemoveQueuedTrackResult: QueueRemoveResult = QueueRemoveResult.NOT_FOUND

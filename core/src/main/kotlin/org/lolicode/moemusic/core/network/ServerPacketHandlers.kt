@@ -205,6 +205,7 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
+                ServerRuntimeCoordinator.rateLimitService.checkQueueRead(sender)
                 val queuePayload = buildQueueSliceFor(sender, offset = 0, limit = msg.queue_limit)
                 UiBootstrapResponse(
                     tracks = queuePayload.tracks,
@@ -591,6 +592,7 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
+                ServerRuntimeCoordinator.rateLimitService.checkQueueRead(sender)
                 val queuePayload = buildQueueSliceFor(sender, offset = msg.offset, limit = msg.limit)
                 QueueResponse(
                     tracks = queuePayload.tracks,
@@ -626,6 +628,7 @@ class ServerPacketHandlers(
         ) { msg, sender ->
             if (sender == null) return@register
             val response = try {
+                ServerRuntimeCoordinator.rateLimitService.checkSelection(sender)
                 val bypassOwnership = hasPermission(sender, PermissionNodes.QUEUE_CONTROL)
                 val page = SelectionSessionManager.getPage(
                     sessionId = msg.session_id,
@@ -1013,7 +1016,7 @@ class ServerPacketHandlers(
         val configuredMax = ModConfigManager.config.media.maxQueueResultsPerPage
         
         val effectiveLimit = if (isV2) {
-            Int.MAX_VALUE
+            configuredMax.coerceAtMost(100)
         } else {
             (if (limit > 0) limit else 20).coerceIn(1, configuredMax)
         }

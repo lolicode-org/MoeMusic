@@ -121,6 +121,27 @@ class TrackQueue {
     /** Snapshot of the user queue for display purposes (ordered, not live). */
     fun userQueueSnapshot(): List<TrackInfo> = synchronized(queueLock) { userQueue.map { it.track } }
 
+    /** Returns the distinct submitter user names in the user queue without snapshotting tracks. */
+    fun distinctSubmitterNames(): Set<String> = synchronized(queueLock) {
+        val names = LinkedHashSet<String>()
+        for ((track) in userQueue) {
+            val name = track.submittedByUserName?.trim()
+            if (!name.isNullOrBlank()) {
+                names.add(name)
+            }
+        }
+        names
+    }
+
+    /** Returns the track at the specified index in the user queue, or null if out of bounds. */
+    fun getQueuedTrack(index: Int): TrackInfo? = synchronized(queueLock) {
+        if (index < 0 || index >= userQueue.size) return null
+        for ((currentIndex, item) in userQueue.withIndex()) {
+            if (currentIndex == index) return item.track
+        }
+        null
+    }
+
     data class QueueSliceResult(
         val tracks: List<TrackInfo>,
         val totalSize: Int
@@ -170,14 +191,15 @@ class TrackQueue {
 
     /** Remove the first pending user-queue entry matching [track]. */
     fun removeMatchingUserTrack(track: TrackInfo): Boolean = synchronized(queueLock) {
-        val snapshot = userQueue.toList()
-        val removeIndex = snapshot.indexOfFirst { it.track.matchesQueueIdentity(track) }
-        if (removeIndex < 0) return@synchronized false
-        userQueue.clear()
-        snapshot.forEachIndexed { index, queuedTrack ->
-            if (index != removeIndex) userQueue.addLast(queuedTrack)
+        val iterator = userQueue.iterator()
+        while (iterator.hasNext()) {
+            val item = iterator.next()
+            if (item.track.matchesQueueIdentity(track)) {
+                iterator.remove()
+                return@synchronized true
+            }
         }
-        true
+        false
     }
 
     /** Remove the first pending user-queue entry matching [sourceId] and [trackId]. */
@@ -216,34 +238,35 @@ class TrackQueue {
         bypassOwnership: Boolean = false,
     ): UserQueueRemovalDetails {
         synchronized(queueLock) {
-            val snapshot = userQueue.toList()
-            val removeIndex = if (!queueEntryId.isNullOrBlank()) {
-                snapshot.indexOfFirst { it.queueEntryId == queueEntryId }
+            val targetEntry = (if (!queueEntryId.isNullOrBlank()) {
+                userQueue.firstOrNull { it.queueEntryId == queueEntryId }
             } else if (!bypassOwnership && requesterId != null) {
-                val ownIndex = snapshot.indexOfFirst {
+                val own = userQueue.firstOrNull {
                     it.track.sourceId == sourceId && it.track.id == trackId && it.enqueuedBy == requesterId
                 }
-                if (ownIndex >= 0) ownIndex else snapshot.indexOfFirst {
+                own ?: userQueue.firstOrNull {
                     it.track.sourceId == sourceId && it.track.id == trackId
                 }
             } else {
-                snapshot.indexOfFirst {
+                userQueue.firstOrNull {
                     it.track.sourceId == sourceId && it.track.id == trackId
                 }
-            }
-            if (removeIndex < 0) return UserQueueRemovalDetails(UserQueueRemovalResult.NOT_FOUND)
-            val target = snapshot[removeIndex]
-            if (!bypassOwnership && (requesterId == null || target.enqueuedBy != requesterId)) {
+            }) ?: return UserQueueRemovalDetails(UserQueueRemovalResult.NOT_FOUND)
+
+            if (!bypassOwnership && (requesterId == null || targetEntry.enqueuedBy != requesterId)) {
                 return UserQueueRemovalDetails(UserQueueRemovalResult.FORBIDDEN)
             }
-            // Rebuild queue without the matched element.
-            userQueue.clear()
-            snapshot.forEachIndexed { i, queuedTrack ->
-                if (i != removeIndex) userQueue.addLast(queuedTrack)
+            val iterator = userQueue.iterator()
+            while (iterator.hasNext()) {
+                val item = iterator.next()
+                if (item === targetEntry) {
+                    iterator.remove()
+                    break
+                }
             }
             return UserQueueRemovalDetails(
                 result = UserQueueRemovalResult.REMOVED,
-                removedTrack = target.track,
+                removedTrack = targetEntry.track,
             )
         }
     }
@@ -269,31 +292,24 @@ class TrackQueue {
             if (targetUserId == null && targetUserName == null && !bypassOwnership) {
                 return UserQueueClearDetails(emptyList())
             }
-            val snapshot = userQueue.toList()
-            val toRemove = ArrayList<QueuedTrack>()
-            val toKeep = ArrayList<QueuedTrack>()
-
+            val removed = ArrayList<TrackInfo>()
             val trimmedTargetName = targetUserName?.trim()
-            for (item in snapshot) {
+            val iterator = userQueue.iterator()
+            while (iterator.hasNext()) {
+                val item = iterator.next()
                 val matchesTarget = when {
                     targetUserId != null -> item.enqueuedBy == targetUserId
                     trimmedTargetName != null -> item.track.submittedByUserName.equals(trimmedTargetName, ignoreCase = true)
-                    else -> true // all
+                    else -> true
                 }
                 if (matchesTarget) {
-                    if (!bypassOwnership && requesterId != null && item.enqueuedBy != requesterId) {
-                        toKeep.add(item)
-                    } else {
-                        toRemove.add(item)
+                    if (bypassOwnership || (requesterId != null && item.enqueuedBy == requesterId)) {
+                        iterator.remove()
+                        removed.add(item.track)
                     }
-                } else {
-                    toKeep.add(item)
                 }
             }
-
-            userQueue.clear()
-            toKeep.forEach { userQueue.addLast(it) }
-            return UserQueueClearDetails(toRemove.map { it.track })
+            return UserQueueClearDetails(removed)
         }
     }
 }

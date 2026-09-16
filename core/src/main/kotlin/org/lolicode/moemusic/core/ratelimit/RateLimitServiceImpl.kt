@@ -18,6 +18,36 @@ internal class RateLimitServiceImpl(
         limiter.checkSubmit(user.id.toString(), bypass = hasBypass(user))
     }
 
+    override fun checkPlaybackControl(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        limiter.checkPlaybackControl(user.id.toString(), bypass = hasBypass(user))
+    }
+
+    override fun checkSkip(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        limiter.checkSkip(user.id.toString(), bypass = hasBypass(user))
+    }
+
+    override fun checkVote(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        limiter.checkVote(user.id.toString(), bypass = hasBypass(user))
+    }
+
+    override fun checkQueueRead(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        limiter.checkQueueRead(user.id.toString(), bypass = hasBypass(user))
+    }
+
+    override fun checkQueueMutation(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        limiter.checkQueueMutation(user.id.toString(), bypass = hasBypass(user))
+    }
+
+    override fun checkSelection(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        limiter.checkSelection(user.id.toString(), bypass = hasBypass(user))
+    }
+
     private fun hasBypass(user: MoeMusicUser): Boolean =
         user.hasPermission(
             PermissionNodes.RATE_LIMIT_BYPASS.id,

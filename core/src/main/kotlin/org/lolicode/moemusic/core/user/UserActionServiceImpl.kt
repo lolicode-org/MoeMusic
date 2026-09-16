@@ -104,6 +104,7 @@ class UserActionServiceImpl(
         queueEntryId: String?,
         requester: MoeMusicUser?,
     ): QueueRemoveOutcome {
+        checkQueueMutationRateLimit(requester)
         val bypassOwnership = requester == null || permissionService.has(MoeMusicPermission.QUEUE_CONTROL, requester)
         return when (playbackController.removeQueuedTrackByEntryId(sourceId, trackId, queueEntryId, requester, bypassOwnership)) {
             QueueRemoveResult.REMOVED -> QueueRemoveOutcome(QueueRemoveResult.REMOVED)
@@ -143,6 +144,7 @@ class UserActionServiceImpl(
         if (!isTargetingSelf && !hasQueueControl) {
             return QueueClearOutcome(0, LocalizedText.key("error.moemusic.permission.queue_control"))
         }
+        checkQueueMutationRateLimit(requester)
 
         return playbackController.clearQueue(
             targetUserId = targetUserId,
@@ -165,34 +167,42 @@ class UserActionServiceImpl(
         return when (action) {
             PlaybackAction.PAUSE -> {
                 permissionService.require(MoeMusicPermission.PLAYBACK_CONTROL, requester)
+                checkPlaybackControlRateLimit(requester)
                 playbackController.pause()
                 PlaybackActionOutcome()
             }
 
             PlaybackAction.RESUME -> {
                 permissionService.require(MoeMusicPermission.PLAYBACK_CONTROL, requester)
+                checkPlaybackControlRateLimit(requester)
                 playbackController.resume()
                 PlaybackActionOutcome()
             }
 
             PlaybackAction.STOP -> {
                 permissionService.require(MoeMusicPermission.PLAYBACK_CONTROL, requester)
+                checkPlaybackControlRateLimit(requester)
                 playbackController.stop()
                 PlaybackActionOutcome()
             }
 
             PlaybackAction.SEEK -> {
                 permissionService.require(MoeMusicPermission.PLAYBACK_CONTROL, requester)
+                checkPlaybackControlRateLimit(requester)
                 playbackController.seek(positionMs)
                 PlaybackActionOutcome()
             }
 
             PlaybackAction.SKIP -> {
-                if (permissionService.has(MoeMusicPermission.QUEUE_CONTROL, requester)) {
+                if (playbackController.isSkipInFlight) {
+                    PlaybackActionOutcome(failure = LocalizedText.key("action.moemusic.playback.already_skipping"))
+                } else if (permissionService.has(MoeMusicPermission.QUEUE_CONTROL, requester)) {
+                    checkSkipRateLimit(requester)
                     playbackController.skip()
                     PlaybackActionOutcome()
                 } else {
                     permissionService.require(MoeMusicPermission.VOTE, requester)
+                    checkVoteRateLimit(requester)
                     voteToSkipHandler(requester.id)
                 }
             }
@@ -226,6 +236,26 @@ class UserActionServiceImpl(
     private fun checkSubmitRateLimit(submitter: MoeMusicUser?) {
         val user = submitter ?: return
         requestRateLimiter.checkSubmit(user.id.toString(), bypass = hasRateLimitBypass(user))
+    }
+
+    private fun checkSkipRateLimit(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        requestRateLimiter.checkSkip(user.id.toString(), bypass = hasRateLimitBypass(user))
+    }
+
+    private fun checkVoteRateLimit(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        requestRateLimiter.checkVote(user.id.toString(), bypass = hasRateLimitBypass(user))
+    }
+
+    private fun checkPlaybackControlRateLimit(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        requestRateLimiter.checkPlaybackControl(user.id.toString(), bypass = hasRateLimitBypass(user))
+    }
+
+    private fun checkQueueMutationRateLimit(submitter: MoeMusicUser?) {
+        val user = submitter ?: return
+        requestRateLimiter.checkQueueMutation(user.id.toString(), bypass = hasRateLimitBypass(user))
     }
 
     private fun hasRateLimitBypass(user: MoeMusicUser): Boolean =

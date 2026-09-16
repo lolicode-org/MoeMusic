@@ -60,6 +60,13 @@ public interface IPlaybackController {
      */
     public fun skip()
 
+    /**
+     * Whether a skip action or track advance is currently in flight resolving the next track.
+     *
+     * Callers can check this to discard or coalesce redundant skip requests.
+     */
+    public val isSkipInFlight: Boolean get() = false
+
     /** Stop playback and clear the current context. Broadcasts a STOPPED state update. */
     public fun stop()
 

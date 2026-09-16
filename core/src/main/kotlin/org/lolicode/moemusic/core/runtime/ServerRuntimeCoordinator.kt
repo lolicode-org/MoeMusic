@@ -8,6 +8,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.lolicode.moemusic.api.service.IMediaProbeService
 import org.lolicode.moemusic.api.service.IPermissionService
+import org.lolicode.moemusic.api.service.IRateLimitService
 import org.lolicode.moemusic.api.service.IUserActionService
 import org.lolicode.moemusic.api.LocalizedText
 import org.lolicode.moemusic.api.plugin.PlaybackAudienceLease
@@ -26,6 +27,7 @@ import org.lolicode.moemusic.core.playback.TrackQueue
 import org.lolicode.moemusic.core.playback.TrackSubmissionService
 import org.lolicode.moemusic.core.plugin.PluginManager
 import org.lolicode.moemusic.core.plugin.PluginManager.PluginConfigReloadReport
+import org.lolicode.moemusic.core.ratelimit.RateLimitServiceImpl
 import org.lolicode.moemusic.core.ratelimit.RequestRateLimiter
 import org.lolicode.moemusic.core.session.UserSessionRegistry
 import org.lolicode.moemusic.core.source.builtin.HttpMusicSource
@@ -73,6 +75,9 @@ object ServerRuntimeCoordinator {
         private set
 
     lateinit var requestRateLimiter: RequestRateLimiter
+        private set
+
+    lateinit var rateLimitService: IRateLimitService
         private set
 
     lateinit var permissionService: IPermissionService
@@ -236,6 +241,7 @@ object ServerRuntimeCoordinator {
         )
         trackSubmissionService = TrackSubmissionService(playbackController)
         requestRateLimiter = RequestRateLimiter()
+        rateLimitService = RateLimitServiceImpl(requestRateLimiter)
         playbackAudienceLeaseCoordinator = PlaybackAudienceLeaseCoordinator(playbackController)
         val pluginServices = pluginServicesFactory(playbackController, trackSubmissionService, requestRateLimiter)
         permissionService = pluginServices.permissionService
