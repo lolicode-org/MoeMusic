@@ -31,9 +31,17 @@ public abstract class MoeMusicUser {
      * <b>Note:</b> Generally you should not need this. All common operations (e.g. command execution, queueing tracks) have built-in permission checks in the core module.
      *
      * @param permission   The permission node to check (e.g. `"moemusic.common.submit"`).
+     *
+     *                     Some permission checker implementations impose limitations on permission node formatting (e.g. fabric-permission-api-v1, in which nodes are parsed as `Identifier`s under the hood).
+     *                     In this case, uppercase letters will be automatically mapped to lowercase. Nodes containing other invalid characters (e.g. spaces) may fail to parse and fallback to default operator checks.
+     *                     **ALWAYS** use characters in `[a-z0-9.]` to ensure compatibility & consistence behavior across all platforms. This will be a requirement in api v3.
+     *
+     *                     In addition, the permission check bridge may cache the converted node key *(not the result)* if the checker does not support plain permission nodes (e.g. fabric-permission-api-v1),
+     *                     since this cache is not bounded, if you request a large number of distinct permission checks, they will live in the cache forever, leading to a memory leak.
      * @param defaultLevel Vanilla operator level (0–4) or 5 (`LEVEL_DISABLED`, disabled for all vanilla players) used when no modded provider is present.
      *                     Defaults to 2 (standard operator).
      */
+    // TODO: Enforce permission node syntax in v3
     public abstract fun hasPermission(permission: String, defaultLevel: Int = 2): Boolean
 
     override fun equals(other: Any?): Boolean = other is MoeMusicUser && id == other.id
