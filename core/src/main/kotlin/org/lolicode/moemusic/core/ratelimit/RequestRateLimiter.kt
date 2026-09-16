@@ -4,12 +4,14 @@ import org.lolicode.moemusic.api.RateLimitedException
 import org.lolicode.moemusic.core.config.ModConfigManager
 import java.util.ArrayDeque
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 class RequestRateLimiter(
     private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
 
     private val buckets = ConcurrentHashMap<String, Bucket>()
+    private val requestCount = AtomicInteger(0)
 
     fun checkSearch(requesterId: String, bypass: Boolean = false) {
         check(RequestType.SEARCH, requesterId, bypass)
@@ -64,8 +66,13 @@ class RequestRateLimiter(
         if (limit <= 0) return
 
         val windowMs = cfg.windowSeconds * 1_000L
-        val bucket = buckets.computeIfAbsent("${type.name}:${requesterId.lowercase()}") { Bucket() }
         val now = nowMillis()
+
+        if (requestCount.incrementAndGet() % 1000 == 0) {
+            cleanupStaleBuckets(now, windowMs)
+        }
+
+        val bucket = buckets.computeIfAbsent("${type.name}:${requesterId.lowercase()}") { Bucket() }
         val exceeded = synchronized(bucket) {
             bucket.trim(now, windowMs)
             if (bucket.timestamps.size >= limit) {
@@ -77,6 +84,20 @@ class RequestRateLimiter(
         }
         if (exceeded) {
             throw RateLimitedException()
+        }
+    }
+
+    private fun cleanupStaleBuckets(now: Long, windowMs: Long) {
+        val iterator = buckets.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            val bucket = entry.value
+            synchronized(bucket) {
+                bucket.trim(now, windowMs)
+                if (bucket.timestamps.isEmpty()) {
+                    iterator.remove()
+                }
+            }
         }
     }
 
