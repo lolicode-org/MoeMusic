@@ -72,13 +72,13 @@ data class PermissionDefaultsConfig(
     val submitSkipAutoplay: Int = 0,
 
     @SerialName("queue_control")
-    val queueControl: Int = 1,
+    val queueControl: Int = 2,
 
     @SerialName("vote")
     val vote: Int = 0,
 
     @SerialName("playback_control")
-    val playbackControl: Int = 1,
+    val playbackControl: Int = 2,
 
     @SerialName("queue_view")
     val queueView: Int = 0,
@@ -86,7 +86,7 @@ data class PermissionDefaultsConfig(
     val search: Int = 0,
 
     @SerialName("content_filter_manage")
-    val contentFilterManage: Int = 2,
+    val contentFilterManage: Int = 3,
 
     @SerialName("config_reload")
     val configReload: Int = 4,
@@ -95,19 +95,19 @@ data class PermissionDefaultsConfig(
     val systemInfo: Int = 4,
 
     @SerialName("autoplay_refresh")
-    val autoplayRefresh: Int = 1,
+    val autoplayRefresh: Int = 2,
 
     @SerialName("content_filter_bypass")
-    val contentFilterBypass: Int = 1,
+    val contentFilterBypass: Int = 2,
 
     @SerialName("duration_policy_bypass")
-    val durationPolicyBypass: Int = 2,
+    val durationPolicyBypass: Int = 3,
 
     @SerialName("rate_limit_bypass")
-    val rateLimitBypass: Int = 2,
+    val rateLimitBypass: Int = 4,
 
     @SerialName("submit_duplicate")
-    val submitDuplicate: Int = 1,
+    val submitDuplicate: Int = 2,
 ) {
     fun normalized(): PermissionDefaultsConfig = copy(
         submit = submit.coerceIn(MIN_LEVEL, MAX_LEVEL),
@@ -307,49 +307,49 @@ data class RequestRateLimitConfig(
      * Maximum search requests per player per window. `0` disables the search bucket.
      */
     @SerialName("search_requests")
-    val searchRequests: Int = 8,
+    val searchRequests: Int = 6,
 
     /**
      * Maximum submit-like requests per player per window. `0` disables the submit bucket.
      */
     @SerialName("submit_requests")
-    val submitRequests: Int = 6,
+    val submitRequests: Int = 4,
 
     /**
      * Maximum privileged skip requests per player per window. `0` disables the skip bucket.
      */
     @SerialName("skip_requests")
-    val skipRequests: Int = 3,
+    val skipRequests: Int = 5,
 
     /**
      * Maximum vote-to-skip requests per player per window. `0` disables the vote bucket.
      */
     @SerialName("vote_requests")
-    val voteRequests: Int = 3,
+    val voteRequests: Int = 4,
 
     /**
      * Maximum playback control requests (pause/resume/seek/stop) per player per window. `0` disables the bucket.
      */
     @SerialName("playback_control_requests")
-    val playbackControlRequests: Int = 8,
+    val playbackControlRequests: Int = 6,
 
     /**
      * Maximum queue read/slice requests (UI bootstrap / queue polling) per player per window. `0` disables the bucket.
      */
     @SerialName("queue_read_requests")
-    val queueReadRequests: Int = 10,
+    val queueReadRequests: Int = 8,
 
     /**
      * Maximum queue mutation requests (track removal / queue clear) per player per window. `0` disables the bucket.
      */
     @SerialName("queue_mutation_requests")
-    val queueMutationRequests: Int = 6,
+    val queueMutationRequests: Int = 5,
 
     /**
      * Maximum selection choice pagination requests per player per window. `0` disables the bucket.
      */
     @SerialName("selection_requests")
-    val selectionRequests: Int = 10,
+    val selectionRequests: Int = 8,
 ) {
     fun normalized(): RequestRateLimitConfig = copy(
         windowSeconds = windowSeconds.coerceIn(1, 3_600),
