@@ -16,6 +16,7 @@ import org.lolicode.moemusic.api.event.OnTrackSubmitted
 import org.lolicode.moemusic.api.model.SelectionResolveResult
 import org.lolicode.moemusic.api.model.TrackAddMode
 import org.lolicode.moemusic.api.model.TrackInfo
+import org.lolicode.moemusic.api.model.UserTrackMetrics
 import org.lolicode.moemusic.api.model.isAvailable
 import org.lolicode.moemusic.api.model.copy
 import org.lolicode.moemusic.api.model.mergePreservingRuntimeMetadata
@@ -154,7 +155,7 @@ class TrackSubmissionService(
             this.submittedByUserName = track.submittedByUserName ?: submitter?.displayName
         }
 
-        enforceDurationPolicy(stamped, submitter)
+        enforceDurationPolicy(stamped, submitter, mode)
 
         // Content-filter check — skipped for bypass-privileged submitters.
         if (!hasFilterBypass(submitter)) {
@@ -204,7 +205,7 @@ class TrackSubmissionService(
         return submitter.hasPermission(CONTENT_FILTER_BYPASS.id, CONTENT_FILTER_BYPASS.defaultLevel())
     }
 
-    private fun enforceDurationPolicy(track: TrackInfo, submitter: MoeMusicUser?) {
+    private fun enforceDurationPolicy(track: TrackInfo, submitter: MoeMusicUser?, mode: TrackAddMode) {
         if (submitter == null || hasDurationPolicyBypass(submitter)) return
 
         val durationMs = track.durationMs
@@ -212,12 +213,41 @@ class TrackSubmissionService(
             throw UserFacingException(LocalizedText.key("error.moemusic.track.duration_unknown"))
         }
 
-        val maxSeconds = ModConfigManager.config.media.maxPlayerTrackDurationSeconds
+        val mediaConfig = ModConfigManager.config.media
+        val maxSeconds = mediaConfig.maxPlayerTrackDurationSeconds
         val maxMs = maxSeconds * 1_000L
         if (durationMs > maxMs) {
             throw UserFacingException(
                 LocalizedText.key("error.moemusic.track.duration_too_long", maxSeconds),
             )
+        }
+
+        val maxQueuedTracks = mediaConfig.maxPlayerTotalQueuedTracks
+        val maxQueuedDurationSeconds = mediaConfig.maxPlayerTotalQueuedDurationSeconds
+        if (maxQueuedTracks > 0 || maxQueuedDurationSeconds > 0) {
+            var currentMetrics = controller.currentUserTrackMetrics(submitter)
+            if (mode == TrackAddMode.PLAY_NOW && controller.isCurrentTrackFromUser(submitter.id, submitter.displayName)) {
+                val currentPlayingDurationMs = controller.currentContext?.track?.durationMs?.takeIf { it > 0L } ?: 0L
+                currentMetrics = UserTrackMetrics(
+                    count = (currentMetrics.count - 1).coerceAtLeast(0),
+                    totalDurationMs = (currentMetrics.totalDurationMs - currentPlayingDurationMs).coerceAtLeast(0L),
+                )
+            }
+
+            if (maxQueuedTracks > 0 && currentMetrics.count + 1 > maxQueuedTracks) {
+                throw UserFacingException(
+                    LocalizedText.key("error.moemusic.track.player_queue_limit_exceeded", maxQueuedTracks),
+                )
+            }
+
+            if (maxQueuedDurationSeconds > 0) {
+                val maxQueuedDurationMs = maxQueuedDurationSeconds * 1_000L
+                if (currentMetrics.totalDurationMs + durationMs > maxQueuedDurationMs) {
+                    throw UserFacingException(
+                        LocalizedText.key("error.moemusic.track.player_queue_duration_exceeded", maxQueuedDurationSeconds),
+                    )
+                }
+            }
         }
     }
 

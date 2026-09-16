@@ -220,6 +220,207 @@ class TrackSubmissionServiceTest {
         }
     }
 
+    @Test
+    fun `submitResolved rejects when user active track count exceeds limit`() = runBlocking {
+        ModConfigManager.save(
+            MoeMusicConfig(
+                media = MediaPolicyConfig(
+                    maxPlayerTotalQueuedTracks = 2,
+                    maxPlayerTrackDurationSeconds = 3600,
+                )
+            )
+        )
+        val source = object : MusicSource {
+            override val id: String = "source"
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
+        }
+
+        withMusicSource(source) {
+            val controller = freshController()
+            val service = TrackSubmissionService(controller)
+            val player = fakePlayer()
+
+            service.submitResolved(
+                track = TrackInfo(id = "track-1", title = "Track 1", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = player,
+                mode = TrackAddMode.NORMAL,
+            )
+            service.submitResolved(
+                track = TrackInfo(id = "track-2", title = "Track 2", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = player,
+                mode = TrackAddMode.NORMAL,
+            )
+
+            val error = assertFailsWith<UserFacingException> {
+                service.submitResolved(
+                    track = TrackInfo(id = "track-3", title = "Track 3", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                    submitter = player,
+                    mode = TrackAddMode.NORMAL,
+                )
+            }
+            assertEquals("error.moemusic.track.player_queue_limit_exceeded", (error.userMessage as LocalizedText.Key).key)
+        }
+    }
+
+    @Test
+    fun `submitResolved rejects when user total queued duration exceeds limit`() = runBlocking {
+        ModConfigManager.save(
+            MoeMusicConfig(
+                media = MediaPolicyConfig(
+                    maxPlayerTotalQueuedTracks = 10,
+                    maxPlayerTotalQueuedDurationSeconds = 120,
+                    maxPlayerTrackDurationSeconds = 3600,
+                )
+            )
+        )
+        val source = object : MusicSource {
+            override val id: String = "source"
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
+        }
+
+        withMusicSource(source) {
+            val controller = freshController()
+            val service = TrackSubmissionService(controller)
+            val player = fakePlayer()
+
+            service.submitResolved(
+                track = TrackInfo(id = "track-1", title = "Track 1", artists = listOf("Artist").toArtistInfos(), durationMs = 70_000) { sourceId = source.id },
+                submitter = player,
+                mode = TrackAddMode.NORMAL,
+            )
+
+            val error = assertFailsWith<UserFacingException> {
+                service.submitResolved(
+                    track = TrackInfo(id = "track-2", title = "Track 2", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                    submitter = player,
+                    mode = TrackAddMode.NORMAL,
+                )
+            }
+            assertEquals("error.moemusic.track.player_queue_duration_exceeded", (error.userMessage as LocalizedText.Key).key)
+        }
+    }
+
+    @Test
+    fun `submitResolved bypasses count and duration limits with permission`() = runBlocking {
+        ModConfigManager.save(
+            MoeMusicConfig(
+                media = MediaPolicyConfig(
+                    maxPlayerTotalQueuedTracks = 1,
+                    maxPlayerTotalQueuedDurationSeconds = 30,
+                    maxPlayerTrackDurationSeconds = 30,
+                )
+            )
+        )
+        val source = object : MusicSource {
+            override val id: String = "source"
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
+        }
+
+        withMusicSource(source) {
+            val controller = freshController()
+            val service = TrackSubmissionService(controller)
+            val bypassPlayer = fakePlayer(permissions = arrayOf(org.lolicode.moemusic.core.permission.PermissionNodes.DURATION_POLICY_BYPASS.id))
+
+            val outcome1 = service.submitResolved(
+                track = TrackInfo(id = "track-1", title = "Track 1", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = bypassPlayer,
+                mode = TrackAddMode.NORMAL,
+            )
+            val outcome2 = service.submitResolved(
+                track = TrackInfo(id = "track-2", title = "Track 2", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = bypassPlayer,
+                mode = TrackAddMode.NORMAL,
+            )
+            assertEquals("track-1", outcome1.track.id)
+            assertEquals("track-2", outcome2.track.id)
+        }
+    }
+
+    @Test
+    fun `submitResolved allows arbitrary submissions when limits are set to 0`() = runBlocking {
+        ModConfigManager.save(
+            MoeMusicConfig(
+                media = MediaPolicyConfig(
+                    maxPlayerTotalQueuedTracks = 0,
+                    maxPlayerTotalQueuedDurationSeconds = 0,
+                    maxPlayerTrackDurationSeconds = 3600,
+                )
+            )
+        )
+        val source = object : MusicSource {
+            override val id: String = "source"
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
+        }
+
+        withMusicSource(source) {
+            val controller = freshController()
+            val service = TrackSubmissionService(controller)
+            val player = fakePlayer()
+
+            repeat(15) { i ->
+                service.submitResolved(
+                    track = TrackInfo(id = "track-$i", title = "Track $i", artists = listOf("Artist").toArtistInfos(), durationMs = 100_000) { sourceId = source.id },
+                    submitter = player,
+                    mode = TrackAddMode.NORMAL,
+                )
+            }
+            assertEquals(15, controller.currentUserTrackMetrics(player).count)
+        }
+    }
+
+    @Test
+    fun `PLAY_NOW replaces current playing user track within count limit`() = runBlocking {
+        ModConfigManager.save(
+            MoeMusicConfig(
+                media = MediaPolicyConfig(
+                    maxPlayerTotalQueuedTracks = 1,
+                    maxPlayerTotalQueuedDurationSeconds = 3600,
+                    maxPlayerTrackDurationSeconds = 3600,
+                )
+            )
+        )
+        val source = object : MusicSource {
+            override val id: String = "source"
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
+        }
+
+        withMusicSource(source) {
+            val controller = freshController()
+            val service = TrackSubmissionService(controller)
+            val player = fakePlayer()
+
+            service.submitResolved(
+                track = TrackInfo(id = "track-1", title = "Track 1", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = player,
+                mode = TrackAddMode.PLAY_NOW,
+            )
+            assertTrue(controller.isCurrentTrackFromUser(player.id, player.displayName))
+            assertEquals(1, controller.currentUserTrackMetrics(player).count)
+
+            assertFailsWith<UserFacingException> {
+                service.submitResolved(
+                    track = TrackInfo(id = "track-2", title = "Track 2", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                    submitter = player,
+                    mode = TrackAddMode.NORMAL,
+                )
+            }
+
+            val outcome = service.submitResolved(
+                track = TrackInfo(id = "track-2", title = "Track 2", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = player,
+                mode = TrackAddMode.PLAY_NOW,
+            )
+            assertEquals("track-2", outcome.track.id)
+            assertEquals(TrackAddResult.PLAYING_NOW, outcome.result)
+            assertEquals(1, controller.currentUserTrackMetrics(player).count)
+        }
+    }
+
     private fun freshController(): ServerPlaybackController = ServerPlaybackController(
         channel = object : NetworkChannel {
             override fun sendToServer(packetId: PacketId, payload: ByteArray) = Unit
@@ -228,22 +429,30 @@ class TrackSubmissionServiceTest {
         },
         queue = TrackQueue(),
         eventBus = EventBusImpl(),
+        onUserQueueTrackSkipped = { _, _ -> },
     )
 
     private suspend fun withMusicSource(source: MusicSource, block: suspend () -> Unit) {
-        PluginManager.musicSources += source
+        synchronized(PluginManager.musicSources) {
+            PluginManager.musicSources += source
+        }
         try {
             block()
         } finally {
-            PluginManager.musicSources.remove(source)
-            assertTrue(source !in PluginManager.musicSources)
+            synchronized(PluginManager.musicSources) {
+                PluginManager.musicSources.remove(source)
+            }
         }
     }
 
-    private fun fakePlayer(): MoeMusicUser = object : MoeMusicUser() {
-        override val displayName: String = "tester"
-        override val id: UUID = UUID.randomUUID()
+    private fun fakePlayer(
+        id: UUID = UUID.randomUUID(),
+        name: String = "tester",
+        vararg permissions: String,
+    ): MoeMusicUser = object : MoeMusicUser() {
+        override val displayName: String = name
+        override val id: UUID = id
         override val locale: String = "en_us"
-        override fun hasPermission(permission: String, defaultLevel: Int): Boolean = false
+        override fun hasPermission(permission: String, defaultLevel: Int): Boolean = permission in permissions
     }
 }

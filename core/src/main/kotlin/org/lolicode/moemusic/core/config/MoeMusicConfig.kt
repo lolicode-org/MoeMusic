@@ -182,6 +182,20 @@ data class MediaPolicyConfig(
     val maxPlayerTrackDurationSeconds: Int = 3_600,
 
     /**
+     * Maximum number of active tracks (pending in queue + currently playing) allowed per player.
+     * `0` disables this limit.
+     */
+    @SerialName("max_player_total_queued_tracks")
+    val maxPlayerTotalQueuedTracks: Int = 10,
+
+    /**
+     * Maximum total duration in seconds of active tracks (pending in queue + currently playing)
+     * allowed per player. `0` disables this limit.
+     */
+    @SerialName("max_player_total_queued_duration_seconds")
+    val maxPlayerTotalQueuedDurationSeconds: Int = 3_600,
+
+    /**
      * Hard server-side clamp for search page size, regardless of what a client requests.
      */
     @SerialName("max_search_results_per_page")
@@ -220,6 +234,8 @@ data class MediaPolicyConfig(
     fun normalized(): MediaPolicyConfig = copy(
         firewall = firewall.normalized(),
         maxPlayerTrackDurationSeconds = maxPlayerTrackDurationSeconds.coerceIn(1, 604_800),
+        maxPlayerTotalQueuedTracks = maxPlayerTotalQueuedTracks.coerceIn(0, 10_000),
+        maxPlayerTotalQueuedDurationSeconds = maxPlayerTotalQueuedDurationSeconds.coerceIn(0, 604_800),
         maxSearchResultsPerPage = maxSearchResultsPerPage.coerceIn(1, 200),
         maxQueueResultsPerPage = maxQueueResultsPerPage.coerceIn(1, 200),
         maxSelectionResultsPerPage = maxSelectionResultsPerPage.coerceIn(1, 200),

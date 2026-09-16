@@ -78,6 +78,12 @@ class ServerPlaybackController(
     @Volatile
     private var currentTrackSource: TrackQueue.NextTrack.Source? = null
 
+    @Volatile
+    private var currentTrackEnqueuedBy: UUID? = null
+
+    @Volatile
+    private var inFlightNextTrack: TrackQueue.NextTrack? = null
+
     /** Earliest monotonic time at which the current playback resource may be re-resolved again. */
     @Volatile
     private var currentPlaybackRefreshNotBeforeNanos: Long = 0L
@@ -159,7 +165,7 @@ class ServerPlaybackController(
                 }
             }
 
-            TrackAddMode.PLAY_NOW -> playNow(track)
+            TrackAddMode.PLAY_NOW -> playNow(track, requesterId)
         }
         onTrackSubmitted?.invoke(track, result)
         return result
@@ -206,6 +212,8 @@ class ServerPlaybackController(
      * Start playing [track] with [playback].
      */
     override fun play(track: TrackInfo, playback: PlaybackResource) {
+        currentTrackSource = null
+        currentTrackEnqueuedBy = null
         playInternal(track, playback, fromAutoplay = false)
     }
 
@@ -297,6 +305,56 @@ class ServerPlaybackController(
         )
         return QueueClearOutcome(removedCount = details.removedCount)
     }
+
+    override fun isCurrentTrackFromUser(userId: UUID?, userName: String?): Boolean {
+        val ctx = currentContext ?: return false
+        if (ctx.state is PlaybackState.Stopped) return false
+        if (currentTrackSource == TrackQueue.NextTrack.Source.AUTOPLAY) return false
+        if (userId == null && userName.isNullOrBlank()) return false
+
+        val trimmedName = userName?.trim()
+        return (userId != null && currentTrackEnqueuedBy == userId) ||
+            (!trimmedName.isNullOrEmpty() && ctx.track.submittedByUserName?.trim().equals(trimmedName, ignoreCase = true))
+    }
+
+    override fun isCurrentTrackFromUser(user: MoeMusicUser?): Boolean =
+        if (user == null) false else isCurrentTrackFromUser(user.id, user.displayName)
+
+    internal fun isInFlightTrackFromUser(userId: UUID?, userName: String?): Boolean {
+        val inFlight = inFlightNextTrack ?: return false
+        if (inFlight.source != TrackQueue.NextTrack.Source.USER_QUEUE) return false
+        if (userId == null && userName.isNullOrBlank()) return false
+        val trimmedName = userName?.trim()
+        return (userId != null && inFlight.enqueuedBy == userId) ||
+            (!trimmedName.isNullOrEmpty() && inFlight.track.submittedByUserName?.trim().equals(trimmedName, ignoreCase = true))
+    }
+
+    override fun currentUserTrackMetrics(userId: UUID?, userName: String?): UserTrackMetrics {
+        val queueMetrics = queue.userTrackMetrics(userId, userName)
+        var count = queueMetrics.count
+        var totalDurationMs = queueMetrics.totalDurationMs
+
+        val inFlight = inFlightNextTrack
+        if (inFlight != null && isInFlightTrackFromUser(userId, userName)) {
+            val current = currentContext
+            if (current == null || current.track.id != inFlight.track.id || current.track.sourceId != inFlight.track.sourceId) {
+                val inFlightDuration = inFlight.track.durationMs.takeIf { it > 0L } ?: 0L
+                count += 1
+                totalDurationMs += inFlightDuration
+            }
+        }
+
+        if (isCurrentTrackFromUser(userId, userName)) {
+            val currentDuration = currentContext?.track?.durationMs?.takeIf { it > 0L } ?: 0L
+            count += 1
+            totalDurationMs += currentDuration
+        }
+
+        return UserTrackMetrics(count, totalDurationMs)
+    }
+
+    override fun currentUserTrackMetrics(user: MoeMusicUser?): UserTrackMetrics =
+        if (user == null) UserTrackMetrics(0, 0L) else currentUserTrackMetrics(user.id, user.displayName)
 
     private fun playInternal(
         track: TrackInfo,
@@ -719,7 +777,7 @@ class ServerPlaybackController(
             lyricsFetched = refreshed.lyricsFetched || this@mergePreservingResolveMetadata.lyricsFetched
         }
 
-    private suspend fun playNow(track: TrackInfo): TrackAddResult {
+    private suspend fun playNow(track: TrackInfo, requesterId: UUID? = null): TrackAddResult {
         queue.removeMatchingUserTrack(track)
         val resolvedTrack = when (val result = resolveTrackForPlayback(track)) {
             is UserResult.Success -> result.value
@@ -728,11 +786,16 @@ class ServerPlaybackController(
                 throw UserFacingException(result.message)
             }
         }
+        currentTrackSource = TrackQueue.NextTrack.Source.USER_QUEUE
+        currentTrackEnqueuedBy = requesterId
         when (val playResult = playInternal(resolvedTrack.track, resolvedTrack.playback, fromAutoplay = false)) {
             PlayInternalResult.Started -> Unit
-            is PlayInternalResult.Failed -> throw UserFacingException(playResult.reason)
+            is PlayInternalResult.Failed -> {
+                currentTrackSource = null
+                currentTrackEnqueuedBy = null
+                throw UserFacingException(playResult.reason)
+            }
         }
-        currentTrackSource = null
         return TrackAddResult.PLAYING_NOW
     }
 
@@ -745,46 +808,64 @@ class ServerPlaybackController(
         repeat(MAX_START_ATTEMPTS) {
             if (!canContinueStart(generation, requireAutoStartPermission, startingFromStopped)) return
 
-            val next = queue.nextTrack()
+            val next = queue.nextTrack { inFlightNextTrack = it }
             if (next == null) {
                 if (stopWhenExhausted) stop(manual = false)
                 return
             }
-
-            val resolvedTrack = when (val result = resolveTrackForPlayback(next.track)) {
-                is UserResult.Success -> result.value
-                is UserResult.Error -> {
-                    logger.warn(
-                        "Skipping unplayable track '{}' while selecting the next track: {}",
-                        next.track.title,
-                        result.message.debugString(),
-                    )
-                    playFailed(
-                        track = next.track,
-                        fromAutoplay = next.source == TrackQueue.NextTrack.Source.AUTOPLAY,
-                        reason = result.message,
-                    )
-                    notifyUserQueueTrackSkipped(next, result.message)
-                    return@repeat
+            val resolvedTrack = try {
+                when (val result = resolveTrackForPlayback(next.track)) {
+                    is UserResult.Success -> result.value
+                    is UserResult.Error -> {
+                        inFlightNextTrack = null
+                        logger.warn(
+                            "Skipping unplayable track '{}' while selecting the next track: {}",
+                            next.track.title,
+                            result.message.debugString(),
+                        )
+                        playFailed(
+                            track = next.track,
+                            fromAutoplay = next.source == TrackQueue.NextTrack.Source.AUTOPLAY,
+                            reason = result.message,
+                        )
+                        notifyUserQueueTrackSkipped(next, result.message)
+                        return@repeat
+                    }
                 }
+            } catch (t: Throwable) {
+                inFlightNextTrack = null
+                throw t
             }
 
             if (!canContinueStart(generation, requireAutoStartPermission, startingFromStopped)) {
+                inFlightNextTrack = null
                 requeueIfUserTrack(next)
                 return
             }
 
             currentTrackSource = next.source
-            when (
-                val playResult = playInternal(
+            currentTrackEnqueuedBy = if (next.source == TrackQueue.NextTrack.Source.USER_QUEUE) next.enqueuedBy else null
+            val playResult = try {
+                playInternal(
                     resolvedTrack.track,
                     resolvedTrack.playback,
                     fromAutoplay = next.source == TrackQueue.NextTrack.Source.AUTOPLAY,
                 )
-            ) {
-                PlayInternalResult.Started -> return
+            } finally {
+                inFlightNextTrack = null
+            }
+            when (playResult) {
+                PlayInternalResult.Started -> {
+                    synchronized(advanceLock) {
+                        if (advancingGeneration == generation) {
+                            advancingGeneration = null
+                        }
+                    }
+                    return
+                }
                 is PlayInternalResult.Failed -> {
                     currentTrackSource = null
+                    currentTrackEnqueuedBy = null
                     notifyUserQueueTrackSkipped(next, playResult.reason)
                 }
             }
@@ -841,6 +922,8 @@ class ServerPlaybackController(
         broadcast(PacketIds.STATE_UPDATE, msg.encode())
         currentContext = null
         currentTrackSource = null
+        currentTrackEnqueuedBy = null
+        inFlightNextTrack = null
         clearCurrentPlaybackRefreshState()
         eventBus.fire(OnPlaybackStopped(stoppedTrack, manual))
         logger.info(

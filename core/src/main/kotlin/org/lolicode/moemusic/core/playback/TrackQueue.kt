@@ -1,6 +1,7 @@
 package org.lolicode.moemusic.core.playback
 
 import org.lolicode.moemusic.api.model.TrackInfo
+import org.lolicode.moemusic.api.model.UserTrackMetrics
 import org.lolicode.moemusic.api.model.copy
 import org.lolicode.moemusic.api.model.matchesQueueIdentity
 import java.util.UUID
@@ -94,22 +95,26 @@ class TrackQueue {
      *
      * Priority: user queue → [autoplaySupplier].
      */
-    fun nextTrack(): NextTrack? {
+    fun nextTrack(onPopped: ((NextTrack) -> Unit)? = null): NextTrack? {
         synchronized(queueLock) {
             val queued = userQueue.removeFirstOrNull()
             if (queued != null) {
-                return NextTrack(
+                val next = NextTrack(
                     track = queued.track,
                     source = NextTrack.Source.USER_QUEUE,
                     enqueuedBy = queued.enqueuedBy,
                 )
+                onPopped?.invoke(next)
+                return next
             }
         }
         val autoplayTrack = autoplaySupplier?.invoke() ?: return null
-        return NextTrack(
+        val next = NextTrack(
             track = autoplayTrack,
             source = NextTrack.Source.AUTOPLAY,
         )
+        onPopped?.invoke(next)
+        return next
     }
 
     /** True if the user queue has at least one pending track. */
@@ -120,6 +125,30 @@ class TrackQueue {
 
     /** Snapshot of the user queue for display purposes (ordered, not live). */
     fun userQueueSnapshot(): List<TrackInfo> = synchronized(queueLock) { userQueue.map { it.track } }
+
+    /**
+     * Compute the count and total duration in milliseconds of pending tracks submitted by the user in this queue.
+     */
+    fun userTrackMetrics(userId: UUID?, userName: String?): UserTrackMetrics = synchronized(queueLock) {
+        if (userId == null && userName.isNullOrBlank()) {
+            return@synchronized UserTrackMetrics(0, 0L)
+        }
+        val trimmedName = userName?.trim()
+        var count = 0
+        var totalDurationMs = 0L
+        for ((track, enqueuedBy) in userQueue) {
+            val matches = (userId != null && enqueuedBy == userId) ||
+                (!trimmedName.isNullOrEmpty() && track.submittedByUserName?.trim().equals(trimmedName, ignoreCase = true))
+            if (matches) {
+                count++
+                val duration = track.durationMs
+                if (duration > 0L) {
+                    totalDurationMs += duration
+                }
+            }
+        }
+        UserTrackMetrics(count, totalDurationMs)
+    }
 
     /** Returns the distinct submitter user names in the user queue without snapshotting tracks. */
     fun distinctSubmitterNames(): Set<String> = synchronized(queueLock) {

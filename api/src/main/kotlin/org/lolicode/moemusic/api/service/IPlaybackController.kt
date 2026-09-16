@@ -5,6 +5,7 @@ import org.lolicode.moemusic.api.MoeMusicUser
 import org.lolicode.moemusic.api.model.PlaybackResource
 import org.lolicode.moemusic.api.model.TrackContext
 import org.lolicode.moemusic.api.model.TrackInfo
+import org.lolicode.moemusic.api.model.UserTrackMetrics
 import org.lolicode.moemusic.api.plugin.Plugin
 import org.lolicode.moemusic.api.plugin.ServerRuntimeContext
 import org.lolicode.moemusic.api.plugin.ServerSessionContext
@@ -125,4 +126,29 @@ public interface IPlaybackController {
         requester: MoeMusicUser? = null,
         bypassOwnership: Boolean = false,
     ): QueueClearOutcome = QueueClearOutcome(0)
+
+    /**
+     * Compute the count and total duration in milliseconds of active tracks submitted by the user
+     * in the queue (pending tracks), plus the currently playing track if it was submitted by this user.
+     */
+    public fun currentUserTrackMetrics(userId: UUID?, userName: String?): UserTrackMetrics =
+        UserTrackMetrics(0, 0L)
+
+    /**
+     * Compute active track metrics for [user].
+     */
+    public fun currentUserTrackMetrics(user: MoeMusicUser?): UserTrackMetrics =
+        if (user == null) UserTrackMetrics(0, 0L) else currentUserTrackMetrics(user.id, user.displayName)
+
+    /**
+     * Returns true if the currently playing track is active and was submitted by the specified user.
+     * Autoplay tracks always return false.
+     */
+    public fun isCurrentTrackFromUser(userId: UUID?, userName: String?): Boolean = false
+
+    /**
+     * Returns true if the currently playing track is active and was submitted by [user].
+     */
+    public fun isCurrentTrackFromUser(user: MoeMusicUser?): Boolean =
+        if (user == null) false else isCurrentTrackFromUser(user.id, user.displayName)
 }
