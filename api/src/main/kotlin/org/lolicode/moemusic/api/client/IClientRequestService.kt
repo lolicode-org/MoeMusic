@@ -25,6 +25,7 @@ public interface IClientRequestService {
      *
      * It has a default implementation to avoid ABI breakage, but new implementations should *always* override this method.
      */
+    @Suppress("DEPRECATION")
     public suspend fun requestFullQueue(): ClientQueueSnapshot = requestQueue()
 
     /**
@@ -43,6 +44,7 @@ public interface IClientRequestService {
      *
      * It has a default implementation to avoid ABI breakage, but new implementations should *always* override this method.
      */
+    @Suppress("DEPRECATION")
     public suspend fun requestQueue(offset: Int = 0, limit: Int = 0): ClientQueueSnapshot = requestQueue()
 
     /** Request a page of choices from an active selection session on the connected server. */
