@@ -30,6 +30,7 @@ class MoeMusicConfigTest {
                     hosts = listOf(" .Example.com ", "", "cdn.example.com", "example.com"),
                 ),
                 maxPlayerTrackDurationSeconds = 999_999_999,
+                maxTotalQueuedTracks = 999_999,
                 maxSearchResultsPerPage = -5,
                 rateLimit = RequestRateLimitConfig(
                     windowSeconds = 0,
@@ -84,6 +85,7 @@ class MoeMusicConfigTest {
         assertEquals(5, normalized.permissions.durationPolicyBypass)
         assertEquals(0, normalized.permissions.rateLimitBypass)
         assertEquals(604_800, normalized.media.maxPlayerTrackDurationSeconds)
+        assertEquals(100_000, normalized.media.maxTotalQueuedTracks)
         assertEquals(1, normalized.media.maxSearchResultsPerPage)
         assertEquals(1, normalized.media.rateLimit.windowSeconds)
         assertEquals(0, normalized.media.rateLimit.searchRequests)

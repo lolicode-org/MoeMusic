@@ -249,6 +249,15 @@ class TrackSubmissionService(
                 }
             }
         }
+
+        val maxTotalQueuedTracks = mediaConfig.maxTotalQueuedTracks
+        if (maxTotalQueuedTracks > 0 && mode != TrackAddMode.PLAY_NOW) {
+            if (controller.userQueueSize() + 1 > maxTotalQueuedTracks) {
+                throw UserFacingException(
+                    LocalizedText.key("error.moemusic.track.total_queue_limit_exceeded", maxTotalQueuedTracks),
+                )
+            }
+        }
     }
 
     private fun hasDurationPolicyBypass(submitter: MoeMusicUser): Boolean =

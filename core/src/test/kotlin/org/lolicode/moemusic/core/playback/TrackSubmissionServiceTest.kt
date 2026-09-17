@@ -430,6 +430,87 @@ class TrackSubmissionServiceTest {
         }
     }
 
+    @Test
+    fun `submitResolved rejects when total queued tracks in user queue exceeds limit across players`() = runBlocking {
+        ModConfigManager.save(
+            MoeMusicConfig(
+                media = MediaPolicyConfig(
+                    maxPlayerTotalQueuedTracks = 10,
+                    maxTotalQueuedTracks = 2,
+                    maxPlayerTrackDurationSeconds = 3600,
+                )
+            )
+        )
+        val source = object : MusicSource {
+            override val id: String = "source"
+            override suspend fun resolve(track: TrackInfo, submitter: MoeMusicUser?): PlaybackResolution =
+                PlaybackResolution(PlaybackResource("https://example.com/${track.id}.mp3"))
+        }
+
+        withMusicSource(source) {
+            val controller = freshController()
+            val service = TrackSubmissionService(controller)
+            val player1 = fakePlayer(name = "player1")
+            val player2 = fakePlayer(name = "player2")
+
+            service.submitResolved(
+                track = TrackInfo(id = "track-1", title = "Track 1", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = player1,
+                mode = TrackAddMode.NORMAL,
+            )
+            service.submitResolved(
+                track = TrackInfo(id = "track-2", title = "Track 2", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = player1,
+                mode = TrackAddMode.NORMAL,
+            )
+            service.submitResolved(
+                track = TrackInfo(id = "track-3", title = "Track 3", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = player2,
+                mode = TrackAddMode.NORMAL,
+            )
+            assertEquals(2, controller.userQueueSize())
+
+            val error = assertFailsWith<UserFacingException> {
+                service.submitResolved(
+                    track = TrackInfo(id = "track-4", title = "Track 4", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                    submitter = player2,
+                    mode = TrackAddMode.NORMAL,
+                )
+            }
+            assertEquals("error.moemusic.track.total_queue_limit_exceeded", (error.userMessage as LocalizedText.Key).key)
+
+            // PLAY_NOW does not enqueue to user queue, so it succeeds even at limit
+            val playNowOutcome = service.submitResolved(
+                track = TrackInfo(id = "track-play-now", title = "Play Now", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = player2,
+                mode = TrackAddMode.PLAY_NOW,
+            )
+            assertEquals(TrackAddResult.PLAYING_NOW, playNowOutcome.result)
+
+            // Submitter with duration policy bypass permission can bypass the queue limit
+            val bypassPlayer = fakePlayer(
+                name = "admin",
+                permissions = arrayOf(org.lolicode.moemusic.core.permission.PermissionNodes.DURATION_POLICY_BYPASS.id),
+            )
+            val outcome = service.submitResolved(
+                track = TrackInfo(id = "track-4", title = "Track 4", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = bypassPlayer,
+                mode = TrackAddMode.NORMAL,
+            )
+            assertEquals("track-4", outcome.track.id)
+            assertEquals(3, controller.userQueueSize())
+
+            // Server-internal / null submitter can also bypass the limit
+            val internalOutcome = service.submitResolved(
+                track = TrackInfo(id = "track-5", title = "Track 5", artists = listOf("Artist").toArtistInfos(), durationMs = 60_000) { sourceId = source.id },
+                submitter = null,
+                mode = TrackAddMode.NORMAL,
+            )
+            assertEquals("track-5", internalOutcome.track.id)
+            assertEquals(4, controller.userQueueSize())
+        }
+    }
+
     private fun freshController(): ServerPlaybackController = ServerPlaybackController(
         channel = object : NetworkChannel {
             override fun sendToServer(packetId: PacketId, payload: ByteArray) = Unit

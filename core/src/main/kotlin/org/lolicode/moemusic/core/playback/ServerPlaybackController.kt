@@ -69,6 +69,9 @@ class ServerPlaybackController(
     override fun userQueueSnapshot(): List<TrackInfo> =
         queue.userQueueSnapshot()
 
+    fun userQueueSize(): Int =
+        queue.userQueueSize()
+
     @Volatile
     private var autoStartPolicy: AutoStartPolicy = AutoStartPolicy.ALLOWED
 
